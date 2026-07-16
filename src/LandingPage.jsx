@@ -1,222 +1,363 @@
-import React from 'react';
-import { ArrowRight, Check, Play, Menu, X, Database, Cpu, Shield, Layers, Zap } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowRight, Check, Play, Menu, X, Database, Cpu, Shield, Layers, Zap, Plus, Globe } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-const LandingPage = () => {
-  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+const Button = ({ variant = 'primary', children, style = {}, icon: Icon, ...props }) => {
+  const baseStyle = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '14px 28px',
+    borderRadius: '999px',
+    fontSize: '15px',
+    fontWeight: '600',
+    border: '1px solid transparent',
+    transition: 'all 0.2s cubic-bezier(.16,.8,.24,1)',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap'
+  };
+  
+  const variants = {
+    primary: { backgroundColor: '#111111', color: '#F5F5F3' },
+    outline: { backgroundColor: 'transparent', color: '#111111', borderColor: '#E5E4E0' },
+    accent: { backgroundColor: '#1B4332', color: '#F5F5F3' }
+  };
 
   return (
-    <div className="min-h-screen bg-bg-base text-text-primary font-sans selection:bg-text-primary selection:text-bg-base">
+    <button 
+      style={{ ...baseStyle, ...variants[variant], ...style }} 
+      onMouseOver={(e) => {
+        if(variant === 'outline') e.currentTarget.style.borderColor = '#111111';
+        if(variant === 'primary') e.currentTarget.style.backgroundColor = '#000';
+      }}
+      onMouseOut={(e) => {
+        if(variant === 'outline') e.currentTarget.style.borderColor = '#E5E4E0';
+        if(variant === 'primary') e.currentTarget.style.backgroundColor = '#111111';
+      }}
+      {...props}
+    >
+      {children}
+      {Icon && <Icon size={18} />}
+    </button>
+  );
+};
+
+const Card = ({ children, className = "", delay = 0 }) => (
+  <div 
+    className={`bg-white border border-[#E5E4E0] rounded-[16px] p-8 md:p-12 animate-in fade-in slide-in-from-bottom-4 duration-700 fill-mode-both ${className}`}
+    style={{ animationDelay: `${delay}ms` }}
+  >
+    {children}
+  </div>
+);
+
+const LandingPage = () => {
+  const navigate = useNavigate();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeFaq, setActiveFaq] = useState(0);
+
+  return (
+    <div className="min-h-screen bg-[#FAFAF8] text-[#111111] font-sans selection:bg-[#111111] selection:text-[#F5F5F3] overflow-x-hidden">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-bg-base/80 backdrop-blur-md border-b border-border-subtle">
-        <div className="max-w-[1400px] mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-12">
-            <div className="flex items-center gap-2 cursor-pointer">
-              <div className="w-9 h-9 bg-text-primary rounded-lg flex items-center justify-center text-bg-base font-display font-bold text-xl">T</div>
-              <span className="font-display font-bold text-2xl tracking-tighter">Toddler</span>
+      <nav className="sticky top-0 z-50 bg-[#FAFAF8]/90 backdrop-blur-md border-b border-[#E5E4E0]">
+        <div className="max-w-[1200px] mx-auto px-6 h-[72px] flex items-center justify-between">
+          <div className="flex items-center gap-10">
+            <div className="flex items-center gap-2.5 font-display font-bold text-[17px] tracking-tight cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+              <div className="w-7 h-7 bg-[#111111] rounded-lg flex items-center justify-center text-[#F5F5F3] text-sm font-bold">T</div>
+              Toddler
             </div>
-            <div className="hidden lg:flex items-center gap-8">
-              <a href="#how-it-works" className="text-sm font-semibold text-text-muted hover:text-text-primary transition-colors">How it works</a>
-              <a href="#features" className="text-sm font-semibold text-text-muted hover:text-text-primary transition-colors">Features</a>
-              <a href="#pricing" className="text-sm font-semibold text-text-muted hover:text-text-primary transition-colors">Pricing</a>
+            <div className="hidden md:flex items-center gap-8">
+              <a href="#how-it-works" className="text-sm font-medium text-[#6B6B68] hover:text-[#111111] transition-colors">How it works</a>
+              <a href="#features" className="text-sm font-medium text-[#6B6B68] hover:text-[#111111] transition-colors">Features</a>
+              <a href="#pricing" className="text-sm font-medium text-[#6B6B68] hover:text-[#111111] transition-colors">Pricing</a>
             </div>
           </div>
           <div className="flex items-center gap-6">
-            <button className="hidden sm:block text-sm font-bold uppercase tracking-widest hover:opacity-60 transition-opacity">Log in</button>
-            <button className="bg-text-primary text-bg-base px-7 py-3 rounded-full font-bold text-sm border-2 border-text-primary hover:bg-transparent hover:text-text-primary transition-all">Get started free</button>
-            <button className="lg:hidden p-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>{mobileMenuOpen ? <X /> : <Menu />}</button>
+            <button onClick={() => navigate('/login')} className="hidden sm:block text-sm font-semibold text-[#6B6B68] hover:text-[#111111] border-none bg-transparent cursor-pointer transition-colors">Log in</button>
+            <Button onClick={() => navigate('/signup')} style={{ padding: '10px 20px', fontSize: '14px' }}>Get started free</Button>
+            <button className="md:hidden p-2 border-none bg-transparent cursor-pointer" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+              {mobileMenuOpen ? <X /> : <Menu />}
+            </button>
           </div>
         </div>
       </nav>
 
-      {/* Mobile Menu */}
+      {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 z-40 bg-bg-base pt-24 px-6 flex flex-col gap-8 animate-in fade-in slide-in-from-top-4 duration-300">
-          <a href="#how-it-works" className="text-3xl font-display font-bold" onClick={() => setMobileMenuOpen(false)}>How it works</a>
-          <a href="#features" className="text-3xl font-display font-bold" onClick={() => setMobileMenuOpen(false)}>Features</a>
-          <a href="#pricing" className="text-3xl font-display font-bold" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
-          <button className="mt-8 bg-text-primary text-bg-base py-5 rounded-full font-bold text-xl">Get started free</button>
+        <div className="fixed inset-0 z-40 bg-[#FAFAF8] pt-24 px-6 flex flex-col gap-8 animate-in fade-in slide-in-from-top-4 duration-300">
+          <a href="#how-it-works" className="text-3xl font-display font-bold no-underline" onClick={() => setMobileMenuOpen(false)}>How it works</a>
+          <a href="#features" className="text-3xl font-display font-bold no-underline" onClick={() => setMobileMenuOpen(false)}>Features</a>
+          <a href="#pricing" className="text-3xl font-display font-bold no-underline" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
+          <Button onClick={() => navigate('/signup')} style={{ width: '100%', padding: '20px' }}>Get started free</Button>
         </div>
       )}
 
-      {/* Hero Section */}
-      <header className="pt-24 pb-32 px-6">
-        <div className="max-w-[1400px] mx-auto text-center flex flex-col items-center">
-          <div className="mb-8 px-4 py-1.5 bg-white border border-border-subtle rounded-full text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted inline-flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-            V1.0 Now In Public Beta
-          </div>
-          <h1 className="font-display text-5xl md:text-8xl font-bold tracking-tighter mb-10 leading-[0.9] max-w-prose-head">
-            Turn your data into pure intelligence.
-          </h1>
-          <p className="text-xl md:text-2xl text-text-muted max-w-[50ch] mb-12 leading-relaxed font-medium">
-            Train, own, and deploy custom AI models without writing code. The sophisticated toolkit for modern domain experts.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-5 mb-32">
-            <button className="bg-text-primary text-bg-base px-10 py-5 rounded-full font-bold text-lg flex items-center justify-center gap-3 border-2 border-text-primary hover:bg-transparent hover:text-text-primary transition-all group">
-              Start Training Free <ArrowRight className="group-hover:translate-x-1 transition-transform" />
-            </button>
-            <button className="bg-white border-2 border-text-primary px-10 py-5 rounded-full font-bold text-lg flex items-center justify-center gap-3 hover:bg-bg-base transition-all">
-              <Play size={20} fill="currentColor" /> Watch 2min Demo
-            </button>
-          </div>
+      <main>
+        {/* Hero Section */}
+        <section className="pt-16 pb-0 px-6 text-center">
+          <div className="max-w-[1200px] mx-auto flex flex-col items-center">
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 flex items-center gap-2 px-4 py-2 border border-[#E5E4E0] rounded-full text-[13px] font-medium text-[#6B6B68] mb-8 bg-white">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#1B4332] animate-pulse" />
+              V1.0 Now In Public Beta
+            </div>
+            
+            <h1 className="font-display text-[44px] md:text-[72px] font-bold leading-[1.05] tracking-tighter mb-8 max-w-[18ch] animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100 fill-mode-both">
+              Turn your data into <span className="text-[#6B6B68]">pure intelligence.</span>
+            </h1>
 
-          {/* Hero Visual Mockup */}
-          <div className="w-full max-w-6xl bg-white border-2 border-text-primary rounded-3xl overflow-hidden p-3 md:p-5 relative">
-            <div className="bg-bg-base rounded-2xl border border-border-subtle aspect-[16/9] flex items-center justify-center relative overflow-hidden p-8 md:p-16">
-              <div className="w-full h-full flex flex-col gap-10 text-left">
-                <div className="flex justify-between items-center">
-                  <div className="h-7 w-48 bg-text-primary/5 rounded-full" />
-                  <div className="h-10 w-32 bg-accent/10 border border-accent/20 rounded-full flex items-center justify-center text-[10px] font-bold text-accent tracking-widest px-4 uppercase">Connected</div>
+            <p className="text-lg md:text-[18px] text-[#6B6B68] max-w-[46ch] mb-10 leading-relaxed animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200 fill-mode-both">
+              Train, own, and deploy custom AI models without writing code. The sophisticated toolkit for modern domain experts.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 mb-16 md:mb-24 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 fill-mode-both">
+              <Button onClick={() => navigate('/signup')} icon={ArrowRight}>Start Training Free</Button>
+              <Button variant="outline" icon={Play}>Watch 2min Demo</Button>
+            </div>
+
+            {/* Hero Visual */}
+            <div className="w-full max-w-[960px] animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-400 fill-mode-both relative">
+              <div className="bg-white border border-[#E5E4E0] rounded-[20px] p-6 md:p-10 text-left shadow-[0_24px_60px_-30px_rgba(0,0,0,0.15)] relative">
+                <div className="grid md:grid-cols-[1.4fr_1fr] gap-8">
+                  <div className="space-y-6">
+                    <div className="border border-[#E5E4E0] rounded-xl p-4 flex items-center gap-3">
+                      <div className="w-9 h-9 bg-[#F2E9C9] text-[#8a6d1f] rounded-lg flex items-center justify-center text-[11px] font-bold">CSV</div>
+                      <div className="flex-grow">
+                        <div className="text-sm font-semibold">Dataset_final.csv</div>
+                        <div className="text-[12px] text-[#6B6B68]">2,400 rows processed</div>
+                      </div>
+                    </div>
+                    <div className="space-y-3 pt-2">
+                      <div className="h-2.5 w-[85%] bg-[#E5E4E0] rounded-full" />
+                      <div className="h-2.5 w-[65%] bg-[#E5E4E0] rounded-full" />
+                      <div className="h-2.5 w-[75%] bg-[#E5E4E0] rounded-full" />
+                    </div>
+                  </div>
+                  <div className="bg-[#111111] rounded-xl p-6 text-white flex flex-col justify-center text-center">
+                    <span className="text-[11px] font-bold uppercase tracking-wider opacity-60">Accuracy</span>
+                    <div className="font-display text-[48px] md:text-[56px] font-bold leading-tight">98.4%</div>
+                  </div>
                 </div>
-                <div className="grid grid-cols-12 gap-8 flex-grow">
-                  <div className="col-span-12 md:col-span-8 bg-white border-2 border-text-primary/10 rounded-2xl p-8 space-y-8 flex flex-col">
-                    <div className="flex justify-between items-center pb-4 border-b border-border-subtle">
-                      <span className="font-bold text-lg">Customer_Reviews_2026.csv</span>
-                      <span className="text-[11px] font-bold uppercase tracking-widest text-accent flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-accent animate-pulse" /> Processing</span>
-                    </div>
-                    <div className="space-y-4 flex-grow">
-                      {[1,2,3,4].map(i => <div key={i} className="h-10 w-full bg-bg-base rounded-xl border border-border-subtle" />)}
-                    </div>
-                  </div>
-                  <div className="hidden md:flex md:col-span-4 flex-col gap-8">
-                    <div className="h-1/2 bg-text-primary rounded-2xl p-8 text-bg-base flex flex-col justify-between border-2 border-text-primary">
-                      <span className="text-[11px] font-bold uppercase tracking-[0.3em] opacity-40">Accuracy</span>
-                      <span className="text-6xl font-display font-bold">98.4%</span>
-                    </div>
-                    <div className="h-1/2 bg-accent rounded-2xl p-8 text-bg-base flex flex-col justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-[0.3em] opacity-40">Status</span>
-                      <span className="text-3xl font-display font-bold">Model Ready</span>
-                    </div>
-                  </div>
+                
+                {/* Floating Badge */}
+                <div className="absolute -bottom-5 right-6 md:right-10 bg-[#1B4332] text-white px-5 py-3.5 rounded-xl flex items-center gap-2.5 font-semibold text-sm shadow-[0_12px_24px_-8px_rgba(0,0,0,.35)] animate-in fade-in slide-in-from-right-4 duration-500 delay-[1200ms] fill-mode-both">
+                  <div className="w-2 h-2 rounded-full bg-white" />
+                  Model Trained · Success in 42 sec
                 </div>
               </div>
             </div>
-            {/* Absolute element - Floating Success Toast */}
-            <div className="hidden lg:flex absolute bottom-12 right-12 bg-bg-dark text-bg-base p-5 rounded-2xl border border-white/10 items-center gap-5 shadow-2xl animate-in fade-in slide-in-from-right-8 duration-700 delay-1000 fill-mode-both">
-              <div className="w-12 h-12 bg-accent text-accent-fg rounded-xl flex items-center justify-center">
-                <Zap size={24} />
-              </div>
-              <div className="text-left pr-4">
-                <div className="text-sm font-bold uppercase tracking-widest mb-1">Model Trained</div>
-                <div className="text-xs opacity-50 font-medium">Success in 42.1 seconds</div>
-              </div>
+          </div>
+        </section>
+
+        {/* Feature Grid */}
+        <section id="features" className="py-24 md:py-32 px-6">
+          <div className="max-w-[1200px] mx-auto">
+            <div className="text-center max-w-[640px] mx-auto mb-16 space-y-4">
+              <h2 className="font-display text-4xl md:text-[36px] font-bold tracking-tight">Engineered for quality.</h2>
+              <p className="text-lg md:text-[18px] text-[#6B6B68] leading-relaxed">Toddler isn't just a wrapper. We've built a full-stack engine designed to make custom machine learning reliable and accessible.</p>
+            </div>
+            <div className="grid md:grid-cols-2 gap-6">
+              {[
+                { title: "Dataset Sanitization", icon: "◧", tag: "Data", desc: "Automatic handling of missing values, outliers, and encoding. We prepare your data so you don't have to." },
+                { title: "Real-time Training", icon: "◫", tag: "Engine", desc: "Synchronous training cycles with live metric updates. No hidden queues or waiting for hours." },
+                { title: "Full Ownership", icon: "◨", tag: "Legal", desc: "Every model you train is yours — trained on your data, for your use case.", note: "Model export coming to Pro" },
+                { title: "Cross-platform API", icon: "◪", tag: "API", desc: "Deploy models with a single click. Access them via a simple REST API or native SDKs.", note: "Coming to Pro" },
+                { title: "Interactive Playground", icon: "▷", tag: "Test", desc: "Test your models immediately in a human-friendly interface before deploying to production." },
+                { title: "Mobile Optimization", icon: "▤", tag: "UX", desc: "Monitor training and test predictions from any device with our optimized mobile dashboard." }
+              ].map((f, i) => (
+                <Card key={i} delay={i * 80}>
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="w-11 h-11 bg-[#F4F4F1] rounded-xl flex items-center justify-center text-[20px] text-[#1B4332]">{f.icon}</div>
+                    <span className="text-[13px] font-medium uppercase tracking-wider text-[#6B6B68]">{f.tag}</span>
+                  </div>
+                  <h3 className="font-display text-xl font-bold mb-3">{f.title}</h3>
+                  <p className="text-[#6B6B68] text-[15px] leading-relaxed">{f.desc}</p>
+                  {f.note && <div className="text-[12px] font-semibold text-[#1B4332] mt-4">{f.note}</div>}
+                </Card>
+              ))}
             </div>
           </div>
-        </div>
-      </header>
+        </section>
 
-      {/* Grid Features */}
-      <section id="features" className="py-32 bg-white border-y border-border-subtle overflow-hidden">
-        <div className="max-w-[1400px] mx-auto px-6">
-          <div className="text-center mb-24 space-y-4">
-            <h2 className="font-display text-4xl md:text-6xl font-bold tracking-tighter">Engineered for quality.</h2>
-            <p className="text-lg text-text-muted max-w-[60ch] mx-auto leading-relaxed">No black boxes. We've built a full-stack engine designed to make machine learning reliable and accessible.</p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              { title: "Dataset Sanitization", tag: "DATA", icon: Database, desc: "Automatic handling of missing values, outliers, and encoding. We prepare your data so you don't have to." },
-              { title: "Real-time Training", tag: "ENGINE", icon: Cpu, desc: "Synchronous training cycles with live metric updates. No hidden queues or waiting for hours." },
-              { title: "Full Ownership", tag: "LEGAL", icon: Shield, desc: "Every model you train is yours. Access the underlying logic and keep your proprietary edge." },
-              { title: "Standard Architecture", tag: "ML", icon: Layers, desc: "Uses reliable TF-IDF + Logistic Regression optimized for specific datasets and small row counts." },
-              { title: "Interactive Playground", tag: "TEST", icon: Play, desc: "Test your models immediately in a human-friendly interface before using the results in production." },
-              { title: "Clean Validation", tag: "QA", icon: Check, desc: "Automatic 80/20 train-test splits with confusion matrices you can actually read and trust." }
-            ].map((f, i) => (
-              <div key={i} className="bg-bg-base p-10 rounded-3xl border border-border-subtle hover:border-text-primary transition-all group cursor-default">
-                <div className="flex justify-between items-start mb-12">
-                  <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center border border-border-subtle group-hover:scale-110 transition-transform">
-                    <f.icon className="text-text-primary" size={28} />
+        {/* How it Works */}
+        <section id="how-it-works" className="py-24 px-6 border-t border-[#E5E4E0]">
+          <div className="max-w-[1200px] mx-auto">
+            <h2 className="font-display text-3xl md:text-[36px] font-bold text-center mb-16">Train your model in three simple steps.</h2>
+            <div className="max-w-[720px] mx-auto border-t border-[#E5E4E0]">
+              {[
+                { step: "01", title: "Upload & Map", desc: "Drop your CSV and select which columns contain your text and labels." },
+                { step: "02", title: "Automated Training", desc: "Toddler optimizes the model architecture specifically for your data size." },
+                { step: "03", title: "Validate & Ship", desc: "Check accuracy on held-out data before you rely on it. Model export is coming with Pro." }
+              ].map((s, i) => (
+                <div key={i} className="grid grid-cols-[56px_1fr] gap-6 py-8 border-b border-[#E5E4E0] items-start hover:bg-[#111111]/[0.01] transition-colors group">
+                  <div className="font-display text-[22px] font-bold text-[#E5E4E0] group-hover:text-[#111111] transition-colors">{s.step}</div>
+                  <div>
+                    <h3 className="text-[18px] font-bold mb-2">{s.title}</h3>
+                    <p className="text-[#6B6B68] text-[15px]">{s.desc}</p>
                   </div>
-                  <span className="text-[10px] font-bold tracking-[0.2em] text-text-muted border border-border-subtle px-3 py-1 rounded-full uppercase">{f.tag}</span>
                 </div>
-                <h3 className="font-display text-2xl font-bold mb-4">{f.title}</h3>
-                <p className="text-text-muted leading-relaxed text-sm font-medium">{f.desc}</p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Pricing Card Section */}
-      <section id="pricing" className="py-32 bg-bg-base">
-        <div className="max-w-[1400px] mx-auto px-6 text-center">
-          <h2 className="font-display text-4xl md:text-7xl font-bold tracking-tighter mb-8">Simple, human pricing.</h2>
-          <p className="text-xl text-text-muted mb-24">No tokens or usage tiers. Just build.</p>
-          <div className="grid md:grid-cols-2 max-w-5xl mx-auto gap-8 items-stretch text-left">
-            <div className="bg-white p-12 rounded-[32px] border-2 border-text-primary flex flex-col justify-between">
-              <div className="space-y-12">
+        {/* Proof Section */}
+        <section className="py-24 px-6">
+          <div className="max-w-[1200px] mx-auto text-center">
+            <h2 className="font-display text-3xl md:text-[36px] font-bold mb-4">Real runs, real numbers.</h2>
+            <p className="text-[#6B6B68] text-lg mb-16">Internal benchmarks gatherered from early development runs.</p>
+            <div className="grid md:grid-cols-3 gap-6">
+              {[
+                { stat: "91%", desc: "500 product reviews → star rating, 38s" },
+                { stat: "87%", desc: "1,200 tickets → category, 51s" },
+                { stat: "94%", desc: "800 responses → sentiment, 29s" }
+              ].map((p, i) => (
+                <Card key={i} delay={i * 100} className="text-center">
+                  <div className="font-display text-[48px] font-bold text-[#111111]">{p.stat}</div>
+                  <div className="text-[14px] text-[#6B6B68] mt-2 max-w-[20ch] mx-auto">{p.desc}</div>
+                </Card>
+              ))}
+            </div>
+            <p className="text-[13px] text-[#6B6B68] mt-10 italic">These are internal test runs shown transparently — not user data.</p>
+          </div>
+        </section>
+
+        {/* Ownership Section */}
+        <section className="py-24 px-6">
+          <div className="max-w-[1200px] mx-auto">
+            <div className="bg-[#0F1210] text-[#F5F5F3] rounded-[24px] p-12 md:p-20 text-center space-y-6">
+              <h2 className="font-display text-4xl font-bold tracking-tight max-w-[16ch] mx-auto">You own what you build.</h2>
+              <p className="text-[17px] text-[#9A9A96] max-w-[52ch] mx-auto leading-relaxed">Every model you train belongs to you, not a shared black box behind an API you don't control. Toddler exists so a domain expert can build something specific, keep the result, and not have to explain themselves to a platform to use it.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Pricing Section */}
+        <section id="pricing" className="py-24 md:py-32 px-6">
+          <div className="max-w-[1200px] mx-auto">
+            <div className="text-center mb-20 space-y-4">
+              <h2 className="font-display text-4xl md:text-[36px] font-bold tracking-tight">Simple, honest pricing.</h2>
+              <p className="text-lg text-[#6B6B68]">Build your first model for free. Upgrade as you scale.</p>
+            </div>
+            <div className="grid md:grid-cols-2 gap-8 max-w-[1000px] mx-auto items-stretch">
+              <div className="bg-white border border-[#E5E4E0] rounded-[20px] p-10 flex flex-col justify-between shadow-sm">
                 <div>
-                  <span className="text-[11px] font-bold uppercase tracking-[0.3em] text-text-muted">Free Tier</span>
-                  <div className="text-6xl font-display font-bold mt-4">$0<span className="text-xl text-text-muted ml-3">/ forever</span></div>
+                  <span className="text-[12px] font-bold uppercase tracking-wider text-[#6B6B68]">Free Tier</span>
+                  <div className="font-display text-[48px] font-bold mt-2">$0<span className="text-lg font-normal text-[#6B6B68] ml-1">/ mo</span></div>
+                  <p className="text-sm text-[#6B6B68] mt-4">Perfect for individuals and small tests.</p>
+                  <ul className="list-none p-0 my-10 space-y-4">
+                    {["1 Active Project", "Up to 2,000 Rows", "Community Support", "Standard Training Speed"].map(f => (
+                      <li key={f} className="flex items-center gap-3 text-sm font-medium"><div className="w-5 h-5 bg-[#EFEFEC] rounded-full flex items-center justify-center text-[10px]">✓</div> {f}</li>
+                    ))}
+                  </ul>
                 </div>
-                <ul className="space-y-5">
-                  {["1 Active Project", "Up to 2,000 Rows per Upload", "Standard Scikit-learn Engine", "Basic Playground"].map(t => (
-                    <li key={t} className="flex items-center gap-4 text-sm font-semibold text-text-primary">
-                      <Check className="text-accent" size={18} /> {t}
-                    </li>
-                  ))}
-                </ul>
+                <Button variant="outline" style={{ width: '100%' }}>Get Started</Button>
               </div>
-              <button className="mt-16 w-full py-5 bg-text-primary text-bg-base rounded-full font-bold text-sm border-2 border-text-primary hover:bg-transparent hover:text-text-primary transition-all uppercase tracking-widest">Get Started</button>
-            </div>
-            <div className="bg-bg-dark p-12 rounded-[32px] border border-white/10 flex flex-col justify-between text-bg-base relative overflow-hidden">
-              <div className="absolute top-8 right-8 bg-accent text-accent-fg px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">Coming Soon</div>
-              <div className="space-y-12">
+              <div className="bg-[#0F1210] text-white rounded-[20px] p-10 flex flex-col justify-between relative overflow-hidden">
+                <div className="absolute top-10 right-10 bg-[#1B4332] text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">Coming Soon</div>
                 <div>
-                  <span className="text-[11px] font-bold uppercase tracking-[0.3em] opacity-40">Pro Plan</span>
-                  <div className="text-6xl font-display font-bold mt-4">$49<span className="text-xl opacity-40 ml-3">/ mo</span></div>
+                  <span className="text-[12px] font-bold uppercase tracking-wider opacity-40">Pro Plan</span>
+                  <div className="font-display text-[48px] font-bold mt-2">$49<span className="text-lg font-normal opacity-40 ml-1">/ mo</span></div>
+                  <p className="text-sm opacity-60 mt-4">For production-scale models and advanced teams.</p>
+                  <ul className="list-none p-0 my-10 space-y-4">
+                    {["Unlimited Projects", "Up to 100k Rows", "API Deployment", "Model Export (.pkl)", "Priority Support", "Advanced Metrics"].map(f => (
+                      <li key={f} className="flex items-center gap-3 text-sm font-medium opacity-60"><div className="w-5 h-5 border border-white/10 rounded-full flex items-center justify-center text-[10px]">•</div> {f}</li>
+                    ))}
+                  </ul>
+                  <p className="text-[12px] opacity-40 mb-6">Included at launch — join list for notifications.</p>
                 </div>
-                <ul className="space-y-5">
-                  {["Unlimited Projects", "Up to 100k Rows per Upload", "Model Export (.pkl)", "API Deployment", "Advanced Metrics"].map(t => (
-                    <li key={t} className="flex items-center gap-4 text-sm font-semibold opacity-60">
-                      <span className="text-accent">—</span> {t}
-                    </li>
-                  ))}
-                </ul>
+                <Button variant="accent" style={{ width: '100%' }}>Join Waiting List</Button>
               </div>
-              <button className="mt-16 w-full py-5 bg-white text-bg-dark rounded-full font-bold text-sm uppercase tracking-widest hover:opacity-90 transition-all">Join Waiting List</button>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+
+        {/* FAQ */}
+        <section className="py-24 px-6 border-t border-[#E5E4E0]">
+          <div className="max-w-[720px] mx-auto">
+            <h2 className="font-display text-3xl font-bold text-center mb-16">Questions, answered honestly.</h2>
+            <div className="space-y-2">
+              {[
+                { q: "What file formats are supported?", a: "CSV only for v1. One text column and one label column — you pick which is which after upload." },
+                { q: "Is my data secure?", a: "Yes — everything is encrypted end-to-end, both in transit and at rest using modern standards." },
+                { q: "What happens after 2,000 rows?", a: "Uploads over the cap are rejected partway through with a clear message, ensuring fast training cycles for everyone." },
+                { q: "Can I export my trained model?", a: "Not yet in v1 — model export (.pkl) is a Pro feature coming soon. We store all artifacts securely regardless." }
+              ].map((faq, i) => (
+                <div key={i} className="border-b border-[#E5E4E0]">
+                  <button 
+                    onClick={() => setActiveFaq(activeFaq === i ? null : i)}
+                    className="w-full py-6 flex justify-between items-center text-left border-none bg-transparent cursor-pointer group"
+                  >
+                    <span className="font-bold text-[16px] group-hover:text-[#1B4332] transition-colors">{faq.q}</span>
+                    <div className={`transition-transform duration-300 text-xl font-light ${activeFaq === i ? 'rotate-45' : ''}`}>+</div>
+                  </button>
+                  <div className={`overflow-hidden transition-all duration-300 ${activeFaq === i ? 'max-h-40 pb-6' : 'max-h-0'}`}>
+                    <p className="text-[#6B6B68] text-[15px] leading-relaxed">{faq.a}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Final CTA */}
+        <section className="py-32 px-6 text-center">
+          <div className="max-w-[1200px] mx-auto space-y-10">
+            <h2 className="font-display text-4xl md:text-[40px] font-bold tracking-tight max-w-[16ch] mx-auto">Turn your data into pure intelligence.</h2>
+            <Button onClick={() => navigate('/signup')} style={{ padding: '18px 40px' }} icon={ArrowRight}>Start Training Free</Button>
+          </div>
+        </section>
+      </main>
 
       {/* Footer */}
-      <footer className="bg-bg-dark text-bg-base py-32 px-6 overflow-hidden relative">
-        {/* Large watermark wordmark */}
-        <div className="absolute bottom-[-5%] left-0 text-[25vw] font-display font-black leading-none tracking-tighter opacity-[0.03] pointer-events-none select-none">TODDLER</div>
-        <div className="max-w-[1400px] mx-auto grid md:grid-cols-4 gap-16 relative z-10">
-          <div className="col-span-1 md:col-span-1 space-y-8">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-bg-dark font-bold text-xl">T</div>
-              <span className="text-3xl font-bold tracking-tighter">Toddler</span>
-            </div>
-            <p className="text-bg-base/40 text-sm font-medium leading-relaxed max-w-[20ch]">The intelligence layer for experts who build the future.</p>
-          </div>
-          <div className="space-y-8">
-            <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-bg-base/20">Platform</h4>
-            <ul className="space-y-4 text-sm font-bold opacity-60">
-              <li><a href="#" className="hover:text-accent transition-colors">Overview</a></li>
-              <li><a href="#" className="hover:text-accent transition-colors">Integrations</a></li>
-              <li><a href="#" className="hover:text-accent transition-colors">Documentation</a></li>
-            </ul>
-          </div>
-          <div className="space-y-8">
-            <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-bg-base/20">Company</h4>
-            <ul className="space-y-4 text-sm font-bold opacity-60">
-              <li><a href="#" className="hover:text-accent transition-colors">About</a></li>
-              <li><a href="#" className="hover:text-accent transition-colors">Privacy</a></li>
-              <li><a href="#" className="hover:text-accent transition-colors">Terms</a></li>
-            </ul>
-          </div>
-          <div className="space-y-8">
-            <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-bg-base/20">Newsletter</h4>
-            <div className="flex border-b border-white/10 pb-4">
-              <input type="email" placeholder="name@domain.com" className="bg-transparent focus:outline-none text-sm font-bold grow" />
-              <button className="uppercase text-xs font-bold hover:text-accent transition-colors">Join</button>
-            </div>
-          </div>
+      <footer className="bg-[#0F1210] text-[#F5F5F3] pt-24 pb-12 px-6 relative border-t-0 rounded-t-[32px] mt-12 overflow-hidden">
+        <div className="absolute bottom-[-40px] left-0 right-0 text-center font-display font-bold text-[min(18vw,220px)] text-white/[0.035] select-none pointer-events-none uppercase">
+          TODDLER
         </div>
-        <div className="max-w-[1400px] mx-auto mt-32 pt-8 border-t border-white/5 text-[10px] font-bold uppercase tracking-[0.4em] opacity-20 relative z-10">
-          © 2026 TODDLER AI. DESIGNED BY HAND.
+        <div className="max-w-[1200px] mx-auto relative z-10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12 mb-20">
+            <div className="space-y-6">
+              <div className="logo flex items-center gap-2.5 font-display font-bold text-[17px] tracking-tight">
+                <div className="w-7 h-7 bg-white text-black rounded-lg flex items-center justify-center text-sm font-bold">T</div>
+                Toddler
+              </div>
+              <p className="text-sm text-[#9A9A96] leading-relaxed max-w-[32ch]">The intelligence layer for specific domain problems. Built for experts who build the future.</p>
+              <div className="flex gap-4">
+                {[1,2,3].map(i => <div key={i} className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity cursor-pointer">◔</div>)}
+              </div>
+            </div>
+            <div>
+              <h4 className="text-[12px] font-bold uppercase tracking-widest text-[#9A9A96] mb-8">Platform</h4>
+              <div className="flex flex-col gap-4 text-sm font-medium">
+                <a href="#" className="no-underline hover:opacity-60 transition-opacity">Overview</a>
+                <a href="#" className="no-underline hover:opacity-60 transition-opacity">Integrations</a>
+                <a href="#" className="no-underline hover:opacity-60 transition-opacity">Documentation</a>
+              </div>
+            </div>
+            <div>
+              <h4 className="text-[12px] font-bold uppercase tracking-widest text-[#9A9A96] mb-8">Company</h4>
+              <div className="flex flex-col gap-4 text-sm font-medium">
+                <a href="#" className="no-underline hover:opacity-60 transition-opacity">About Us</a>
+                <a href="#" className="no-underline hover:opacity-60 transition-opacity">Changelog</a>
+                <a href="#" className="no-underline hover:opacity-60 transition-opacity">Privacy</a>
+              </div>
+            </div>
+            <div>
+              <h4 className="text-[12px] font-bold uppercase tracking-widest text-[#9A9A96] mb-8">Newsletter</h4>
+              <p className="text-sm text-[#9A9A96] mb-6">Machine learning insights for builders.</p>
+              <div className="flex">
+                <input type="email" placeholder="name@email.com" className="flex-grow bg-transparent border border-white/10 rounded-l-full px-5 py-3 text-sm focus:outline-none focus:border-white/20" />
+                <button className="bg-white text-black font-bold text-[12px] px-6 rounded-r-full uppercase tracking-widest">Join</button>
+              </div>
+            </div>
+          </div>
+          <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 text-[13px] text-[#9A9A96]">
+            <span>© 2026 Toddler AI. Designed by hand.</span>
+            <div className="flex gap-8">
+              <a href="#" className="no-underline hover:text-white transition-colors">Terms</a>
+              <a href="#" className="no-underline hover:text-white transition-colors">Cookies</a>
+              <a href="#" className="no-underline hover:text-white transition-colors">GDPR</a>
+            </div>
+          </div>
         </div>
       </footer>
     </div>

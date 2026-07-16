@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, Check, Shield, Zap, Info, Play, Plus, Menu, X, Globe, Twitter, Github, Linkedin, Youtube, Layers, Cpu, Database, Smartphone } from 'lucide-react';
+import { ArrowRight, Check, Shield, Zap, Info, Play, Plus, Menu, X, Globe, Layers, Cpu, Database, Smartphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
@@ -385,7 +385,7 @@ const LandingPage = () => {
                 The intelligence layer for specific domain problems. Built for experts who build the future.
               </p>
               <div className="flex gap-4">
-                {[Twitter, Github, Linkedin, Youtube].map((Icon, i) => (
+                {[Globe, Globe, Globe].map((Icon, i) => (
                   <a key={i} href="#" className="w-10 h-10 flex items-center justify-center border border-white/10 rounded-full hover:bg-white/5 hover:border-white/20 transition-all">
                     <Icon size={16} />
                   </a>

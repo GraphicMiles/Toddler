@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowRight, Check, Shield, Zap, Info, Play, Plus, Menu, X, Globe, Database, Cpu, Smartphone, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Card, FadeIn } from './components/UI';
 
 const LandingPage = () => {
   const navigate = useNavigate();
@@ -9,207 +8,144 @@ const LandingPage = () => {
   const [activeFaq, setActiveFaq] = useState(null);
 
   return (
-    <div className="min-h-screen bg-[#FAFAF8] text-[#111111] font-sans selection:bg-[#111111] selection:text-[#F5F5F3]">
+    <div style={{ backgroundColor: '#FAFAF8', color: '#111111', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-[#FAFAF8]/80 backdrop-blur-md border-b border-[#E5E4E0]">
-        <div className="max-w-[1400px] mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-              <div className="w-8 h-8 bg-[#111111] rounded-sm flex items-center justify-center text-[#F5F5F3] font-display font-bold">T</div>
-              <span className="font-display font-bold text-xl tracking-tight">Toddler</span>
+      <nav style={{ position: 'sticky', top: 0, zIndex: 50, backgroundColor: 'rgba(250, 250, 248, 0.8)', backdropFilter: 'blur(8px)', borderBottom: '1px solid #E5E4E0' }}>
+        <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 24px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '32px', flexGrow: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+              <div style={{ width: '32px', height: '32px', backgroundColor: '#111111', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#F5F5F3', fontWeight: 'bold', fontSize: '18px' }}>T</div>
+              <span style={{ fontWeight: 'bold', fontSize: '20px', letterSpacing: '-0.025em' }}>Toddler</span>
             </div>
-            <div className="hidden md:flex items-center gap-6">
-              <a href="#how-it-works" className="text-sm font-semibold text-[#6B6B68] hover:text-[#111111] transition-colors">How it works</a>
-              <a href="#features" className="text-sm font-semibold text-[#6B6B68] hover:text-[#111111] transition-colors">Features</a>
-              <a href="#pricing" className="text-sm font-semibold text-[#6B6B68] hover:text-[#111111] transition-colors">Pricing</a>
+            <div className="hidden md:flex" style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+              <a href="#how-it-works" style={{ fontSize: '14px', fontWeight: 600, color: '#6B6B68', textDecoration: 'none' }}>How it works</a>
+              <a href="#features" style={{ fontSize: '14px', fontWeight: 600, color: '#6B6B68', textDecoration: 'none' }}>Features</a>
+              <a href="#pricing" style={{ fontSize: '14px', fontWeight: 600, color: '#6B6B68', textDecoration: 'none' }}>Pricing</a>
             </div>
           </div>
           
-          <div className="flex items-center gap-4">
-            <button onClick={() => navigate('/login')} className="hidden sm:block text-sm font-bold uppercase tracking-widest hover:opacity-60 transition-opacity px-4">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <button onClick={() => navigate('/login')} className="hidden sm:block" style={{ background: 'none', border: 'none', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em', cursor: 'pointer', color: '#111111' }}>
               Log in
             </button>
-            <Button onClick={() => navigate('/signup')} className="hidden sm:flex !py-3 !px-6">
+            <button 
+              onClick={() => navigate('/signup')} 
+              style={{ backgroundColor: '#111111', color: '#F5F5F3', padding: '12px 24px', borderRadius: '9999px', border: 'none', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' }}
+            >
               Get started free
-            </Button>
-            <button className="md:hidden p-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+            </button>
+            <button className="md:hidden" style={{ background: 'none', border: 'none', cursor: 'pointer' }} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
               {mobileMenuOpen ? <X /> : <Menu />}
             </button>
           </div>
         </div>
-        
-        {mobileMenuOpen && (
-          <div className="md:hidden bg-white border-b border-[#E5E4E0] px-6 py-8 flex flex-col gap-6 animate-in fade-in slide-in-from-top-2 duration-300">
-            <a href="#how-it-works" className="text-lg font-bold" onClick={() => setMobileMenuOpen(false)}>How it works</a>
-            <a href="#features" className="text-lg font-bold" onClick={() => setMobileMenuOpen(false)}>Features</a>
-            <a href="#pricing" className="text-lg font-bold" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
-            <Button onClick={() => navigate('/signup')} className="w-full">Get started free</Button>
-          </div>
-        )}
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-24 pb-24 md:pt-32 md:pb-48 px-6">
-        <div className="max-w-[1400px] mx-auto text-center flex flex-col items-center">
-          <FadeIn>
-            <div className="mb-8 px-4 py-1.5 bg-white border border-[#E5E4E0] rounded-full text-[11px] font-bold uppercase tracking-[0.2em] text-[#6B6B68] inline-flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#1B4332] animate-pulse" />
-              V1.0 Now In Public Beta
-            </div>
-          </FadeIn>
+      <section style={{ paddingTop: '96px', paddingBottom: '96px', paddingLeft: '24px', paddingRight: '24px' }}>
+        <div style={{ maxWidth: '1400px', margin: '0 auto', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ marginBottom: '32px', padding: '6px 16px', backgroundColor: 'white', border: '1px solid #E5E4E0', borderRadius: '9999px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.2em', color: '#6B6B68', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#1B4332' }}></span>
+            V1.0 Now In Public Beta
+          </div>
           
-          <FadeIn delay={100}>
-            <h1 className="text-5xl md:text-7xl font-bold font-display max-w-[20ch] mb-8 leading-tight">
-              Turn your data into <br className="hidden md:block" /> pure intelligence.
-            </h1>
-          </FadeIn>
+          <h1 style={{ fontSize: '72px', fontWeight: 'bold', maxWidth: '20ch', marginBottom: '32px', lineHeight: 1.05, letterSpacing: '-0.05em' }}>
+            Turn your data into <br /> pure intelligence.
+          </h1>
 
-          <FadeIn delay={200}>
-            <p className="text-lg md:text-xl text-[#6B6B68] max-w-[50ch] mb-12">
-              Train, own, and deploy custom AI models without writing code. The sophisticated toolkit for modern domain experts.
-            </p>
-          </FadeIn>
+          <p style={{ fontSize: '18px', color: '#6B6B68', maxWidth: '50ch', marginBottom: '48px', lineHeight: 1.6 }}>
+            Train, own, and deploy custom AI models without writing code. The sophisticated toolkit for modern domain experts.
+          </p>
 
-          <FadeIn delay={300}>
-            <div className="flex flex-col sm:flex-row gap-4 mb-24">
-              <Button onClick={() => navigate('/signup')} icon={ArrowRight}>Start Training Free</Button>
-              <Button variant="outline" icon={Play}>Watch 2min Demo</Button>
-            </div>
-          </FadeIn>
+          <div style={{ display: 'flex', gap: '16px', marginBottom: '96px', flexDirection: 'row' }}>
+            <button 
+              onClick={() => navigate('/signup')} 
+              style={{ backgroundColor: '#111111', color: '#F5F5F3', padding: '16px 32px', borderRadius: '9999px', border: 'none', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              Start Training Free <ArrowRight size={18} />
+            </button>
+            <button style={{ backgroundColor: 'transparent', color: '#111111', padding: '16px 32px', borderRadius: '9999px', border: '2px solid #111111', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              Watch 2min Demo <Play size={18} />
+            </button>
+          </div>
 
-          <FadeIn delay={400} className="w-full max-w-5xl relative">
-            <div className="bg-white border-2 border-[#111111] rounded-2xl overflow-hidden p-2 md:p-4">
-              <div className="bg-[#FAFAF8] rounded-xl border border-[#E5E4E0] aspect-[16/9] flex items-center justify-center relative overflow-hidden">
-                <div className="absolute inset-0 p-6 md:p-12 flex flex-col gap-6 md:gap-10 text-left">
-                  <div className="flex justify-between items-center">
-                    <div className="h-6 w-32 md:w-48 bg-black/5 rounded-full" />
-                    <div className="h-10 w-32 bg-[#1B4332]/10 border border-[#1B4332]/20 rounded-full" />
+          {/* Hero Visual Mockup */}
+          <div style={{ width: '100%', maxWidth: '1000px', background: 'white', border: '2px solid #111111', borderRadius: '16px', padding: '16px', boxSizing: 'border-box' }}>
+            <div style={{ background: '#FAFAF8', border: '1px solid #E5E4E0', borderRadius: '12px', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px', boxSizing: 'border-box', textAlign: 'left', position: 'relative' }}>
+               <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <div style={{ height: '24px', width: '150px', background: 'rgba(0,0,0,0.05)', borderRadius: '12px' }}></div>
+                    <div style={{ height: '40px', width: '120px', background: 'rgba(27, 67, 50, 0.1)', border: '1px solid rgba(27, 67, 50, 0.2)', borderRadius: '20px' }}></div>
                   </div>
-                  <div className="grid grid-cols-12 gap-8 flex-grow">
-                    <div className="col-span-12 md:col-span-8 bg-white border border-[#E5E4E0] rounded-xl p-8 space-y-6">
-                      <span className="text-sm font-bold">Dataset_final.csv</span>
-                      <div className="space-y-3">
-                        {[1,2,3].map(i => <div key={i} className="h-8 w-full bg-[#FAFAF8] rounded border border-[#E5E4E0]" />)}
-                      </div>
+                  <div style={{ display: 'flex', gap: '32px', flexGrow: 1 }}>
+                    <div style={{ flexGrow: 2, background: 'white', border: '1px solid #E5E4E0', borderRadius: '12px', padding: '32px' }}>
+                       <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px' }}>Dataset_final.csv</div>
+                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          {[1,2,3].map(i => <div key={i} style={{ height: '32px', width: '100%', background: '#FAFAF8', borderRadius: '4px', border: '1px solid #E5E4E0' }}></div>)}
+                       </div>
                     </div>
-                    <div className="hidden md:flex md:col-span-4 flex-col gap-6">
-                      <div className="h-1/2 bg-black rounded-xl p-8 text-white flex flex-col justify-between">
-                        <span className="text-[10px] uppercase font-bold opacity-40">Accuracy</span>
-                        <span className="text-4xl font-bold">98.4%</span>
-                      </div>
+                    <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                       <div style={{ flexGrow: 1, background: '#111111', color: 'white', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', opacity: 0.4 }}>Accuracy</span>
+                          <span style={{ fontSize: '36px', fontWeight: 'bold' }}>98.4%</span>
+                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
+               </div>
             </div>
-          </FadeIn>
+          </div>
         </div>
       </section>
 
       {/* Feature Grid */}
-      <section id="features" className="py-24 bg-white border-y border-[#E5E4E0]">
-        <div className="max-w-[1400px] mx-auto px-6 text-center">
-          <FadeIn>
-            <h2 className="text-4xl md:text-5xl font-bold font-display mb-24">Engineered for quality.</h2>
-          </FadeIn>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 text-left">
+      <section id="features" style={{ backgroundColor: 'white', padding: '96px 24px', borderTop: '1px solid #E5E4E0', borderBottom: '1px solid #E5E4E0' }}>
+        <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+          <h2 style={{ fontSize: '48px', fontWeight: 'bold', textAlign: 'center', marginBottom: '64px', letterSpacing: '-0.025em' }}>Engineered for quality.</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
             {[
-              { title: "Dataset Sanitization", tag: "DATA", desc: "Automatic handling of missing values, outliers, and encoding. We prepare your data.", icon: Database },
-              { title: "Real-time Training", tag: "ENGINE", desc: "Synchronous training cycles with live metric updates. No hidden queues.", icon: Cpu },
-              { title: "Full Ownership", tag: "LEGAL", desc: "Every model you train is yours. Access the logic and keep your edge.", icon: Shield },
-              { title: "Standard Architecture", tag: "ML", desc: "Uses reliable TF-IDF + Logistic Regression optimized for smaller datasets.", icon: Layers },
-              { title: "Interactive Playground", tag: "TEST", desc: "Test your models immediately in a human-friendly interface.", icon: Play },
-              { title: "Clean Validation", tag: "QA", desc: "Automatic 80/20 train-test splits with confusion matrices you can read.", icon: Check }
+              { title: "Dataset Sanitization", desc: "Automatic handling of missing values, outliers, and encoding. We prepare your data.", icon: Database },
+              { title: "Real-time Training", desc: "Synchronous training cycles with live metric updates. No hidden queues.", icon: Cpu },
+              { title: "Full Ownership", desc: "Every model you train is yours. Access the logic and keep your edge.", icon: Shield },
+              { title: "Standard Architecture", desc: "Uses reliable TF-IDF + Logistic Regression optimized for smaller datasets.", icon: Layers },
+              { title: "Interactive Playground", desc: "Test your models immediately in a human-friendly interface.", icon: Play },
+              { title: "Clean Validation", desc: "Automatic 80/20 train-test splits with confusion matrices you can read.", icon: Check }
             ].map((f, i) => (
-              <FadeIn key={i} delay={i * 50}>
-                <Card className="h-full border hover:border-black transition-colors">
-                  <div className="w-12 h-12 bg-[#FAFAF8] rounded-xl flex items-center justify-center mb-12">
-                    <f.icon size={24} />
-                  </div>
-                  <h3 className="text-2xl font-bold mb-4">{f.title}</h3>
-                  <p className="text-[#6B6B68] text-sm leading-relaxed">{f.desc}</p>
-                </Card>
-              </FadeIn>
+              <div key={i} style={{ padding: '48px', border: '1px solid #E5E4E0', borderRadius: '16px', textAlign: 'left' }}>
+                <div style={{ width: '48px', height: '48px', background: '#FAFAF8', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '48px' }}>
+                  <f.icon size={24} />
+                </div>
+                <h3 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '16px' }}>{f.title}</h3>
+                <p style={{ fontSize: '16px', color: '#6B6B68', lineHeight: 1.5 }}>{f.desc}</p>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Pricing */}
-      <section id="pricing" className="py-24 md:py-48 px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          <FadeIn className="mb-24">
-            <h2 className="text-4xl md:text-5xl font-bold font-display mb-6">Simple, human pricing.</h2>
-            <p className="text-[#6B6B68]">No complicated tokens. Just build.</p>
-          </FadeIn>
-          <div className="grid md:grid-cols-2 gap-8 items-stretch text-left">
-            <FadeIn delay={100}>
-              <Card className="h-full flex flex-col justify-between">
-                <div className="space-y-8">
-                  <span className="text-xs font-bold uppercase text-[#6B6B68]">Free Tier</span>
-                  <div className="text-5xl font-bold">$0<span className="text-sm opacity-40 ml-2">/ month</span></div>
-                  <ul className="space-y-4">
-                    {["1 Active Project", "2,000 Rows per Upload", "Basic Playground"].map((t, i) => (
-                      <li key={i} className="flex items-center gap-3 text-sm"><Check size={16} className="text-[#1B4332]" /> {t}</li>
-                    ))}
-                  </ul>
-                </div>
-                <Button variant="outline" onClick={() => navigate('/signup')} className="mt-12 w-full">Get Started</Button>
-              </Card>
-            </FadeIn>
-            <FadeIn delay={200}>
-              <Card variant="dark" className="h-full flex flex-col justify-between">
-                <div className="space-y-8">
-                  <span className="text-xs font-bold uppercase opacity-40">Pro Plan</span>
-                  <div className="text-5xl font-bold text-white">$49<span className="text-sm opacity-40 ml-2">/ month</span></div>
-                  <ul className="space-y-4">
-                    {["Unlimited Projects", "100k Rows per Upload", "API Deployment"].map((t, i) => (
-                      <li key={i} className="flex items-center gap-3 text-sm opacity-60"><span className="text-[#1B4332]">—</span> {t}</li>
-                    ))}
-                  </ul>
-                </div>
-                <Button variant="accent" className="mt-12 w-full">Join Waiting List</Button>
-              </Card>
-            </FadeIn>
-          </div>
-        </div>
-      </section>
-
       {/* Footer */}
-      <footer className="bg-[#0F1210] text-[#F5F5F3] pt-32 pb-12 px-6 overflow-hidden">
-        <div className="max-w-[1400px] mx-auto">
-          <div className="grid md:grid-cols-4 gap-16 mb-24">
-            <div className="space-y-8">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-black font-bold">T</div>
-                <span className="text-2xl font-bold">Toddler</span>
+      <footer style={{ backgroundColor: '#0F1210', color: '#F5F5F3', padding: '128px 24px 48px 24px' }}>
+        <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '64px', marginBottom: '96px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '40px', height: '40px', backgroundColor: 'white', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black', fontWeight: 'bold', fontSize: '20px' }}>T</div>
+                <span style={{ fontSize: '30px', fontWeight: 'bold', letterSpacing: '-0.025em' }}>Toddler</span>
               </div>
-              <p className="text-white/40 text-sm max-w-xs">Built for experts who build the future.</p>
+              <p style={{ opacity: 0.4, fontSize: '14px', maxWidth: '250px' }}>Built for experts who build the future. Proprietary intelligence for specific domains.</p>
             </div>
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-widest text-white/20 mb-8">Platform</h4>
-              <ul className="space-y-4 text-sm font-medium">
-                <li><a href="#" className="hover:text-[#1B4332]">Overview</a></li>
-                <li><a href="#" className="hover:text-[#1B4332]">Security</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-widest text-white/20 mb-8">Company</h4>
-              <ul className="space-y-4 text-sm font-medium">
-                <li><a href="#" className="hover:text-[#1B4332]">About</a></li>
-                <li><a href="#" className="hover:text-[#1B4332]">Privacy</a></li>
-              </ul>
-            </div>
-            <div className="space-y-8">
-              <h4 className="text-xs font-bold uppercase tracking-widest text-white/20 mb-8">Newsletter</h4>
-              <form className="flex border-b border-white/10 pb-2">
-                <input type="email" placeholder="name@domain.com" className="bg-transparent text-sm focus:outline-none grow" />
-                <button className="font-bold text-xs uppercase hover:text-[#1B4332]">Join</button>
-              </form>
-            </div>
+            {["Platform", "Company"].map(col => (
+              <div key={col}>
+                <h4 style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.2em', opacity: 0.2, marginBottom: '32px' }}>{col}</h4>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '16px', fontSize: '14px' }}>
+                   <li><a href="#" style={{ color: 'inherit', textDecoration: 'none', opacity: 0.6 }}>Overview</a></li>
+                   <li><a href="#" style={{ color: 'inherit', textDecoration: 'none', opacity: 0.6 }}>Privacy</a></li>
+                   <li><a href="#" style={{ color: 'inherit', textDecoration: 'none', opacity: 0.6 }}>Terms</a></li>
+                </ul>
+              </div>
+            ))}
           </div>
-          <div className="pt-12 border-t border-white/5 text-[10px] font-bold text-white/20 uppercase tracking-widest">
-            © 2026 TODDLER AI. DESIGNED BY HAND.
+          <div style={{ paddingTop: '48px', borderTop: '1px solid rgba(255,255,255,0.05)', fontSize: '10px', fontWeight: 'bold', opacity: 0.2, textTransform: 'uppercase', letterSpacing: '0.3em' }}>
+            © 2026 TODDLER AI. ALL RIGHTS RESERVED.
           </div>
         </div>
       </footer>

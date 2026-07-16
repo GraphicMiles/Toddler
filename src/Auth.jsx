@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { auth, googleProvider } from './firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Check, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react';
-import { Button } from './components/UI';
+import { AlertCircle, Eye, EyeOff, Check } from 'lucide-react';
 
 const Auth = ({ mode = 'login' }) => {
   const [email, setEmail] = useState('');
@@ -41,110 +40,92 @@ const Auth = ({ mode = 'login' }) => {
   };
 
   return (
-    <div className="min-h-screen bg-white flex overflow-hidden font-sans">
-      {/* Visual Side (Left) */}
-      <div className="hidden lg:flex lg:w-5/12 bg-[#0F1210] relative p-20 flex-col justify-between overflow-hidden">
-        <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+    <div style={{ minHeight: '100vh', backgroundColor: 'white', display: 'flex', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
+      {/* Left Side */}
+      <div className="hidden lg:flex" style={{ width: '40%', backgroundColor: '#0F1210', position: 'relative', padding: '80px', flexDirection: 'column', justifyContent: 'space-between', color: 'white' }}>
+        <div style={{ position: 'absolute', inset: 0, opacity: 0.05, backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
         
-        <Link to="/" className="flex items-center gap-2 relative z-10 group">
-          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-black font-display font-bold text-xl">T</div>
-          <span className="font-display font-bold text-3xl tracking-tighter text-white">Toddler</span>
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'white', textDecoration: 'none', position: 'relative', zIndex: 10 }}>
+          <div style={{ width: '40px', height: '40px', backgroundColor: 'white', color: 'black', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '20px', borderRadius: '8px' }}>T</div>
+          <span style={{ fontSize: '30px', fontWeight: 'bold', letterSpacing: '-0.025em' }}>Toddler</span>
         </Link>
 
-        <div className="relative z-10 space-y-12 mb-12">
-          <div className="space-y-6">
-            <h2 className="text-5xl md:text-6xl font-display font-bold text-white leading-tight tracking-tighter max-w-md">
-              {mode === 'login' ? 'Turn spreadsheets into intelligence.' : 'Start building the AI you actually own.'}
-            </h2>
-            <p className="text-white/50 text-xl font-medium max-w-sm">
-              Domain experts are using Toddler to build proprietary tools without code.
-            </p>
-            <div className="space-y-4">
-              {[
-                "Synchronous training cycles",
-                "100% data ownership",
-                "Private by default"
-              ].map((text, i) => (
-                <div key={i} className="flex items-center gap-3 text-xs font-bold uppercase tracking-widest text-white/30">
-                  <Check size={14} className="text-[#1B4332]" /> {text}
-                </div>
-              ))}
-            </div>
+        <div style={{ position: 'relative', zIndex: 10 }}>
+          <h2 style={{ fontSize: '48px', fontWeight: 'bold', lineHeight: 1.1, marginBottom: '32px', letterSpacing: '-0.025em' }}>
+            {mode === 'login' ? 'Turn spreadsheets into intelligence.' : 'Start building the AI you actually own.'}
+          </h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+             {["Synchronous training", "100% data ownership", "Private by default"].map(t => (
+               <div key={t} style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.2em', color: 'rgba(255,255,255,0.4)' }}>
+                 <Check size={16} color="#1B4332" /> {t}
+               </div>
+             ))}
           </div>
         </div>
 
-        <div className="relative z-10 text-[10px] font-bold uppercase tracking-[0.4em] text-white/20">
-          Secure by default · toddler_auth_v1.0.4
+        <div style={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.4em', opacity: 0.2 }}>
+          v1.0.4 Secure Workspace
         </div>
       </div>
 
-      {/* Form Side (Right) */}
-      <div className="w-full lg:w-7/12 flex flex-col justify-center p-8 sm:p-20 relative bg-white">
-        <div className="max-w-md w-full mx-auto space-y-10">
-          <div className="space-y-4">
-            <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tighter text-black">
-              {mode === 'login' ? 'Welcome back' : 'Create workspace'}
-            </h1>
-            <p className="text-[#6B6B68]">
-              {mode === 'login' ? 'Enter your credentials to access your projects.' : 'Join the new era of non-technical AI building.'}
-            </p>
-          </div>
+      {/* Right Side */}
+      <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '40px' }}>
+        <div style={{ maxWidth: '400px', width: '100%', margin: '0 auto' }}>
+          <h1 style={{ fontSize: '40px', fontWeight: 'bold', letterSpacing: '-0.025em', marginBottom: '16px' }}>
+            {mode === 'login' ? 'Sign in' : 'Create workspace'}
+          </h1>
+          <p style={{ color: '#6B6B68', marginBottom: '48px' }}>Join the new era of non-technical building.</p>
 
-          <div className="space-y-8">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <button onClick={handleGoogle} className="h-14 border border-[#E5E4E0] rounded-full font-bold uppercase tracking-widest text-[10px] flex items-center justify-center gap-3 hover:bg-[#FAFAF8]">
-                Google
-              </button>
-              <button className="h-14 border border-[#E5E4E0] rounded-full font-bold uppercase tracking-widest text-[10px] flex items-center justify-center gap-3 hover:bg-[#FAFAF8]">
-                Apple ID
-              </button>
-            </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+            <button 
+              onClick={handleGoogle}
+              style={{ width: '100%', height: '56px', backgroundColor: 'transparent', border: '1px solid #E5E4E0', borderRadius: '9999px', fontWeight: 'bold', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.1em', cursor: 'pointer' }}
+            >
+              Continue with Google
+            </button>
 
             {error && (
-              <div className="p-4 bg-red-50 border border-red-100 text-red-600 text-sm font-bold rounded-xl flex gap-3 items-center">
+              <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FEE2E2', color: '#B91C1C', padding: '16px', borderRadius: '12px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <AlertCircle size={18} /> {error}
               </div>
             )}
 
-            <form onSubmit={handleAuth} className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[11px] font-bold uppercase tracking-widest text-[#6B6B68] ml-1">Email address</label>
+            <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.2em', color: '#6B6B68' }}>Email</label>
                 <input 
-                  type="email" 
-                  required
-                  className="w-full h-16 px-6 bg-[#FAFAF8] border border-[#E5E4E0] rounded-xl focus:outline-none focus:bg-white focus:border-black transition-all"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="email" required value={email} onChange={e => setEmail(e.target.value)}
+                  style={{ height: '56px', padding: '0 24px', backgroundColor: '#FAFAF8', border: '1px solid #E5E4E0', borderRadius: '12px', fontSize: '16px' }}
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-[11px] font-bold uppercase tracking-widest text-[#6B6B68] ml-1">Password</label>
-                <div className="relative">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.2em', color: '#6B6B68' }}>Password</label>
+                <div style={{ position: 'relative' }}>
                   <input 
-                    type={showPassword ? "text" : "password"} 
-                    required
-                    className="w-full h-16 px-6 bg-[#FAFAF8] border border-[#E5E4E0] rounded-xl focus:outline-none focus:bg-white focus:border-black transition-all"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    type={showPassword ? "text" : "password"} required value={password} onChange={e => setPassword(e.target.value)}
+                    style={{ width: '100%', height: '56px', padding: '0 24px', backgroundColor: '#FAFAF8', border: '1px solid #E5E4E0', borderRadius: '12px', fontSize: '16px', boxSizing: 'border-box' }}
                   />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-5 top-1/2 -translate-y-1/2 text-black/20 hover:text-black">
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', opacity: 0.2 }}>
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
               </div>
-              <Button disabled={loading} type="submit" className="w-full h-16">
-                {loading ? 'Processing...' : (mode === 'login' ? 'Sign in' : 'Create workspace')}
-              </Button>
+              <button 
+                disabled={loading}
+                style={{ height: '64px', backgroundColor: '#111111', color: 'white', borderRadius: '9999px', border: 'none', fontWeight: 'bold', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.2em', cursor: 'pointer', opacity: loading ? 0.5 : 1 }}
+              >
+                {loading ? '...' : (mode === 'login' ? 'Sign in' : 'Start Free')}
+              </button>
             </form>
-          </div>
 
-          <p className="text-center text-sm font-medium text-[#6B6B68]">
-            {mode === 'login' ? (
-              <>Don't have an account? <Link to="/signup" className="text-black font-bold">Sign up free</Link></>
-            ) : (
-              <>Already have an account? <Link to="/login" className="text-black font-bold">Sign in here</Link></>
-            )}
-          </p>
+            <p style={{ textAlign: 'center', fontSize: '14px', color: '#6B6B68' }}>
+              {mode === 'login' ? (
+                <>New here? <Link to="/signup" style={{ color: 'black', fontWeight: 'bold', textDecoration: 'none' }}>Create account</Link></>
+              ) : (
+                <>Have an account? <Link to="/login" style={{ color: 'black', fontWeight: 'bold', textDecoration: 'none' }}>Sign in</Link></>
+              )}
+            </p>
+          </div>
         </div>
       </div>
     </div>

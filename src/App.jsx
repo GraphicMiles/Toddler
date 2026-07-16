@@ -11,18 +11,23 @@ function App() {
   const [loading, setLoading] = React.useState(true)
 
   React.useEffect(() => {
-    if (!auth) {
-      setLoading(false)
-      return
+    // If firebase initialization fails or is in progress, this prevents crashing
+    try {
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        setUser(user)
+        setLoading(false)
+      }, (error) => {
+        console.error("Auth error:", error);
+        setLoading(false);
+      })
+      return () => unsubscribe()
+    } catch (e) {
+      console.error("Firebase Auth not available:", e);
+      setLoading(false);
     }
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user)
-      setLoading(false)
-    })
-    return () => unsubscribe()
   }, [])
 
-  if (loading) return <div style={{background: '#FAFAF8', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>Loading...</div>
+  if (loading) return <div style={{height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif'}}>Loading...</div>
 
   return (
     <BrowserRouter>

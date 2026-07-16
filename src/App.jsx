@@ -11,17 +11,18 @@ function App() {
   const [loading, setLoading] = React.useState(true)
 
   React.useEffect(() => {
-    return onAuthStateChanged(auth, (user) => {
+    if (!auth) {
+      setLoading(false)
+      return
+    }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user)
       setLoading(false)
     })
+    return () => unsubscribe()
   }, [])
 
-  if (loading) return (
-    <div className="min-h-screen bg-bg-base flex items-center justify-center">
-      <div className="w-8 h-8 border-4 border-text-primary border-t-transparent rounded-full animate-spin"></div>
-    </div>
-  )
+  if (loading) return <div style={{background: '#FAFAF8', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>Loading...</div>
 
   return (
     <BrowserRouter>

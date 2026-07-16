@@ -1,21 +1,28 @@
+@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap');
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@theme {
+  --color-toddler-off-white: #FAFAF8;
+  --color-toddler-black: #111111;
+  --color-toddler-green: #1A3C34;
+  --color-toddler-terracotta: #C86541;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-display: "Space Grotesk", sans-serif;
+}
 
 :root {
-  background-color: #FAFAF8;
-  color: #111111;
+  background-color: var(--color-toddler-off-white);
+  color: var(--color-toddler-black);
 }
 
 body {
   margin: 0;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4, .font-display {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-display);
 }

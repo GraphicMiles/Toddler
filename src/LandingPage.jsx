@@ -44,7 +44,7 @@ const LandingPage = () => {
             </button>
             <button 
               onClick={() => navigate('/signup')}
-              className="bg-toddler-black text-white px-7 py-3 rounded-full font-bold text-sm hover:shadow-xl hover:-translate-y-0.5 transition-all"
+              className="bg-toddler-black text-white px-7 py-3 rounded-full font-bold text-sm border-2 border-toddler-black hover:bg-white hover:text-toddler-black transition-all"
             >
               Get started free
             </button>
@@ -84,7 +84,7 @@ const LandingPage = () => {
             <div className="flex flex-col sm:flex-row gap-5">
               <button 
                 onClick={() => navigate('/signup')}
-                className="bg-toddler-black text-white px-10 py-5 rounded-full font-bold text-lg hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] hover:-translate-y-1 transition-all flex items-center justify-center gap-3 group"
+                className="bg-toddler-black text-white px-10 py-5 rounded-full font-bold text-lg hover:-translate-y-1 transition-all flex items-center justify-center gap-3 group border-2 border-toddler-black"
               >
                 Start Training Free <ArrowRight className="group-hover:translate-x-1 transition-transform" />
               </button>

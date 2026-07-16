@@ -46,19 +46,41 @@ const Onboarding = ({ onComplete }) => {
       setError('Please select both text and label columns.');
       return;
     }
+
     setIsUploading(true);
     try {
+      // 1. Create the project placeholder in Firestore
       const projectData = {
         ownerUid: auth.currentUser.uid,
         name: projectName,
         createdAt: new Date(),
-        status: 'empty',
+        status: 'training',
         dataset: { textColumn: selection.text, labelColumn: selection.label, rowCount: csvData ? csvData.length : 0 }
       };
       const docRef = await addDoc(collection(db, "projects"), projectData);
-      onComplete({ id: docRef.id, ...projectData });
+
+      // 2. Prepare Form Data to send to FastAPI
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('project_id', docRef.id);
+      formData.append('text_column', selection.text);
+      formData.append('label_column', selection.label);
+
+      // 3. Call Render Backend
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/train`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error('Training failed on server');
+
+      const result = await response.json();
+      onComplete({ id: docRef.id, ...projectData, status: 'trained', accuracy: result.accuracy });
+
     } catch (err) {
-      setError('Failed to save project: ' + err.message);
+      console.error(err);
+      setError('Failed to process model: ' + err.message);
     } finally {
       setIsUploading(false);
     }

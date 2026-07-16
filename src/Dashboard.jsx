@@ -7,7 +7,32 @@ import Onboarding from './Onboarding';
 const Dashboard = () => {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [predictText, setPredictText] = useState('');
+  const [prediction, setPrediction] = useState(null);
+  const [predicting, setPredicting] = useState(false);
   const navigate = useNavigate();
+
+  const handlePredict = async () => {
+    if (!predictText) return;
+    setPredicting(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const formData = new FormData();
+      formData.append('project_id', projects[0].id);
+      formData.append('text', predictText);
+
+      const response = await fetch(`${apiUrl}/predict`, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await response.json();
+      setPrediction(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setPredicting(false);
+    }
+  };
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -117,10 +142,26 @@ const Dashboard = () => {
                 <textarea 
                   className="w-full h-40 p-6 bg-bg-base border border-border-subtle rounded-2xl focus:outline-none focus:border-text-primary transition-all font-medium text-sm leading-relaxed"
                   placeholder="Paste input text here to test your model..."
+                  value={predictText}
+                  onChange={(e) => setPredictText(e.target.value)}
                 />
-                <button className="w-full py-5 bg-text-primary text-bg-base rounded-full font-bold uppercase tracking-widest text-xs hover:bg-transparent hover:text-text-primary border-2 border-text-primary transition-all active:scale-[0.98] cursor-pointer">
-                  Generate Prediction
+                <button 
+                  onClick={handlePredict}
+                  disabled={predicting}
+                  className="w-full py-5 bg-text-primary text-bg-base rounded-full font-bold uppercase tracking-widest text-xs hover:bg-transparent hover:text-text-primary border-2 border-text-primary transition-all active:scale-[0.98] cursor-pointer"
+                >
+                  {predicting ? 'Predicting...' : 'Generate Prediction'}
                 </button>
+                
+                {prediction && (
+                  <div className="p-6 bg-accent/5 border border-accent/10 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="flex justify-between items-center mb-2">
+                       <span className="text-[10px] font-bold uppercase tracking-widest text-accent">Result</span>
+                       <span className="text-[10px] font-bold text-accent">{(prediction.confidence * 100).toFixed(1)}% Confidence</span>
+                    </div>
+                    <div className="text-2xl font-display font-bold text-accent">{prediction.prediction}</div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

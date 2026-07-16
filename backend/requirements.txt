@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pandas
+scikit-learn
+python-multipart
+python-jose[cryptography]
+firebase-admin
+pydantic

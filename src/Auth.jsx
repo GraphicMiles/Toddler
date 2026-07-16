@@ -44,22 +44,23 @@ const Auth = ({ mode = 'login' }) => {
     <div className="min-h-screen bg-white flex overflow-hidden">
       {/* Left Side: Visual/Branding - Ref f41d & 45cc */}
       <div className="hidden lg:flex lg:w-1/2 bg-toddler-black relative p-20 flex-col justify-between overflow-hidden">
-        {/* Animated Background Pattern */}
-        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(#fff 1.5px, transparent 1.5px)', backgroundSize: '40px 40px' }} />
+        {/* Technical Grid Visual - Ref f41d & a281 */}
+        <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
         
-        {/* Floating Abstract Shape - Ref c68e */}
-        <motion.div 
-          animate={{ 
-            rotate: 360,
-            scale: [1, 1.1, 1],
-          }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] border border-white/5 rounded-full flex items-center justify-center"
-        >
-          <div className="w-96 h-96 border border-white/10 rounded-full flex items-center justify-center">
-            <div className="w-60 h-60 border border-white/20 rounded-full" />
-          </div>
-        </motion.div>
+        {/* Animated Lines - Replace "blob" circle */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <motion.div 
+            animate={{ 
+              rotate: 360,
+            }}
+            transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
+            className="w-[800px] h-[800px] border border-white/10 rounded-full flex items-center justify-center"
+          >
+            <div className="w-[600px] h-[600px] border border-white/10 rounded-full flex items-center justify-center">
+              <div className="w-[400px] h-[400px] border border-white/10 rounded-full" />
+            </div>
+          </motion.div>
+        </div>
 
         <Link to="/" className="flex items-center gap-2 relative z-10 group">
           <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-toddler-black font-display font-bold text-xl group-hover:scale-110 transition-transform">T</div>

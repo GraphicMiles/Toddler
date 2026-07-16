@@ -100,9 +100,9 @@ const LandingPage = () => {
               initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 1, delay: 0.2 }}
-              className="bg-white border border-toddler-black/10 rounded-2xl overflow-hidden shadow-[0_40px_100px_-20px_rgba(0,0,0,0.12)] p-4"
+              className="bg-white border-2 border-toddler-black rounded-2xl overflow-hidden p-4"
             >
-              <div className="bg-toddler-off-white rounded-xl border border-toddler-black/5 aspect-[16/9] flex items-center justify-center relative overflow-hidden">
+              <div className="bg-toddler-off-white rounded-xl border border-toddler-black/10 aspect-[16/9] flex items-center justify-center relative overflow-hidden">
                 {/* Simulated UI Mockup - Ref 086a */}
                 <div className="absolute inset-0 p-12 flex flex-col gap-10">
                    <div className="flex justify-between items-center">
@@ -145,7 +145,7 @@ const LandingPage = () => {
                 <motion.div 
                   animate={{ y: [0, -10, 0] }}
                   transition={{ duration: 4, repeat: Infinity }}
-                  className="absolute top-20 -left-10 bg-white shadow-2xl p-4 rounded-xl border border-toddler-black/5 flex items-center gap-4"
+                  className="absolute top-20 -left-10 bg-white p-4 rounded-xl border-2 border-toddler-black flex items-center gap-4"
                 >
                   <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center text-yellow-600 font-bold">CSV</div>
                   <div className="text-left">
@@ -157,7 +157,7 @@ const LandingPage = () => {
                 <motion.div 
                   animate={{ y: [0, 10, 0] }}
                   transition={{ duration: 5, repeat: Infinity }}
-                  className="absolute bottom-40 -right-10 bg-toddler-green text-white shadow-2xl p-4 rounded-xl flex items-center gap-4"
+                  className="absolute bottom-40 -right-10 bg-toddler-green text-white p-4 rounded-xl border-2 border-toddler-black flex items-center gap-4"
                 >
                   <Zap size={20} />
                   <div className="text-left">

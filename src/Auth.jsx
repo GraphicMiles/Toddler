@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { auth, googleProvider } from './firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { useNavigate, Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Check, AlertCircle } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { ArrowLeft, Check, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 const Auth = ({ mode = 'login' }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -41,148 +42,170 @@ const Auth = ({ mode = 'login' }) => {
 
   return (
     <div className="min-h-screen bg-white flex overflow-hidden">
-      {/* Visual Side (Left) - Inspired by Ref 1 & 8 */}
-      <div className="hidden lg:flex lg:w-1/2 bg-toddler-off-white relative items-center justify-center p-20 border-r border-toddler-black/5">
-        <div className="absolute top-12 left-12">
-           <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-toddler-black rounded-sm flex items-center justify-center text-white font-display font-bold">T</div>
-            <span className="font-display font-bold text-xl tracking-tight">Toddler</span>
-          </Link>
-        </div>
-
-        <div className="max-w-md space-y-12">
-          {/* Abstract Training Visual */}
-          <div className="relative aspect-square w-full">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 1 }}
-              className="absolute inset-0 bg-toddler-black rounded-3xl overflow-hidden flex items-center justify-center"
-            >
-               {/* Pattern */}
-               <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
-               
-               {/* Animated "Model" Box */}
-               <motion.div 
-                animate={{ 
-                  rotate: [0, 90, 180, 270, 360],
-                  borderRadius: ["10%", "50%", "10%", "50%", "10%"]
-                }}
-                transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-                className="w-40 h-40 border-4 border-toddler-green flex items-center justify-center relative z-10"
-               >
-                 <div className="w-4 h-4 bg-white animate-ping rounded-full" />
-               </motion.div>
-            </motion.div>
+      {/* Left Side: Visual/Branding - Ref f41d & 45cc */}
+      <div className="hidden lg:flex lg:w-1/2 bg-toddler-black relative p-20 flex-col justify-between overflow-hidden">
+        {/* Animated Background Pattern */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(#fff 1.5px, transparent 1.5px)', backgroundSize: '40px 40px' }} />
+        
+        {/* Floating Abstract Shape - Ref c68e */}
+        <motion.div 
+          animate={{ 
+            rotate: 360,
+            scale: [1, 1.1, 1],
+          }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] border border-white/5 rounded-full flex items-center justify-center"
+        >
+          <div className="w-96 h-96 border border-white/10 rounded-full flex items-center justify-center">
+            <div className="w-60 h-60 border border-white/20 rounded-full" />
           </div>
+        </motion.div>
 
-          <div className="space-y-4">
-            <h2 className="font-display text-4xl font-bold leading-tight tracking-tight">
-              {mode === 'login' ? 'Turn your spreadsheets into intelligence.' : 'Start building the model you actually own.'}
+        <Link to="/" className="flex items-center gap-2 relative z-10 group">
+          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-toddler-black font-display font-bold text-xl group-hover:scale-110 transition-transform">T</div>
+          <span className="font-display font-bold text-3xl tracking-tighter text-white">Toddler</span>
+        </Link>
+
+        <div className="relative z-10 space-y-12">
+          <div className="space-y-6">
+            <h2 className="text-6xl font-display font-bold text-white leading-tight tracking-tighter">
+              {mode === 'login' ? 'Welcome back to the future of intelligence.' : 'Start your journey into specialized AI.'}
             </h2>
-            <p className="text-toddler-black/50 leading-relaxed font-medium">
-              Join 12,000+ domain experts training specialized classifiers without writing a single line of code.
+            <p className="text-white/50 text-xl font-medium max-w-lg leading-relaxed">
+              Domain experts are using Toddler to build proprietary intelligence without writing code.
             </p>
           </div>
 
-          <div className="space-y-4">
-            {["Scikit-learn powered", "No usage limits", "Private by default"].map((text, i) => (
-              <div key={i} className="flex items-center gap-3 text-sm font-bold uppercase tracking-widest text-toddler-black/30">
-                <Check size={14} className="text-toddler-green" /> {text}
+          <div className="flex flex-col gap-6">
+            {[
+              "Synchronous training cycles",
+              "100% data ownership",
+              "Production-ready exports",
+              "Military-grade security"
+            ].map((text, i) => (
+              <div key={i} className="flex items-center gap-4 text-sm font-bold uppercase tracking-widest text-white/30">
+                <div className="w-6 h-6 bg-toddler-green text-white rounded-full flex items-center justify-center shrink-0">
+                  <Check size={14} />
+                </div>
+                {text}
               </div>
             ))}
           </div>
         </div>
+
+        <div className="relative z-10 text-[10px] font-bold uppercase tracking-[0.3em] text-white/20">
+          TODDLER AI v1.0.4 · SYSTEM STABLE
+        </div>
       </div>
 
-      {/* Form Side (Right) */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center p-6 sm:p-12 md:p-24 relative">
-        <div className="lg:hidden absolute top-8 left-8">
+      {/* Right Side: Auth Form - Ref f41d & 2225 */}
+      <div className="w-full lg:w-1/2 flex flex-col justify-center p-8 sm:p-20 relative bg-white">
+        {/* Mobile Logo */}
+        <div className="lg:hidden absolute top-10 left-8">
            <Link to="/" className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-toddler-black rounded-sm flex items-center justify-center text-white font-display font-bold text-xs">T</div>
-            <span className="font-display font-bold tracking-tight">Toddler</span>
+            <div className="w-8 h-8 bg-toddler-black rounded-lg flex items-center justify-center text-white font-display font-bold text-lg">T</div>
+            <span className="font-display font-bold text-xl tracking-tighter">Toddler</span>
           </Link>
         </div>
 
-        <div className="max-w-md w-full mx-auto space-y-10">
-          <div>
-            <h1 className="font-display text-4xl font-bold tracking-tight mb-2">
-              {mode === 'login' ? 'Sign in' : 'Create an account'}
+        <div className="max-w-md w-full mx-auto space-y-12">
+          <div className="space-y-4">
+            <h1 className="font-display text-5xl font-bold tracking-tighter">
+              {mode === 'login' ? 'Log in' : 'Create account'}
             </h1>
             <p className="text-toddler-black/40 font-medium">
-              {mode === 'login' ? 'Welcome back to Toddler.' : 'Let’s get your workspace set up.'}
+              {mode === 'login' ? 'Enter your credentials to access your workspace.' : 'Join the new era of non-technical AI building.'}
             </p>
           </div>
 
           {error && (
             <motion.div 
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="p-4 bg-red-50 border border-red-100 text-red-600 text-sm font-medium flex gap-3 items-center rounded-sm"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="p-4 bg-red-50 border border-red-100 text-red-600 text-sm font-bold flex gap-3 items-center rounded-xl"
             >
               <AlertCircle size={18} /> {error}
             </motion.div>
           )}
 
-          <div className="space-y-6">
-            <button 
-              onClick={handleGoogle}
-              className="w-full h-14 border border-toddler-black/10 rounded-sm font-bold uppercase tracking-widest text-[10px] flex items-center justify-center gap-3 hover:bg-toddler-off-white transition-colors"
-            >
-              <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4 grayscale" />
-              Continue with Google
-            </button>
+          <div className="space-y-8">
+            <div className="grid grid-cols-2 gap-4">
+              <button 
+                onClick={handleGoogle}
+                className="h-16 border border-toddler-black/10 rounded-xl font-bold uppercase tracking-widest text-[10px] flex items-center justify-center gap-3 hover:bg-toddler-off-white transition-all active:scale-95"
+              >
+                <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4 grayscale" />
+                Google
+              </button>
+              <button 
+                className="h-16 border border-toddler-black/10 rounded-xl font-bold uppercase tracking-widest text-[10px] flex items-center justify-center gap-3 hover:bg-toddler-off-white transition-all active:scale-95"
+              >
+                <img src="https://www.apple.com/favicon.ico" alt="Apple" className="w-4 h-4 grayscale" />
+                Apple ID
+              </button>
+            </div>
 
-            <div className="relative flex items-center gap-4 text-toddler-black/10 uppercase font-bold text-[10px] tracking-[0.3em]">
+            <div className="relative flex items-center gap-6 text-toddler-black/10 uppercase font-bold text-[10px] tracking-[0.4em]">
               <div className="h-px bg-current grow" />
-              <span>or email</span>
+              <span>or use email</span>
               <div className="h-px bg-current grow" />
             </div>
 
-            <form onSubmit={handleAuth} className="space-y-4">
-              <div className="space-y-1.5">
+            <form onSubmit={handleAuth} className="space-y-6">
+              <div className="space-y-2">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-toddler-black/30 ml-1">Email address</label>
                 <input 
                   type="email" 
                   required
-                  placeholder="name@company.com"
-                  className="w-full h-14 px-5 border border-toddler-black/10 rounded-sm focus:outline-none focus:border-toddler-black transition-colors font-medium placeholder:text-toddler-black/20"
+                  placeholder="e.g. hello@domain.com"
+                  className="w-full h-16 px-6 bg-toddler-off-white border border-toddler-black/5 rounded-xl focus:outline-none focus:bg-white focus:border-toddler-black/20 transition-all font-medium placeholder:text-toddler-black/20"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-toddler-black/30 ml-1">Password</label>
-                <input 
-                  type="password" 
-                  required
-                  placeholder="••••••••"
-                  className="w-full h-14 px-5 border border-toddler-black/10 rounded-sm focus:outline-none focus:border-toddler-black transition-colors font-medium placeholder:text-toddler-black/20"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
+              <div className="space-y-2">
+                <div className="flex justify-between items-end ml-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-toddler-black/30">Password</label>
+                  {mode === 'login' && <a href="#" className="text-[10px] font-bold uppercase tracking-widest text-toddler-green hover:underline">Forgot?</a>}
+                </div>
+                <div className="relative">
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    required
+                    placeholder="••••••••••••"
+                    className="w-full h-16 px-6 bg-toddler-off-white border border-toddler-black/5 rounded-xl focus:outline-none focus:bg-white focus:border-toddler-black/20 transition-all font-medium placeholder:text-toddler-black/20"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-5 top-1/2 -translate-y-1/2 text-toddler-black/20 hover:text-toddler-black transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
               <button 
                 disabled={loading}
-                className="w-full h-14 bg-toddler-black text-white font-bold uppercase tracking-widest text-xs hover:bg-toddler-black/90 transition-all flex items-center justify-center"
+                className="w-full h-16 bg-toddler-black text-white font-bold uppercase tracking-widest text-xs rounded-full hover:shadow-2xl hover:-translate-y-1 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center"
               >
-                {loading ? 'Processing...' : (mode === 'login' ? 'Sign in' : 'Create Account')}
+                {loading ? (
+                  <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                ) : (
+                  mode === 'login' ? 'Sign in to workspace' : 'Create free account'
+                )}
               </button>
             </form>
           </div>
 
           <p className="text-center text-sm font-medium text-toddler-black/40">
             {mode === 'login' ? (
-              <>Don't have an account? <Link to="/signup" className="text-toddler-black font-bold hover:underline">Sign up for free</Link></>
+              <>Don't have an account? <Link to="/signup" className="text-toddler-black font-bold hover:text-toddler-green transition-colors">Sign up for free</Link></>
             ) : (
-              <>Already have an account? <Link to="/login" className="text-toddler-black font-bold hover:underline">Log in</Link></>
+              <>Already have an account? <Link to="/login" className="text-toddler-black font-bold hover:text-toddler-green transition-colors">Sign in here</Link></>
             )}
           </p>
-        </div>
-
-        {/* Legal Micro-copy */}
-        <div className="absolute bottom-12 left-0 w-full text-center text-[10px] font-bold uppercase tracking-widest text-toddler-black/20">
-          Secure by default · Toddler AI v1.0
         </div>
       </div>
     </div>

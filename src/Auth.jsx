@@ -189,7 +189,7 @@ const Auth = ({ mode = 'login' }) => {
               </div>
               <button 
                 disabled={loading}
-                className="w-full h-16 bg-toddler-black text-white font-bold uppercase tracking-widest text-xs rounded-full hover:shadow-2xl hover:-translate-y-1 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center"
+                className="w-full h-16 bg-toddler-black text-white font-bold uppercase tracking-widest text-xs rounded-full border-2 border-toddler-black hover:bg-white hover:text-toddler-black transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center"
               >
                 {loading ? (
                   <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />

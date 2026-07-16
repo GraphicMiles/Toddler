@@ -114,23 +114,23 @@ const LandingPage = () => {
                    </div>
                    
                    <div className="grid grid-cols-12 gap-8 flex-grow">
-                      <div className="col-span-8 bg-white border border-toddler-black/5 rounded-xl p-8 space-y-6">
+                      <div className="col-span-8 bg-white border-2 border-toddler-black rounded-xl p-8 space-y-6">
                         <div className="h-4 w-1/3 bg-toddler-black/5 rounded" />
                         <div className="space-y-4">
                           {[1,2,3,4].map(i => (
                             <div key={i} className="flex gap-4 items-center">
-                              <div className="h-10 w-full bg-toddler-off-white rounded-lg" />
-                              <div className="h-10 w-24 bg-toddler-off-white rounded-lg" />
+                              <div className="h-10 w-full bg-toddler-off-white rounded-lg border border-toddler-black/5" />
+                              <div className="h-10 w-24 bg-toddler-off-white rounded-lg border border-toddler-black/5" />
                             </div>
                           ))}
                         </div>
                       </div>
                       <div className="col-span-4 flex flex-col gap-6">
-                         <div className="h-1/2 bg-toddler-black rounded-xl p-8 text-white flex flex-col justify-between">
+                         <div className="h-1/2 bg-toddler-black rounded-xl p-8 text-white flex flex-col justify-between border-2 border-toddler-black">
                             <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Accuracy</span>
                             <span className="text-4xl font-display font-bold">98.4%</span>
                          </div>
-                         <div className="h-1/2 bg-white border border-toddler-black/5 rounded-xl p-8">
+                         <div className="h-1/2 bg-white border-2 border-toddler-black rounded-xl p-8">
                             <div className="h-4 w-20 bg-toddler-black/5 rounded mb-4" />
                             <div className="space-y-2">
                               <div className="h-2 w-full bg-toddler-black/5 rounded" />
@@ -222,7 +222,7 @@ const LandingPage = () => {
                 key={i}
                 {...fadeInUp}
                 transition={{ ...fadeInUp.transition, delay: i * 0.1 }}
-                className="bg-white p-10 rounded-2xl border border-toddler-black/5 hover:border-toddler-black/10 transition-all hover:shadow-lg group"
+                className="bg-white p-10 rounded-2xl border-2 border-toddler-black/10 hover:border-toddler-black transition-all group"
               >
                 <div className="flex justify-between items-start mb-12">
                    <div className="w-14 h-14 bg-toddler-off-white rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">

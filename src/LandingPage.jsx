@@ -2,17 +2,52 @@ import React, { useState } from 'react';
 import { ArrowRight, Check, Shield, Zap, Info, Play, Plus, Menu, X, Globe, Database, Cpu, Smartphone, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+const Button = ({ variant = 'primary', children, style = {}, icon: Icon, ...props }) => {
+  const baseStyle = {
+    padding: '12px 32px',
+    borderRadius: '9999px',
+    fontWeight: 'bold',
+    fontSize: '14px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    border: 'none',
+    transition: 'all 0.2s'
+  };
+  const variants = {
+    primary: { backgroundColor: '#111111', color: 'white' },
+    outline: { backgroundColor: 'transparent', color: '#111111', border: '2px solid #111111' },
+    accent: { backgroundColor: '#1B4332', color: 'white' }
+  };
+  return (
+    <button style={{ ...baseStyle, ...variants[variant], ...style }} {...props}>
+      {children}
+      {Icon && <Icon size={18} />}
+    </button>
+  );
+};
+
+const Card = ({ variant = 'light', children, style = {} }) => {
+  const baseStyle = { padding: '48px', borderRadius: '16px', border: '1px solid #E5E4E0' };
+  const variants = {
+    light: { backgroundColor: 'white' },
+    dark: { backgroundColor: '#0F1210', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }
+  };
+  return <div style={{ ...baseStyle, ...variants[variant], ...style }}>{children}</div>;
+};
+
 const LandingPage = () => {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeFaq, setActiveFaq] = useState(null);
 
   return (
-    <div style={{ backgroundColor: '#FAFAF8', color: '#111111', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ backgroundColor: '#FAFAF8', color: '#111111', minHeight: '100vh', fontFamily: 'Inter, sans-serif', overflowX: 'hidden' }}>
       {/* Navigation */}
       <nav style={{ position: 'sticky', top: 0, zIndex: 50, backgroundColor: 'rgba(250, 250, 248, 0.8)', backdropFilter: 'blur(8px)', borderBottom: '1px solid #E5E4E0' }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 24px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '32px', flexGrow: 1 }}>
+        <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 24px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
               <div style={{ width: '32px', height: '32px', backgroundColor: '#111111', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#F5F5F3', fontWeight: 'bold', fontSize: '18px' }}>T</div>
               <span style={{ fontWeight: 'bold', fontSize: '20px', letterSpacing: '-0.025em' }}>Toddler</span>
@@ -28,12 +63,9 @@ const LandingPage = () => {
             <button onClick={() => navigate('/login')} className="hidden sm:block" style={{ background: 'none', border: 'none', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em', cursor: 'pointer', color: '#111111' }}>
               Log in
             </button>
-            <button 
-              onClick={() => navigate('/signup')} 
-              style={{ backgroundColor: '#111111', color: '#F5F5F3', padding: '12px 24px', borderRadius: '9999px', border: 'none', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' }}
-            >
+            <Button onClick={() => navigate('/signup')} style={{ height: '44px', padding: '0 24px' }}>
               Get started free
-            </button>
+            </Button>
             <button className="md:hidden" style={{ background: 'none', border: 'none', cursor: 'pointer' }} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
               {mobileMenuOpen ? <X /> : <Menu />}
             </button>
@@ -42,35 +74,27 @@ const LandingPage = () => {
       </nav>
 
       {/* Hero Section */}
-      <section style={{ paddingTop: '96px', paddingBottom: '96px', paddingLeft: '24px', paddingRight: '24px' }}>
+      <section style={{ paddingTop: '120px', paddingBottom: '96px', paddingLeft: '24px', paddingRight: '24px' }}>
         <div style={{ maxWidth: '1400px', margin: '0 auto', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ marginBottom: '32px', padding: '6px 16px', backgroundColor: 'white', border: '1px solid #E5E4E0', borderRadius: '9999px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.2em', color: '#6B6B68', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-700" style={{ marginBottom: '32px', padding: '6px 16px', backgroundColor: 'white', border: '1px solid #E5E4E0', borderRadius: '9999px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.2em', color: '#6B6B68', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#1B4332' }}></span>
             V1.0 Now In Public Beta
           </div>
           
-          <h1 style={{ fontSize: '72px', fontWeight: 'bold', maxWidth: '20ch', marginBottom: '32px', lineHeight: 1.05, letterSpacing: '-0.05em' }}>
+          <h1 className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100" style={{ fontSize: 'min(72px, 12vw)', fontWeight: 'bold', maxWidth: '20ch', marginBottom: '32px', lineHeight: 1.05, letterSpacing: '-0.05em' }}>
             Turn your data into <br /> pure intelligence.
           </h1>
 
-          <p style={{ fontSize: '18px', color: '#6B6B68', maxWidth: '50ch', marginBottom: '48px', lineHeight: 1.6 }}>
+          <p className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200" style={{ fontSize: '18px', color: '#6B6B68', maxWidth: '50ch', marginBottom: '48px', lineHeight: 1.6 }}>
             Train, own, and deploy custom AI models without writing code. The sophisticated toolkit for modern domain experts.
           </p>
 
-          <div style={{ display: 'flex', gap: '16px', marginBottom: '96px', flexDirection: 'row' }}>
-            <button 
-              onClick={() => navigate('/signup')} 
-              style={{ backgroundColor: '#111111', color: '#F5F5F3', padding: '16px 32px', borderRadius: '9999px', border: 'none', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
-            >
-              Start Training Free <ArrowRight size={18} />
-            </button>
-            <button style={{ backgroundColor: 'transparent', color: '#111111', padding: '16px 32px', borderRadius: '9999px', border: '2px solid #111111', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              Watch 2min Demo <Play size={18} />
-            </button>
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300" style={{ display: 'flex', gap: '16px', marginBottom: '96px', flexDirection: 'row' }}>
+            <Button onClick={() => navigate('/signup')} icon={ArrowRight}>Start Training Free</Button>
+            <Button variant="outline" icon={Play}>Watch 2min Demo</Button>
           </div>
 
-          {/* Hero Visual Mockup */}
-          <div style={{ width: '100%', maxWidth: '1000px', background: 'white', border: '2px solid #111111', borderRadius: '16px', padding: '16px', boxSizing: 'border-box' }}>
+          <div className="animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-400" style={{ width: '100%', maxWidth: '1000px', background: 'white', border: '2px solid #111111', borderRadius: '16px', padding: '16px', boxSizing: 'border-box' }}>
             <div style={{ background: '#FAFAF8', border: '1px solid #E5E4E0', borderRadius: '12px', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px', boxSizing: 'border-box', textAlign: 'left', position: 'relative' }}>
                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', gap: '32px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -84,7 +108,7 @@ const LandingPage = () => {
                           {[1,2,3].map(i => <div key={i} style={{ height: '32px', width: '100%', background: '#FAFAF8', borderRadius: '4px', border: '1px solid #E5E4E0' }}></div>)}
                        </div>
                     </div>
-                    <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    <div className="hidden md:flex" style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
                        <div style={{ flexGrow: 1, background: '#111111', color: 'white', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                           <span style={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', opacity: 0.4 }}>Accuracy</span>
                           <span style={{ fontSize: '36px', fontWeight: 'bold' }}>98.4%</span>
@@ -98,9 +122,9 @@ const LandingPage = () => {
       </section>
 
       {/* Feature Grid */}
-      <section id="features" style={{ backgroundColor: 'white', padding: '96px 24px', borderTop: '1px solid #E5E4E0', borderBottom: '1px solid #E5E4E0' }}>
+      <section id="features" style={{ backgroundColor: 'white', padding: '120px 24px', borderTop: '1px solid #E5E4E0', borderBottom: '1px solid #E5E4E0' }}>
         <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-          <h2 style={{ fontSize: '48px', fontWeight: 'bold', textAlign: 'center', marginBottom: '64px', letterSpacing: '-0.025em' }}>Engineered for quality.</h2>
+          <h2 style={{ fontSize: 'min(48px, 10vw)', fontWeight: 'bold', textAlign: 'center', marginBottom: '80px', letterSpacing: '-0.025em' }}>Engineered for quality.</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
             {[
               { title: "Dataset Sanitization", desc: "Automatic handling of missing values, outliers, and encoding. We prepare your data.", icon: Database },
@@ -131,7 +155,7 @@ const LandingPage = () => {
                 <div style={{ width: '40px', height: '40px', backgroundColor: 'white', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black', fontWeight: 'bold', fontSize: '20px' }}>T</div>
                 <span style={{ fontSize: '30px', fontWeight: 'bold', letterSpacing: '-0.025em' }}>Toddler</span>
               </div>
-              <p style={{ opacity: 0.4, fontSize: '14px', maxWidth: '250px' }}>Built for experts who build the future. Proprietary intelligence for specific domains.</p>
+              <p style={{ opacity: 0.4, fontSize: '14px', maxWidth: '250px' }}>Built for experts who build the future.</p>
             </div>
             {["Platform", "Company"].map(col => (
               <div key={col}>
@@ -145,7 +169,7 @@ const LandingPage = () => {
             ))}
           </div>
           <div style={{ paddingTop: '48px', borderTop: '1px solid rgba(255,255,255,0.05)', fontSize: '10px', fontWeight: 'bold', opacity: 0.2, textTransform: 'uppercase', letterSpacing: '0.3em' }}>
-            © 2026 TODDLER AI. ALL RIGHTS RESERVED.
+            © 2026 TODDLER AI.
           </div>
         </div>
       </footer>

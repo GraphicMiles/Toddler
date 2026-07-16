@@ -23,8 +23,8 @@ const Dashboard = () => {
   }, []);
 
   if (loading) return (
-    <div className="min-h-screen bg-toddler-off-white flex items-center justify-center">
-      <div className="w-6 h-6 border-2 border-toddler-green border-t-transparent rounded-full animate-spin"></div>
+    <div style={{minHeight: '100vh', backgroundColor: '#FAFAF8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif'}}>
+      <div style={{width: '24px', height: '24px', border: '3px solid #1B4332', borderTopColor: 'transparent', borderRadius: '50%'}} className="animate-spin"></div>
     </div>
   );
 

@@ -294,5 +294,8 @@ def sign_cloudinary_upload(resource_type: str = "raw", authorization: str | None
     cloudinary.config(cloud_name=os.environ["CLOUDINARY_CLOUD_NAME"], api_key=os.environ["CLOUDINARY_API_KEY"], api_secret=os.environ["CLOUDINARY_API_SECRET"], secure=True)
     timestamp = int(time.time())
     folder = f"toddler/datasets/{user['uid']}"
-    params = {"timestamp": timestamp, "folder": folder, "resource_type": resource_type}
-    return {"timestamp": timestamp, "signature": cloudinary.utils.api_sign_request(params, os.environ["CLOUDINARY_API_SECRET"]), "apiKey": os.environ["CLOUDINARY_API_KEY"], "cloudName": os.environ["CLOUDINARY_CLOUD_NAME"], "folder": folder}
+    preset = os.getenv("CLOUDINARY_SIGNED_UPLOAD_PRESET")
+    params = {"timestamp": timestamp, "folder": folder}
+    if preset:
+        params["upload_preset"] = preset
+    return {"timestamp": timestamp, "signature": cloudinary.utils.api_sign_request(params, os.environ["CLOUDINARY_API_SECRET"]), "apiKey": os.environ["CLOUDINARY_API_KEY"], "cloudName": os.environ["CLOUDINARY_CLOUD_NAME"], "folder": folder, "uploadPreset": preset}

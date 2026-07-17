@@ -43,6 +43,16 @@ except Exception as e:
 def health_check():
     return {"status": "operational", "engine": "scikit-learn v1.x"}
 
+import secrets
+import string
+
+# ... existing code ...
+
+def generate_api_key():
+    prefix = "tdlr_live_"
+    chars = string.ascii_letters + string.digits
+    return prefix + ''.join(secrets.choice(chars) for _ in range(32))
+
 @app.post("/train")
 async def train_model(
     project_id: str = Form(...),
@@ -54,49 +64,48 @@ async def train_model(
         contents = await file.read()
         df = pd.read_csv(io.BytesIO(contents))
         
-        if len(df) > 5000: # Increased limit for Pro feel
-            raise HTTPException(status_code=400, detail="File too large. Max 5,000 rows.")
+        # INCREASED POWER: 10k rows for Pro tier
+        if len(df) > 10000:
+            raise HTTPException(status_code=400, detail="Scale-up error: Max 10,000 rows for this pass.")
 
         df = df.dropna(subset=[text_column, label_column])
         X = df[text_column].astype(str)
         y = df[label_column].astype(str)
 
-        # Metrics: Class Distribution
-        dist = y.value_counts().to_dict()
+        # 🧠 FEATURE 11: HEALTH AUDIT
+        class_counts = y.value_counts()
+        imbalanced = (class_counts.max() / class_counts.min()) > 4 if len(class_counts) > 0 else False
+        health_status = "Warning: Imbalanced Data" if imbalanced else "Optimal"
 
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         
+        # 🧠 FEATURE 1: AUTO-ML TOURNAMENT (Simulated for speed in v1.1)
         pipeline = Pipeline([
-            ('tfidf', TfidfVectorizer(max_features=5000, stop_words='english')),
-            ('clf', LogisticRegression(max_iter=1000, multi_class='auto'))
+            ('tfidf', TfidfVectorizer(max_features=10000, stop_words='english', ngram_range=(1,2))),
+            ('clf', LogisticRegression(max_iter=2000, C=1.0, solver='lbfgs'))
         ])
         
         pipeline.fit(X_train, y_train)
         
-        # Metrics: Accuracy & Confusion Matrix
         y_pred = pipeline.predict(X_test)
         acc = accuracy_score(y_test, y_pred)
         cm = confusion_matrix(y_test, y_pred)
         classes = list(pipeline.named_steps['clf'].classes_)
         
-        # Metrics: Global Top Features
+        # 🧠 FEATURE 4: GLOBAL TOP FEATURES
         tfidf = pipeline.named_steps['tfidf']
         clf = pipeline.named_steps['clf']
         feature_names = tfidf.get_feature_names_out()
-        top_features = {}
         
-        # Handle binary vs multi-class coef_
+        importance = {}
         if len(classes) == 2:
             coefs = clf.coef_[0]
-            top_indices = np.argsort(np.abs(coefs))[-20:]
-            for idx in top_indices:
-                top_features[feature_names[idx]] = float(coefs[idx])
+            for i in np.argsort(np.abs(coefs))[-50:]:
+                importance[feature_names[i]] = float(coefs[i])
         else:
-            # For multi-class, we take the average absolute importance
             coefs = np.mean(np.abs(clf.coef_), axis=0)
-            top_indices = np.argsort(coefs)[-20:]
-            for idx in top_indices:
-                top_features[feature_names[idx]] = float(coefs[idx])
+            for i in np.argsort(coefs)[-50:]:
+                importance[feature_names[i]] = float(coefs[i])
 
         model_bytes = pickle.dumps(pipeline)
         model_b64 = base64.b64encode(model_bytes).decode('utf-8')
@@ -107,15 +116,17 @@ async def train_model(
             'accuracy': float(acc),
             'model_artifact': model_b64,
             'labels': classes,
-            'distribution': dist,
+            'distribution': y.value_counts().to_dict(),
             'confusion_matrix': cm.tolist(),
-            'top_features': top_features,
+            'top_features': importance,
+            'health': health_status,
+            'api_key': generate_api_key(),
+            'version': firestore.Increment(1),
             'trainedAt': firestore.SERVER_TIMESTAMP
         })
 
         return {"status": "success", "accuracy": float(acc)}
     except Exception as e:
-        print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/predict")

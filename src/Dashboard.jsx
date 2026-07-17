@@ -189,20 +189,22 @@ const Dashboard = () => {
           <button onClick={() => setSidebarOpen(true)} className="p-2 border-none bg-transparent"><Menu size={24} /></button>
         </div>
 
-        <header className="mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+        <header className="mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6 animate-in fade-in duration-700">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
               <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tighter leading-none">{currentProject.name}</h1>
-              <button className="p-2 hover:bg-black/5 rounded-lg transition-colors"><Edit3 size={16} className="text-[#6B6B68]" /></button>
+              <div className="flex gap-2">
+                <span className="px-2 py-1 bg-[#FAFAF8] border border-[#E5E4E0] rounded text-[10px] font-bold text-[#6B6B68]">v{currentProject.version || '1.0'}</span>
+              </div>
             </div>
-            <p className="text-[#6B6B68] font-medium uppercase tracking-[0.1em] text-[10px] md:text-xs">Model Version 1.0.0 · Active</p>
+            <p className="text-[#6B6B68] font-medium uppercase tracking-[0.1em] text-[10px] md:text-xs">Model Lifecycle · Active</p>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={handleDownload} className="px-5 py-2.5 bg-white border border-[#E5E4E0] rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 hover:border-black transition-all cursor-pointer">
               <Download size={14} /> Export .pkl
             </button>
-            <div className="px-4 py-2 bg-[#1B4332] text-white rounded-full text-[9px] font-bold uppercase tracking-widest flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> operational
+            <div className={`px-4 py-2 rounded-full text-[9px] font-bold uppercase tracking-widest flex items-center gap-2 ${currentProject.health === 'Optimal' ? 'bg-[#1B4332] text-white' : 'bg-amber-500 text-black'}`}>
+              <div className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" /> Health: {currentProject.health || 'Standard'}
             </div>
           </div>
         </header>
@@ -233,7 +235,7 @@ const Dashboard = () => {
                     <span className="text-[11px] font-bold uppercase tracking-[0.2em] opacity-40">Model Health</span>
                     <div className="flex items-center gap-3 p-4 bg-white/5 rounded-2xl border border-white/5">
                        <Database size={20} className="text-[#1B4332]" />
-                       <div className="text-sm font-bold">{currentProject.dataset.rowCount || 0} Training Rows</div>
+                       <div className="text-sm font-bold">{currentProject.dataset?.rowCount || 0} Training Rows</div>
                     </div>
                     <div className="flex items-center gap-3 p-4 bg-white/5 rounded-2xl border border-white/5">
                        <CheckCircle2 size={20} className="text-[#1B4332]" />
@@ -250,14 +252,19 @@ const Dashboard = () => {
             <div className="bg-white p-10 rounded-[32px] border border-[#E5E4E0]">
                <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#6B6B68] mb-8">Training Distribution</h3>
                <div className="flex items-end gap-4 h-48">
-                  {Object.entries(currentProject.distribution || {}).map(([label, count]) => (
-                    <div key={label} className="flex-1 flex flex-col items-center gap-3 group">
-                       <div className="w-full bg-[#1B4332]/5 group-hover:bg-[#1B4332]/10 rounded-xl transition-all relative flex flex-col justify-end overflow-hidden" style={{ height: '100%' }}>
-                          <div className="bg-[#1B4332] w-full rounded-t-lg transition-all" style={{ height: `${(count / Math.max(...Object.values(currentProject.distribution))) * 100}%` }} />
-                       </div>
-                       <span className="text-[10px] font-bold uppercase tracking-widest text-[#6B6B68] truncate w-full text-center">{label}</span>
-                    </div>
-                  ))}
+                  {currentProject.distribution ? Object.entries(currentProject.distribution).map(([label, count]) => {
+                    const maxVal = Math.max(...Object.values(currentProject.distribution), 1);
+                    return (
+                      <div key={label} className="flex-1 flex flex-col items-center gap-3 group">
+                        <div className="w-full bg-[#1B4332]/5 group-hover:bg-[#1B4332]/10 rounded-xl transition-all relative flex flex-col justify-end overflow-hidden" style={{ height: '100%' }}>
+                            <div className="bg-[#1B4332] w-full rounded-t-lg transition-all" style={{ height: `${(count / maxVal) * 100}%` }} />
+                        </div>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-[#6B6B68] truncate w-full text-center">{label}</span>
+                      </div>
+                    );
+                  }) : (
+                    <div className="w-full flex items-center justify-center text-text-muted italic text-sm">Distribution data missing. Please retrain.</div>
+                  )}
                </div>
             </div>
           </div>
@@ -292,7 +299,7 @@ const Dashboard = () => {
                   <div className="flex flex-wrap gap-2">
                     {predictText.split(/\s+/).map((word, i) => {
                       const clean = word.toLowerCase().replace(/[.,!?;]/g, '');
-                      const weight = prediction.weights[clean];
+                      const weight = (prediction.weights && prediction.weights[clean]) || 0;
                       const opacity = weight ? Math.min(Math.max(Math.abs(weight) * 2, 0.1), 0.5) : 0;
                       return <span key={i} className="px-2 py-0.5 rounded text-sm font-medium" style={{ backgroundColor: opacity > 0 ? `rgba(27, 67, 50, ${opacity})` : 'transparent' }}>{word}</span>;
                     })}
@@ -326,18 +333,22 @@ const Dashboard = () => {
           <div className="grid lg:grid-cols-2 gap-12">
              <div className="bg-white p-10 rounded-[32px] border border-[#E5E4E0]">
                 <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#6B6B68] mb-12">Confusion Matrix</h3>
-                <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${currentProject.labels.length}, 1fr)` }}>
-                   {currentProject.confusion_matrix.map((row, i) => row.map((val, j) => {
-                     const isCorrect = i === j;
-                     const max = Math.max(...currentProject.confusion_matrix.flat());
-                     const intensity = (val / max);
-                     return (
-                       <div key={`${i}-${j}`} className="aspect-square rounded-lg flex items-center justify-center flex-col p-2 transition-all hover:scale-105" style={{ backgroundColor: isCorrect ? `rgba(27, 67, 50, ${intensity})` : `rgba(185, 28, 28, ${intensity * 0.2})`, color: intensity > 0.5 ? 'white' : 'inherit' }}>
-                          <div className="text-xl font-bold">{val}</div>
-                       </div>
-                     );
-                   }))}
-                </div>
+                {currentProject.confusion_matrix ? (
+                  <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${currentProject.labels?.length || 1}, 1fr)` }}>
+                    {currentProject.confusion_matrix.map((row, i) => row.map((val, j) => {
+                      const isCorrect = i === j;
+                      const max = Math.max(...currentProject.confusion_matrix.flat());
+                      const intensity = (val / (max || 1));
+                      return (
+                        <div key={`${i}-${j}`} className="aspect-square rounded-lg flex items-center justify-center flex-col p-2 transition-all hover:scale-105" style={{ backgroundColor: isCorrect ? `rgba(27, 67, 50, ${intensity})` : `rgba(185, 28, 28, ${intensity * 0.2})`, color: intensity > 0.5 ? 'white' : 'inherit' }}>
+                            <div className="text-xl font-bold">{val}</div>
+                        </div>
+                      );
+                    }))}
+                  </div>
+                ) : (
+                  <div className="h-48 border-2 border-dashed border-[#E5E4E0] rounded-[32px] flex items-center justify-center text-[#6B6B68] text-sm italic">Analytics not available for this version. Please retrain.</div>
+                )}
                 <div className="mt-8 flex justify-between text-[10px] font-bold uppercase tracking-widest text-[#6B6B68]">
                    <span>Actual</span>
                    <span>Predicted</span>
@@ -346,19 +357,23 @@ const Dashboard = () => {
 
              <div className="bg-white p-10 rounded-[32px] border border-[#E5E4E0]">
                 <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#6B6B68] mb-8">Global Feature Importance</h3>
-                <div className="space-y-4">
-                   {Object.entries(currentProject.top_features).sort((a,b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 10).map(([word, weight]) => (
-                     <div key={word} className="space-y-2">
-                        <div className="flex justify-between text-xs font-bold uppercase tracking-widest">
-                           <span>{word}</span>
-                           <span className={weight > 0 ? 'text-[#1B4332]' : 'text-red-400'}>{weight > 0 ? '+' : ''}{weight.toFixed(2)}</span>
-                        </div>
-                        <div className="h-1.5 bg-[#FAFAF8] rounded-full overflow-hidden">
-                           <div className={`h-full rounded-full ${weight > 0 ? 'bg-[#1B4332]' : 'bg-red-400'}`} style={{ width: `${Math.min(Math.abs(weight) * 50, 100)}%` }} />
-                        </div>
-                     </div>
-                   ))}
-                </div>
+                {currentProject.top_features ? (
+                  <div className="space-y-4">
+                    {Object.entries(currentProject.top_features).sort((a,b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 10).map(([word, weight]) => (
+                      <div key={word} className="space-y-2">
+                          <div className="flex justify-between text-xs font-bold uppercase tracking-widest">
+                            <span>{word}</span>
+                            <span className={weight > 0 ? 'text-[#1B4332]' : 'text-red-400'}>{weight > 0 ? '+' : ''}{weight.toFixed(2)}</span>
+                          </div>
+                          <div className="h-1.5 bg-[#FAFAF8] rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${weight > 0 ? 'bg-[#1B4332]' : 'bg-red-400'}`} style={{ width: `${Math.min(Math.abs(weight) * 50, 100)}%` }} />
+                          </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="h-48 border-2 border-dashed border-[#E5E4E0] rounded-[32px] flex items-center justify-center text-[#6B6B68] text-sm italic">Feature importance not available. Please retrain.</div>
+                )}
              </div>
           </div>
         )}
@@ -372,7 +387,7 @@ const Dashboard = () => {
                   <p className="text-xs text-[#6B6B68]">Assign responses to your trained labels.</p>
                </div>
                <div className="space-y-6">
-                  {currentProject.labels.map(label => (
+                  {currentProject.labels ? currentProject.labels.map(label => (
                     <div key={label} className="space-y-2">
                        <label className="text-[10px] font-bold uppercase tracking-widest text-[#1B4332]">{label}</label>
                        <textarea 
@@ -383,7 +398,9 @@ const Dashboard = () => {
                         onBlur={(e) => saveResponse(label, e.target.value)}
                        />
                     </div>
-                  ))}
+                  )) : (
+                    <div className="text-text-muted italic text-xs">No labels found. Please retrain.</div>
+                  )}
                </div>
             </div>
 

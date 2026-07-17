@@ -13,6 +13,31 @@ const Onboarding = ({ onComplete }) => {
   const [selection, setSelection] = useState({ text: '', label: '' });
   const [error, setError] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Initializing...');
+
+  const messages = [
+    "Caramelizing onions...",
+    "Finding Nemo...",
+    "Seeking wisdom from ancestors...",
+    "Discombobulating data structures...",
+    "Teaching the model some manners...",
+    "Inflating the neural network...",
+    "Summoning the ML gods...",
+    "Untangling the TF-IDF web...",
+    "Polishing the confusion matrix..."
+  ];
+
+  useEffect(() => {
+    let interval;
+    if (isUploading) {
+      let index = 0;
+      interval = setInterval(() => {
+        setLoadingMessage(messages[index % messages.length]);
+        index++;
+      }, 2000);
+    }
+    return () => clearInterval(interval);
+  }, [isUploading]);
 
   const nextStep = () => setStep(step + 1);
   const prevStep = () => setStep(step - 1);
@@ -172,9 +197,14 @@ const Onboarding = ({ onComplete }) => {
                 <button onClick={prevStep} className="text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted hover:text-text-primary transition-colors cursor-pointer border-none bg-transparent">Go Back</button>
                 <button 
                   disabled={!selection.text || !selection.label || isUploading} onClick={handleComplete}
-                  className="bg-accent text-accent-fg px-10 py-5 rounded-full font-bold uppercase tracking-widest text-xs border-2 border-accent hover:bg-transparent hover:text-accent transition-all disabled:opacity-20 cursor-pointer"
+                  className="bg-accent text-accent-fg px-10 py-5 rounded-full font-bold uppercase tracking-widest text-xs border-2 border-accent hover:bg-transparent hover:text-accent transition-all disabled:opacity-20 cursor-pointer flex items-center gap-4"
                 >
-                  {isUploading ? 'Creating...' : 'Initialize Workspace'}
+                  {isUploading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-accent-fg border-t-transparent rounded-full animate-spin" />
+                      {loadingMessage}
+                    </>
+                  ) : 'Initialize Workspace'}
                 </button>
               </div>
             </div>

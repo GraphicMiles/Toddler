@@ -6,6 +6,7 @@ import Dashboard from './Dashboard'
 import { auth } from './firebase'
 import { onAuthStateChanged } from 'firebase/auth'
 import { Toaster } from 'react-hot-toast'
+import { Skeleton } from './components/UI'
 
 function App() {
   const [user, setUser] = React.useState(null)
@@ -26,8 +27,14 @@ function App() {
   }, [])
 
   if (loading) return (
-    <div style={{minHeight: '100vh', backgroundColor: '#FAFAF8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif'}}>
-      <div style={{width: '32px', height: '32px', border: '4px solid #1B4332', borderTopColor: 'transparent', borderRadius: '50%'}} className="animate-spin"></div>
+    <div className="min-h-screen bg-[var(--color-bg-base)] flex flex-col items-center justify-center p-[var(--spacing-6)]">
+      <div className="space-y-[var(--spacing-6)] flex flex-col items-center">
+        <div className="w-12 h-12 bg-[var(--color-text-primary)] rounded-xl flex items-center justify-center text-[var(--color-text-inverse)] font-display font-bold text-xl animate-bounce">T</div>
+        <div className="flex items-center gap-[var(--spacing-3)] text-[var(--color-text-muted)] font-bold uppercase tracking-[0.2em] text-[11px]">
+          <div className="w-4 h-4 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
+          Harmonizing Engine...
+        </div>
+      </div>
     </div>
   )
 
@@ -36,15 +43,20 @@ function App() {
       <Toaster 
         position="bottom-right"
         toastOptions={{
+          className: 'font-sans font-bold text-[13px] uppercase tracking-widest',
           style: {
-            background: '#111111',
-            color: '#F5F5F3',
-            borderRadius: '12px',
-            fontSize: '14px',
-            fontWeight: '600',
-            padding: '16px 24px'
+            background: 'var(--color-bg-dark)',
+            color: 'var(--color-text-inverse)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 'var(--spacing-4) var(--spacing-6)',
+            border: '1px solid rgba(255,255,255,0.1)'
           },
-          success: { iconTheme: { primary: '#1B4332', secondary: '#F5F5F3' } }
+          success: {
+            iconTheme: {
+              primary: 'var(--color-accent)',
+              secondary: 'var(--color-text-inverse)',
+            },
+          },
         }}
       />
       <BrowserRouter>

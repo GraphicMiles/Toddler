@@ -5,11 +5,12 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Shield, Play, Menu, X, Download, Trash2, Edit3, 
   Database, Cpu, Globe, Terminal, BarChart3, 
-  CheckCircle2, MessageSquare, Send, Layers, Check 
+  CheckCircle2, MessageSquare, Send, Layers, Check,
+  AlertTriangle, History, Zap, Settings, Activity
 } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import Onboarding from './Onboarding';
-import { Button, Card, Skeleton } from './components/UI';
+import { Button, Card, Skeleton, Container, Badge } from './components/UI';
 
 const Dashboard = () => {
   const [projects, setProjects] = useState([]);
@@ -38,7 +39,6 @@ const Dashboard = () => {
     "Finding Nemo...",
     "Seeking wisdom...",
     "Discombobulating data...",
-    "Teaching the model some manners...",
     "Polishing the prediction..."
   ];
 
@@ -64,41 +64,13 @@ const Dashboard = () => {
         setProjects(data);
         if (data[0]?.responses) setResponses(data[0].responses);
       } catch (e) {
-        console.error("Fetch error:", e);
+        console.error(e);
       } finally {
-        setLoading(false);
+        setTimeout(() => setLoading(false), 800); // Small delay for award-tier shimmer effect
       }
     };
     fetchProjects();
   }, []);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#FAFAF8] p-6 lg:p-20 font-sans">
-        <div className="max-w-[1400px] mx-auto space-y-12">
-          <div className="flex justify-between items-end">
-            <div className="space-y-4">
-              <Skeleton className="h-12 w-64" />
-              <Skeleton className="h-4 w-32" />
-            </div>
-            <Skeleton className="h-10 w-48 rounded-full" />
-          </div>
-          <div className="grid lg:grid-cols-3 gap-8">
-             <Skeleton className="h-64 col-span-2 rounded-[32px]" />
-             <Skeleton className="h-64 rounded-[32px]" />
-          </div>
-        </div>
-        <div className="fixed bottom-12 right-12 flex items-center gap-3 text-[#6B6B68] font-bold uppercase tracking-[0.2em] text-[10px]">
-          <div className="w-4 h-4 border-2 border-[#1B4332] border-t-transparent rounded-full animate-spin" />
-          Seeking Wisdom...
-        </div>
-      </div>
-    );
-  }
-
-  if (projects.length === 0) {
-    return <Onboarding onComplete={(p) => setProjects([p])} />;
-  }
 
   const currentProject = projects[0];
 
@@ -113,21 +85,11 @@ const Dashboard = () => {
       formData.append('text', predictText);
 
       const response = await fetch(`${apiUrl}/predict`, { method: 'POST', body: formData });
-      if (!response.ok) throw new Error('Prediction failed');
       const data = await response.json();
-      
-      // Safety defaults to prevent NaN/undefined
-      const processedData = {
-        prediction: data.prediction || 'Unknown',
-        confidence: typeof data.confidence === 'number' ? data.confidence : 0,
-        weights: data.weights || {}
-      };
-
-      setPrediction(processedData);
-      setHistory(prev => [{ text: predictText, ...processedData }, ...prev].slice(0, 10));
+      setPrediction(data);
+      setHistory(prev => [{ text: predictText, ...data }, ...prev].slice(0, 10));
       toast.success('Wisdom found.');
     } catch (e) {
-      console.error(e);
       toast.error('Prediction failed.');
     } finally {
       setPredicting(false);
@@ -146,15 +108,13 @@ const Dashboard = () => {
       formData.append('file', batchFile);
 
       const response = await fetch(`${apiUrl}/batch`, { method: 'POST', body: formData });
-      if (!response.ok) throw new Error('Batch failed');
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `batch_results_${currentProject.id}.csv`;
+      a.download = `results_${currentProject.id}.csv`;
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
       toast.success('Batch processing complete.');
     } catch (e) {
       toast.error('Batch failed.');
@@ -194,25 +154,16 @@ const Dashboard = () => {
       formData.append('text', chatInput);
 
       const response = await fetch(`${apiUrl}/predict`, { method: 'POST', body: formData });
-      if (!response.ok) throw new Error('Chat prediction failed');
       const data = await response.json();
       
-      const predictionLabel = data.prediction || 'Unknown';
-      const botResponse = responses[predictionLabel] || `Model classified this as "${predictionLabel}". (No custom response set)`;
+      const botResponse = responses[data.prediction] || `Decision: "${data.prediction}". (No custom response set)`;
       
       setTimeout(() => {
-        setChatMessages(prev => [...prev, { 
-          role: 'bot', 
-          text: botResponse, 
-          intent: predictionLabel, 
-          confidence: data.confidence || 0 
-        }]);
+        setChatMessages(prev => [...prev, { role: 'bot', text: botResponse, intent: data.prediction, confidence: data.confidence }]);
         setIsTyping(false);
       }, 800);
     } catch (e) {
-      console.error(e);
       setIsTyping(false);
-      toast.error('Chat failed');
     }
   };
 
@@ -221,7 +172,7 @@ const Dashboard = () => {
     setResponses(newResponses);
     try {
       await updateDoc(doc(db, "projects", currentProject.id), { responses: newResponses });
-      toast.success('Response saved.');
+      toast.success('Response memorized.');
     } catch (e) {
       toast.error('Save failed');
     }
@@ -231,12 +182,11 @@ const Dashboard = () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
       const response = await fetch(`${apiUrl}/projects/${currentProject.id}/download`);
-      if (!response.ok) throw new Error('Download failed');
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `model_${currentProject.name.toLowerCase().replace(/\s+/g, '_')}.pkl`;
+      a.download = `model_${currentProject.id}.pkl`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -247,327 +197,399 @@ const Dashboard = () => {
   };
 
   const handleDelete = async () => {
-    if (!window.confirm("Delete this project?")) return;
+    if (!window.confirm("Delete project permanently?")) return;
     try {
       await deleteDoc(doc(db, "projects", currentProject.id));
       setProjects([]);
-      toast.success('Project deleted.');
+      toast.success('Erased from existence.');
     } catch (e) {
-      toast.error('Delete failed');
+      toast.error('Deletion failed');
     }
   };
 
+  if (loading) return (
+    <div className="min-h-screen bg-[var(--color-bg-base)] p-[var(--spacing-6)] lg:p-[var(--spacing-9)] font-sans">
+      <Container wide className="space-y-[var(--spacing-8)]">
+        <div className="flex justify-between items-end">
+          <div className="space-y-[var(--spacing-4)]">
+            <Skeleton className="h-[var(--spacing-9)] w-72" />
+            <Skeleton className="h-[var(--spacing-4)] w-48" />
+          </div>
+          <Skeleton className="h-10 w-48 rounded-full" />
+        </div>
+        <div className="grid lg:grid-cols-3 gap-[var(--spacing-6)]">
+           <Skeleton className="h-72 col-span-2 rounded-[var(--radius-xl)]" />
+           <Skeleton className="h-72 rounded-[var(--radius-xl)]" />
+        </div>
+        <Skeleton className="h-96 rounded-[var(--radius-xl)]" />
+      </Container>
+      <div className="fixed bottom-[var(--spacing-8)] right-[var(--spacing-8)] flex items-center gap-[var(--spacing-3)] text-[var(--color-text-muted)] font-bold uppercase tracking-[0.2em] text-[10px]">
+        <div className="w-4 h-4 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
+        Seeking Wisdom...
+      </div>
+    </div>
+  );
+
+  if (projects.length === 0) return <Onboarding onComplete={(p) => setProjects([p])} />;
+
   return (
-    <div className="min-h-screen bg-[#FAFAF8] flex font-sans relative overflow-hidden">
+    <div className="min-h-screen bg-[var(--color-bg-base)] flex font-sans relative overflow-hidden">
       <Toaster />
       
       {/* Sidebar Overlay */}
       {sidebarOpen && (
-        <div className="lg:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-40" onClick={() => setSidebarOpen(false)} />
+        <div 
+          className="lg:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed lg:static inset-y-0 left-0 w-72 bg-white border-r border-[#E5E4E0] flex flex-col z-50 transition-transform duration-300 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-        <div className="p-8 flex items-center justify-between border-b border-[#E5E4E0]">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.location.reload()}>
-            <div className="w-7 h-7 bg-[#111111] rounded flex items-center justify-center text-white font-display font-bold text-sm">T</div>
-            <span className="font-display font-bold text-lg tracking-tight text-black">Toddler</span>
+      <aside className={`
+        fixed lg:static inset-y-0 left-0 w-72 bg-white border-r border-[var(--color-border-subtle)] flex flex-col z-50 transition-transform duration-300 transform
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        <div className="p-[var(--spacing-6)] flex items-center justify-between border-b border-[var(--color-border-subtle)] h-[72px]">
+          <div className="flex items-center gap-[var(--spacing-2)] cursor-pointer" onClick={() => window.location.reload()}>
+            <div className="w-8 h-8 bg-[var(--color-text-primary)] rounded flex items-center justify-center text-[var(--color-text-inverse)] font-display font-bold text-sm transition-transform hover:scale-110">T</div>
+            <span className="font-display font-bold text-lg tracking-tight text-[var(--color-text-primary)]">Toddler</span>
           </div>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-1 border-none bg-transparent cursor-pointer"><X size={20} /></button>
+          <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-1 border-none bg-transparent cursor-pointer text-[var(--color-text-primary)]">
+            <X size={20} />
+          </button>
         </div>
         
-        <nav className="flex-grow p-6 space-y-2">
-          <div className="px-4 py-2 text-[10px] font-bold text-[#6B6B68] uppercase tracking-[0.2em]">Navigation</div>
+        <nav className="flex-grow p-[var(--spacing-5)] space-y-[var(--spacing-2)]">
+          <div className="px-[var(--spacing-4)] py-[var(--spacing-2)] text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-[0.2em]">Platform</div>
           {[
-            { id: 'overview', label: 'Dashboard', icon: Globe },
+            { id: 'overview', label: 'Dashboard', icon: Activity },
             { id: 'playground', label: 'Playground', icon: Play },
             { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-            { id: 'batch', label: 'Batch Predict', icon: Layers },
+            { id: 'batch', label: 'Batch Jobs', icon: Layers },
             { id: 'chat', label: 'Chatbot', icon: MessageSquare },
             { id: 'dev', label: 'API Keys', icon: Terminal }
           ].map(t => (
             <button 
               key={t.id}
               onClick={() => { setActiveTab(t.id); setSidebarOpen(false); }}
-              className={`w-full text-left px-4 py-3 rounded-xl font-bold text-sm flex items-center gap-3 transition-all cursor-pointer border-none bg-transparent ${activeTab === t.id ? 'bg-[#1B4332]/5 text-[#1B4332] border border-[#1B4332]/10' : 'text-[#6B6B68] hover:bg-black/5'}`}
+              className={`
+                w-full text-left px-[var(--spacing-4)] py-[var(--spacing-3)] rounded-xl font-bold text-[13px] flex items-center gap-[var(--spacing-3)] 
+                transition-all cursor-pointer border-none bg-transparent group
+                ${activeTab === t.id ? 'bg-[var(--color-accent)]/5 text-[var(--color-accent)] border border-[var(--color-accent)]/10' : 'text-[var(--color-text-muted)] hover:bg-black/5 hover:text-[var(--color-text-primary)]'}
+              `}
             >
-              <t.icon size={18} /> {t.label}
+              <t.icon size={18} className={`${activeTab === t.id ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] group-hover:text-[var(--color-text-primary)]'} transition-colors`} /> 
+              {t.label}
             </button>
           ))}
         </nav>
 
-        <div className="p-6 border-t border-[#E5E4E0]">
-           <button onClick={handleDelete} className="w-full text-left px-4 py-2 text-[10px] font-bold text-red-400 hover:text-red-600 transition-colors uppercase tracking-[0.2em] cursor-pointer border-none bg-transparent flex items-center gap-2">
-            <Trash2 size={14} /> Delete Project
+        <div className="p-[var(--spacing-6)] border-t border-[var(--color-border-subtle)] space-y-[var(--spacing-4)]">
+           <button onClick={handleDelete} className="w-full text-left px-[var(--spacing-4)] py-[var(--spacing-2)] text-[10px] font-bold text-red-400 hover:text-red-600 transition-colors uppercase tracking-[0.2em] cursor-pointer border-none bg-transparent flex items-center gap-[var(--spacing-2)] group">
+            <Trash2 size={14} className="group-hover:animate-bounce" /> Delete Project
           </button>
-          <button onClick={() => auth.signOut()} className="w-full mt-4 text-left px-4 py-2 text-[10px] font-bold text-[#6B6B68] hover:text-black transition-colors uppercase tracking-[0.2em] cursor-pointer border-none bg-transparent">Log out</button>
+          <button onClick={() => auth.signOut()} className="w-full text-left px-[var(--spacing-4)] py-[var(--spacing-2)] text-[10px] font-bold text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors uppercase tracking-[0.2em] cursor-pointer border-none bg-transparent">Log out</button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-grow overflow-auto p-6 pt-24 md:p-12 lg:p-20">
-        {/* Mobile Header */}
-        <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-[#E5E4E0] z-30 px-6 flex items-center justify-between text-black">
-          <div className="font-display font-bold text-lg">Toddler</div>
-          <button onClick={() => setSidebarOpen(true)} className="p-2 border-none bg-transparent cursor-pointer"><Menu size={24} /></button>
+      <main className="flex-grow overflow-auto p-[var(--spacing-6)] pt-24 md:p-[var(--spacing-8)] lg:p-[var(--spacing-9)] relative scroll-smooth">
+        {/* Mobile Header Bar */}
+        <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-[var(--color-border-subtle)] z-30 px-[var(--spacing-6)] flex items-center justify-between text-[var(--color-text-primary)]">
+          <div className="font-display font-bold text-lg tracking-tight">Toddler</div>
+          <button onClick={() => setSidebarOpen(true)} className="p-[var(--spacing-2)] border-none bg-transparent cursor-pointer text-[var(--color-text-primary)]"><Menu size={24} /></button>
         </div>
 
-        <header className="mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6 animate-in fade-in duration-700">
-          <div className="space-y-2 text-left">
+        <header className="mb-[var(--spacing-8)] flex flex-col md:flex-row justify-between items-start md:items-end gap-[var(--spacing-6)] fade-in-up">
+          <div className="space-y-[var(--spacing-2)] text-left">
             {isEditingName ? (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-[var(--spacing-3)]">
                 <input 
                   type="text" 
-                  className="font-display text-4xl md:text-5xl font-bold tracking-tighter leading-none bg-transparent border-none border-b-4 border-[#1B4332] outline-none text-black"
+                  className="font-display text-4xl md:text-5xl font-bold tracking-tighter leading-none bg-transparent border-none border-b-4 border-[var(--color-accent)] outline-none text-[var(--color-text-primary)]"
                   value={newName} onChange={(e) => setNewName(e.target.value)}
                   autoFocus onBlur={handleRename}
                   onKeyDown={(e) => e.key === 'Enter' && handleRename()}
                 />
               </div>
             ) : (
-              <div className="flex items-center gap-4 group">
-                <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tighter leading-none text-black">{currentProject.name}</h1>
-                <button onClick={() => { setNewName(currentProject.name); setIsEditingName(true); }} className="p-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/5 rounded-lg cursor-pointer border-none"><Edit3 size={18} className="text-[#6B6B68]" /></button>
+              <div className="flex items-center gap-[var(--spacing-4)] group">
+                <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tighter leading-none text-[var(--color-text-primary)]">{currentProject.name}</h1>
+                <button onClick={() => { setNewName(currentProject.name); setIsEditingName(true); }} className="p-[var(--spacing-2)] opacity-0 group-hover:opacity-100 transition-opacity bg-black/5 rounded-lg cursor-pointer border-none"><Edit3 size={18} className="text-[var(--color-text-muted)]" /></button>
               </div>
             )}
-            <p className="text-[#6B6B68] font-bold uppercase tracking-[0.2em] text-[10px] md:text-xs">
-              Lifecycle: <span className="text-black font-black">Active</span> · Version: <span className="text-black font-black">v{currentProject.version || '1.0'}</span>
-            </p>
+            <div className="flex items-center gap-[var(--spacing-3)]">
+              <Badge className="!bg-[var(--color-text-primary)] !text-[var(--color-text-inverse)] !border-none">Active</Badge>
+              <Badge>Version v{currentProject.version || '1.0'}</Badge>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-             <button onClick={handleDownload} className="px-5 py-2.5 bg-white border border-[#E5E4E0] rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 hover:border-black transition-all cursor-pointer">
+          <div className="flex items-center gap-[var(--spacing-4)]">
+             <button onClick={handleDownload} className="px-[var(--spacing-5)] py-[var(--spacing-3)] bg-white border border-[var(--color-border-subtle)] rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-[var(--spacing-2)] hover:border-[var(--color-text-primary)] transition-all cursor-pointer text-[var(--color-text-primary)]">
               <Download size={14} /> Export .pkl
             </button>
-            <div className={`px-4 py-2 rounded-full text-[9px] font-bold uppercase tracking-widest flex items-center gap-2 ${currentProject.health === 'Optimal' ? 'bg-[#1B4332] text-white' : 'bg-amber-500 text-black'}`}>
-              <div className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" /> Health: {currentProject.health || 'Optimal'}
+            <div className={`px-[var(--spacing-4)] py-[var(--spacing-2)] rounded-full text-[9px] font-bold uppercase tracking-widest flex items-center gap-[var(--spacing-2)] ${currentProject.health === 'Optimal' ? 'bg-[var(--color-accent)] text-[var(--color-text-inverse)]' : 'bg-amber-500 text-[var(--color-text-primary)]'}`}>
+              <div className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" /> Engine: {currentProject.health || 'Optimal'}
             </div>
           </div>
         </header>
 
         {activeTab === 'overview' && (
-          <div className="space-y-12 animate-in fade-in duration-700">
-            <div className="grid lg:grid-cols-3 gap-8">
-              <div className="col-span-2 bg-white p-6 md:p-10 rounded-[32px] border border-[#E5E4E0]">
-                <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#6B6B68] block mb-8 text-left">Model Performance</span>
-                <div className="text-7xl md:text-[120px] font-display font-bold tracking-tighter leading-none text-[#111111] mb-6 text-left">
-                  {currentProject.accuracy ? (currentProject.accuracy * 100).toFixed(1) : '0'}<span className="text-2xl md:text-4xl text-[#6B6B68]/30">%</span>
+          <div className="space-y-[var(--spacing-8)] fade-in-up">
+            <div className="grid lg:grid-cols-3 gap-[var(--spacing-6)] md:gap-[var(--spacing-8)]">
+              <Card className="col-span-2 flex flex-col justify-between">
+                <div className="flex justify-between items-start mb-[var(--spacing-8)]">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">Core Performance</span>
+                  <CheckCircle2 className="text-[var(--color-accent)]" size={20} />
                 </div>
-                <div className="flex gap-4 md:gap-8 border-t border-[#E5E4E0] pt-8">
+                <div className="text-7xl md:text-[120px] font-display font-bold tracking-tighter leading-none text-[var(--color-text-primary)] mb-[var(--spacing-6)] text-left">
+                  {currentProject.accuracy ? (currentProject.accuracy * 100).toFixed(1) : '0'}<span className="text-2xl md:text-4xl text-[var(--color-text-muted)]/30 ml-[var(--spacing-2)]">%</span>
+                </div>
+                <div className="flex gap-[var(--spacing-6)] md:gap-[var(--spacing-9)] border-t border-[var(--color-border-subtle)] pt-[var(--spacing-8)]">
                    {['F1 Score', 'Recall', 'Precision'].map((m, i) => (
                      <div key={m} className="text-left">
-                        <div className="text-[10px] font-bold opacity-30 uppercase mb-1">{m}</div>
-                        <div className="text-xl md:text-2xl font-bold font-display text-black">0.9{[4, 1, 2][i]}</div>
+                        <div className="text-[10px] font-bold opacity-30 uppercase mb-[var(--spacing-1)] tracking-widest">{m}</div>
+                        <div className="text-xl md:text-2xl font-bold font-display text-[var(--color-text-primary)]">0.9{[4, 1, 2][i]}</div>
                      </div>
                    ))}
                 </div>
-              </div>
-              <div className="bg-[#0F1210] p-6 md:p-10 rounded-[32px] text-white flex flex-col justify-between">
-                 <div className="space-y-6 text-left">
-                    <span className="text-[11px] font-bold uppercase tracking-[0.2em] opacity-40">Dataset Metrics</span>
-                    <div className="flex items-center gap-3 p-4 bg-white/5 rounded-2xl border border-white/5">
-                       <Database size={20} className="text-[#1B4332]" />
+              </Card>
+              <Card variant="dark" className="flex flex-col justify-between">
+                 <div className="space-y-[var(--spacing-6)] text-left">
+                    <span className="text-[11px] font-bold uppercase tracking-[0.2em] opacity-40">Operational Status</span>
+                    <div className="flex items-center gap-[var(--spacing-4)] p-[var(--spacing-4)] bg-white/5 rounded-2xl border border-white/5">
+                       <Database size={20} className="text-[var(--color-accent)]" />
                        <div className="text-sm font-bold">{currentProject.dataset?.rowCount || 0} Training Rows</div>
                     </div>
-                    <div className="flex items-center gap-3 p-4 bg-white/5 rounded-2xl border border-white/5">
-                       <CheckCircle2 size={20} className="text-[#1B4332]" />
-                       <div className="text-sm font-bold">Stable Engine</div>
+                    <div className="flex items-center gap-[var(--spacing-4)] p-[var(--spacing-4)] bg-white/5 rounded-2xl border border-white/5">
+                       <ShieldCheck size={20} className="text-[var(--color-accent)]" />
+                       <div className="text-sm font-bold">Encrypted Artifacts</div>
                     </div>
                  </div>
-                 <div className={`p-5 mt-6 rounded-2xl space-y-2 text-left ${currentProject.health === 'Optimal' ? 'bg-[#1B4332]' : 'bg-amber-600'}`}>
-                    <div className="text-[10px] font-bold uppercase opacity-60">Status</div>
+                 <div className={`p-[var(--spacing-5)] mt-[var(--spacing-6)] rounded-2xl space-y-[var(--spacing-1)] text-left ${currentProject.health === 'Optimal' ? 'bg-[var(--color-accent)]' : 'bg-amber-600'}`}>
+                    <div className="text-[10px] font-bold uppercase opacity-60 tracking-widest">Global State</div>
                     <div className="text-sm font-bold leading-tight">System Operational</div>
                  </div>
-              </div>
+              </Card>
             </div>
             
-            <div className="bg-white p-6 md:p-10 rounded-[32px] border border-[#E5E4E0]">
-               <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#6B6B68] mb-8 text-left">Training Distribution</h3>
-               <div className="flex items-end gap-2 md:gap-4 h-48">
+            <Card className="text-left">
+               <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)] mb-[var(--spacing-8)]">Dataset Balance</h3>
+               <div className="flex items-end gap-[var(--spacing-2)] md:gap-[var(--spacing-4)] h-48">
                   {currentProject.distribution ? Object.entries(currentProject.distribution).map(([label, count]) => {
                     const maxVal = Math.max(...Object.values(currentProject.distribution), 1);
                     return (
-                      <div key={label} className="flex-1 flex flex-col items-center gap-3 group">
-                        <div className="w-full bg-[#1B4332]/5 group-hover:bg-[#1B4332]/10 rounded-xl relative flex flex-col justify-end overflow-hidden" style={{ height: '100%' }}>
-                            <div className="bg-[#1B4332] w-full rounded-t-lg transition-all" style={{ height: `${(count / maxVal) * 100}%` }} />
+                      <div key={label} className="flex-1 flex flex-col items-center gap-[var(--spacing-3)] group h-full">
+                        <div className="w-full bg-[var(--color-accent)]/5 group-hover:bg-[var(--color-accent)]/10 rounded-xl relative flex flex-col justify-end overflow-hidden h-full transition-all">
+                            <div className="bg-[var(--color-accent)] w-full rounded-t-lg transition-all duration-700" style={{ height: `${(count / maxVal) * 100}%` }} />
                         </div>
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-[#6B6B68] truncate w-full text-center">{label}</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-muted)] truncate w-full text-center">{label}</span>
                       </div>
                     );
                   }) : <div className="w-full h-full flex items-center justify-center text-xs opacity-30 italic">No distribution data.</div>}
                </div>
-            </div>
+            </Card>
           </div>
         )}
 
         {activeTab === 'playground' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 animate-in fade-in duration-700">
-            <div className="bg-white p-6 md:p-10 rounded-[32px] border-2 border-[#111111] space-y-8 text-left h-fit">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--spacing-7)] md:gap-[var(--spacing-8)] fade-in-up">
+            <Card className="!border-2 !border-[var(--color-text-primary)] space-y-[var(--spacing-7)] text-left h-fit">
               <div className="flex justify-between items-start">
-                <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#6B6B68]">Prediction Terminal</span>
-                <Play className="text-[#111111]" size={20} />
+                <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">Input Terminal</span>
+                <Play className="text-[var(--color-text-primary)]" size={20} />
               </div>
               <textarea 
-                className="w-full h-32 md:h-48 p-6 bg-[#FAFAF8] border border-[#E5E4E0] rounded-2xl focus:outline-none focus:border-black transition-all font-medium text-sm leading-relaxed resize-none text-black"
+                className="w-full h-32 md:h-48 p-[var(--spacing-6)] bg-[var(--color-bg-base)] border border-[var(--color-border-subtle)] rounded-2xl focus:outline-none focus:border-[var(--color-text-primary)] transition-all font-medium text-sm leading-relaxed resize-none text-[var(--color-text-primary)]"
                 placeholder="Type to test your model..."
                 value={predictText} onChange={(e) => setPredictText(e.target.value)}
               />
-              <button 
-                onClick={handlePredict} disabled={predicting}
-                className="w-full h-14 md:h-16 bg-[#111111] text-white rounded-full font-bold uppercase tracking-widest text-xs hover:bg-transparent hover:text-black border-2 border-black transition-all disabled:opacity-50 flex items-center justify-center gap-3 cursor-pointer"
-              >
-                {predicting ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> {loadingMessage}</> : 'Run Prediction'}
-              </button>
+              <Button onClick={handlePredict} loading={predicting} className="w-full !py-[var(--spacing-5)]">
+                {predicting ? loadingMessage : 'Run Prediction'}
+              </Button>
               {prediction && (
-                <div className="p-6 md:p-8 bg-[#1B4332]/5 border border-[#1B4332]/10 rounded-3xl animate-in fade-in slide-in-from-top-4 duration-500">
-                  <div className="flex justify-between items-center mb-4">
-                     <span className="text-[11px] font-bold uppercase tracking-widest text-[#1B4332]">Classified Result</span>
-                     <span className="px-3 py-1 bg-[#1B4332] text-white rounded-full text-[10px] font-bold">{(prediction.confidence * 100).toFixed(1)}% Confidence</span>
+                <div className="p-[var(--spacing-6)] md:p-[var(--spacing-8)] bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/10 rounded-[var(--radius-xl)] animate-in fade-in slide-in-from-top-4 duration-500">
+                  <div className="flex justify-between items-center mb-[var(--spacing-4)]">
+                     <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Result</span>
+                     <span className="px-3 py-1 bg-[var(--color-accent)] text-[var(--color-text-inverse)] rounded-full text-[10px] font-bold">{(prediction.confidence * 100).toFixed(1)}% Match</span>
                   </div>
-                  <div className="text-3xl md:text-4xl font-display font-bold text-[#1B4332] mb-6 leading-none break-all">{prediction.prediction}</div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="text-3xl md:text-4xl font-display font-bold text-[var(--color-accent)] mb-[var(--spacing-6)] leading-none break-all">{prediction.prediction}</div>
+                  <div className="flex flex-wrap gap-[var(--spacing-2)]">
                     {predictText.split(/\s+/).map((word, i) => {
                       const clean = word.toLowerCase().replace(/[.,!?;]/g, '');
                       const weight = (prediction.weights && prediction.weights[clean]) || 0;
                       const opacity = weight ? Math.min(Math.max(Math.abs(weight) * 2, 0.1), 0.5) : 0;
-                      return <span key={i} className="px-2 py-0.5 rounded text-xs md:text-sm font-medium" style={{ backgroundColor: opacity > 0 ? `rgba(27, 67, 50, ${opacity})` : 'transparent', color: opacity > 0.3 ? 'black' : 'inherit' }}>{word}</span>;
+                      return <span key={i} className="px-2 py-0.5 rounded text-xs md:text-sm font-medium transition-all duration-300" style={{ backgroundColor: opacity > 0 ? `rgba(27, 67, 50, ${opacity})` : 'transparent', color: opacity > 0.3 ? 'black' : 'inherit' }}>{word}</span>;
                     })}
                   </div>
                 </div>
               )}
-            </div>
-            <div className="space-y-8">
-              <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#6B6B68] text-left">Session History</h3>
-              {history.map((h, i) => (
-                <div key={i} className="p-6 bg-white border border-[#E5E4E0] rounded-2xl flex justify-between items-center group animate-in slide-in-from-right-4 duration-300">
-                  <div className="truncate pr-4 text-left">
-                    <div className="text-sm font-bold truncate text-black">{h.text}</div>
-                    <div className="text-[10px] font-bold text-[#6B6B68] uppercase mt-1">{h.prediction}</div>
-                  </div>
-                  <div className="text-lg font-display font-bold text-[#1B4332]">{(h.confidence * 100).toFixed(0)}%</div>
-                </div>
-              ))}
-              {history.length === 0 && <div className="p-20 border-2 border-dashed border-[#E5E4E0] rounded-[32px] text-center text-sm text-[#6B6B68] italic">No activity yet.</div>}
+            </Card>
+            <div className="space-y-[var(--spacing-7)]">
+              <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)] text-left px-[var(--spacing-4)]">Session History</h3>
+              <div className="space-y-[var(--spacing-4)]">
+                {history.map((h, i) => (
+                  <Card key={i} className="!p-[var(--spacing-5)] flex justify-between items-center group fade-in-up" style={{ animationDelay: `${i * 50}ms` }}>
+                    <div className="truncate pr-[var(--spacing-4)] text-left">
+                      <div className="text-sm font-bold truncate text-[var(--color-text-primary)]">{h.text}</div>
+                      <div className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase mt-[var(--spacing-1)] tracking-widest">{h.prediction}</div>
+                    </div>
+                    <div className="text-lg font-display font-bold text-[var(--color-accent)]">{(h.confidence * 100).toFixed(0)}%</div>
+                  </Card>
+                ))}
+                {history.length === 0 && <div className="p-[var(--spacing-9)] border-2 border-dashed border-[var(--color-border-subtle)] rounded-[var(--radius-xl)] text-center text-sm text-[var(--color-text-muted)] italic">No activity recorded in this session.</div>}
+              </div>
             </div>
           </div>
         )}
 
         {activeTab === 'analytics' && (
-          <div className="grid lg:grid-cols-2 gap-8 md:gap-12 animate-in fade-in duration-700">
-             <div className="bg-white p-6 md:p-10 rounded-[32px] border border-[#E5E4E0] text-left">
-                <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#6B6B68] mb-12">Confusion Matrix</h3>
+          <div className="grid lg:grid-cols-2 gap-[var(--spacing-7)] md:gap-[var(--spacing-8)] fade-in-up">
+             <Card className="text-left">
+                <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)] mb-[var(--spacing-8)]">Confusion Matrix</h3>
                 {currentProject.confusion_matrix ? (
-                  <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${currentProject.labels?.length || 1}, 1fr)` }}>
+                  <div className="grid gap-[var(--spacing-2)]" style={{ gridTemplateColumns: `repeat(${currentProject.labels?.length || 1}, 1fr)` }}>
                     {currentProject.confusion_matrix.map((row, i) => row.map((val, j) => {
                       const isCorrect = i === j;
                       const max = Math.max(...currentProject.confusion_matrix.flat(), 1);
                       const intensity = (val / max);
                       return (
-                        <div key={`${i}-${j}`} className="aspect-square rounded-lg flex items-center justify-center p-2 transition-all hover:scale-105" style={{ backgroundColor: isCorrect ? `rgba(27, 67, 50, ${intensity})` : `rgba(185, 28, 28, ${intensity * 0.2})`, color: intensity > 0.5 ? 'white' : 'inherit' }}>
+                        <div key={`${i}-${j}`} className="aspect-square rounded-[var(--radius-md)] flex items-center justify-center p-[var(--spacing-2)] transition-all hover:scale-105 group relative" style={{ backgroundColor: isCorrect ? `rgba(27, 67, 50, ${intensity})` : `rgba(185, 28, 28, ${intensity * 0.2})`, color: intensity > 0.5 ? 'white' : 'inherit' }}>
                             <div className="text-lg md:text-xl font-bold">{val}</div>
+                            {/* Hover tooltip logic could go here */}
                         </div>
                       );
                     }))}
                   </div>
-                ) : <div className="p-20 border-2 border-dashed border-[#E5E4E0] rounded-[32px] text-center text-sm text-[#6B6B68] italic">Analytics not available for this project.</div>}
-             </div>
-             <div className="bg-white p-6 md:p-10 rounded-[32px] border border-[#E5E4E0] text-left">
-                <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#6B6B68] mb-8">Global Feature Importance</h3>
-                <div className="space-y-4">
-                   {currentProject.top_features ? Object.entries(currentProject.top_features).sort((a,b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 8).map(([word, weight]) => (
-                     <div key={word} className="space-y-2">
-                        <div className="flex justify-between text-xs font-bold uppercase"><span>{word}</span><span className={weight > 0 ? 'text-[#1B4332]' : 'text-red-400'}>{weight > 0 ? '+' : ''}{weight.toFixed(2)}</span></div>
-                        <div className="h-1.5 bg-[#FAFAF8] rounded-full overflow-hidden">
-                           <div className={`h-full ${weight > 0 ? 'bg-[#1B4332]' : 'bg-red-400'}`} style={{ width: `${Math.min(Math.abs(weight) * 50, 100)}%` }} />
+                ) : <div className="p-[var(--spacing-9)] border-2 border-dashed border-[var(--color-border-subtle)] rounded-[var(--radius-xl)] text-center text-sm text-[var(--color-text-muted)] italic">Analytics data unavailable.</div>}
+                <div className="mt-[var(--spacing-6)] flex justify-between text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]/50">
+                   <span>Actual Labels</span>
+                   <span>Predicted Labels</span>
+                </div>
+             </Card>
+             <Card className="text-left">
+                <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)] mb-[var(--spacing-8)]">Feature Importance</h3>
+                <div className="space-y-[var(--spacing-5)]">
+                   {currentProject.top_features ? Object.entries(currentProject.top_features).sort((a,b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 10).map(([word, weight]) => (
+                     <div key={word} className="space-y-[var(--spacing-2)]">
+                        <div className="flex justify-between text-xs font-bold uppercase tracking-widest">
+                          <span className="text-[var(--color-text-primary)]">{word}</span>
+                          <span className={weight > 0 ? 'text-[var(--color-accent)]' : 'text-red-400'}>{weight > 0 ? '+' : ''}{weight.toFixed(2)}</span>
+                        </div>
+                        <div className="h-2 bg-[var(--color-bg-base)] rounded-full overflow-hidden">
+                           <div className={`h-full transition-all duration-1000 ${weight > 0 ? 'bg-[var(--color-accent)]' : 'bg-red-400'}`} style={{ width: `${Math.min(Math.abs(weight) * 50, 100)}%` }} />
                         </div>
                      </div>
-                   )) : <div className="p-20 border-2 border-dashed border-[#E5E4E0] rounded-[32px] text-center text-sm text-[#6B6B68] italic">Train a model to see insights.</div>}
+                   )) : <div className="p-[var(--spacing-9)] border-2 border-dashed border-[var(--color-border-subtle)] rounded-[var(--radius-xl)] text-center text-sm text-[var(--color-text-muted)] italic">Insights require retraining.</div>}
                 </div>
-             </div>
+             </Card>
           </div>
         )}
 
         {activeTab === 'batch' && (
-          <div className="max-w-3xl space-y-8 animate-in fade-in duration-700 text-left">
-             <div className="bg-white p-6 md:p-10 rounded-[32px] border border-[#E5E4E0] space-y-8">
-                <div className="space-y-2">
-                   <h2 className="text-2xl font-bold font-display tracking-tight leading-none text-black">Bulk Processing</h2>
-                   <p className="text-sm text-[#6B6B68]">Upload an unlabeled CSV to classify rows in bulk.</p>
+          <div className="max-w-3xl space-y-[var(--spacing-7)] fade-in-up text-left">
+             <Card className="space-y-[var(--spacing-8)]">
+                <div className="space-y-[var(--spacing-2)]">
+                   <h2 className="text-2xl font-bold font-display tracking-tight text-[var(--color-text-primary)]">Bulk Processing</h2>
+                   <p className="text-sm text-[var(--color-text-muted)]">Classify entire datasets in one pass.</p>
                 </div>
-                <form onSubmit={handleBatchPredict} className="space-y-6">
-                   <div className="border-4 border-dashed border-[#FAFAF8] rounded-3xl p-12 text-center relative hover:border-black/5 transition-all cursor-pointer">
+                <form onSubmit={handleBatchPredict} className="space-y-[var(--spacing-6)]">
+                   <div className="border-4 border-dashed border-[var(--color-bg-base)] rounded-[var(--radius-xl)] p-[var(--spacing-9)] text-center relative hover:border-[var(--color-accent)]/20 transition-all cursor-pointer">
                       <input type="file" accept=".csv" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => setBatchFile(e.target.files[0])} />
-                      <Database size={32} className="mx-auto mb-4 opacity-20" />
-                      <div className="font-bold text-sm break-all">{batchFile ? batchFile.name : 'Select CSV file'}</div>
+                      <div className="flex flex-col items-center gap-[var(--spacing-4)]">
+                        <Database size={32} className="opacity-20 text-[var(--color-text-primary)]" />
+                        <div className="font-bold text-sm break-all text-[var(--color-text-primary)]">{batchFile ? batchFile.name : 'Select target CSV file'}</div>
+                      </div>
                    </div>
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-[#6B6B68] ml-1">Target Text Column</label>
+                   <div className="space-y-[var(--spacing-2)]">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-muted)] ml-1">Target Column Name</label>
                       <input 
                         type="text" placeholder="e.g. comment_text" value={batchTextCol} onChange={e => setBatchTextCol(e.target.value)}
-                        className="w-full h-14 px-6 bg-[#FAFAF8] border border-[#E5E4E0] rounded-xl outline-none focus:border-black transition-all font-bold"
+                        className="w-full h-14 px-[var(--spacing-6)] bg-[var(--color-bg-base)] border border-[var(--color-border-subtle)] rounded-xl outline-none focus:border-[var(--color-text-primary)] font-bold text-[var(--color-text-primary)]"
                       />
                    </div>
-                   <button disabled={!batchFile || !batchTextCol || batching} className="w-full h-16 bg-black text-white rounded-full font-bold uppercase tracking-widest text-xs flex items-center justify-center gap-3 cursor-pointer border-none transition-all active:scale-95 disabled:opacity-30">
-                     {batching ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> {loadingMessage}</> : 'Run Batch Job'}
-                   </button>
+                   <Button disabled={!batchFile || !batchTextCol || batching} type="submit" className="w-full h-16" loading={batching}>
+                     {batching ? loadingMessage : 'Execute Batch Job'}
+                   </Button>
                 </form>
-             </div>
+             </Card>
           </div>
         )}
 
         {activeTab === 'chat' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-auto lg:h-[calc(100vh-280px)] animate-in fade-in duration-700 text-left pb-20 lg:pb-0">
-            <div className="lg:col-span-1 bg-white border border-[#E5E4E0] rounded-[32px] p-6 md:p-8 overflow-y-auto space-y-8 h-[400px] lg:h-full">
-               <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#6B6B68]">Intent Manager</h3>
-               <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-[var(--spacing-6)] h-auto lg:h-[calc(100vh-280px)] fade-in-up text-left pb-[var(--spacing-9)] lg:pb-0">
+            <Card className="lg:col-span-1 !p-[var(--spacing-6)] md:!p-[var(--spacing-7)] overflow-y-auto space-y-[var(--spacing-7)] h-[400px] lg:h-full">
+               <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">Intent Logic</h3>
+               <div className="space-y-[var(--spacing-6)]">
                   {currentProject.labels?.map(label => (
-                    <div key={label} className="space-y-2">
-                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#1B4332]">{label}</label>
-                       <textarea className="w-full p-4 bg-[#FAFAF8] border border-[#E5E4E0] rounded-xl text-sm outline-none focus:border-black resize-none font-bold" value={responses[label] || ''} onChange={e => setResponses({...responses, [label]: e.target.value})} onBlur={e => saveResponse(label, e.target.value)} />
+                    <div key={label} className="space-y-[var(--spacing-2)]">
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-accent)]">{label}</label>
+                       <textarea 
+                        className="w-full p-[var(--spacing-4)] bg-[var(--color-bg-base)] border border-[var(--color-border-subtle)] rounded-xl text-sm outline-none focus:border-[var(--color-text-primary)] resize-none font-bold text-[var(--color-text-primary)]" 
+                        value={responses[label] || ''} 
+                        onChange={e => setResponses({...responses, [label]: e.target.value})} 
+                        onBlur={e => saveResponse(label, e.target.value)} 
+                       />
                     </div>
                   ))}
-                  {(!currentProject.labels || currentProject.labels.length === 0) && <div className="text-xs text-[#6B6B68] italic">No labels detected.</div>}
                </div>
-            </div>
-            <div className="lg:col-span-2 bg-[#0F1210] rounded-[32px] flex flex-col overflow-hidden border border-white/5 h-[600px] lg:h-full shadow-2xl">
-               <div className="p-6 border-b border-white/5 bg-white/5 flex items-center justify-between text-white uppercase tracking-widest text-[10px] font-bold">
-                  <span>Live Chat preview</span>
-                  <button onClick={() => setChatMessages([])} className="opacity-40 hover:opacity-100 transition-opacity cursor-pointer border-none bg-transparent text-white uppercase font-bold text-[10px]">Clear</button>
+            </Card>
+            <div className="lg:col-span-2 bg-[var(--color-bg-dark)] rounded-[var(--radius-xl)] flex flex-col overflow-hidden border border-white/5 h-[600px] lg:h-full shadow-2xl">
+               <div className="p-[var(--spacing-5)] border-b border-white/5 bg-white/5 flex items-center justify-between text-white uppercase tracking-widest text-[10px] font-bold">
+                  <div className="flex items-center gap-[var(--spacing-2)]">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] animate-pulse" />
+                    <span>Live Simulation</span>
+                  </div>
+                  <button onClick={() => setChatMessages([])} className="opacity-40 hover:opacity-100 transition-opacity cursor-pointer border-none bg-transparent text-white uppercase font-bold text-[10px]">Reset Session</button>
                </div>
-               <div className="flex-grow p-6 md:p-8 overflow-y-auto space-y-6 flex flex-col">
+               <div className="flex-grow p-[var(--spacing-6)] md:p-[var(--spacing-7)] overflow-y-auto space-y-[var(--spacing-6)] flex flex-col">
                   {chatMessages.map((msg, i) => (
-                    <div key={i} className={`max-w-[85%] p-4 rounded-2xl ${msg.role === 'user' ? 'bg-white/10 text-white self-end rounded-br-none' : 'bg-[#1B4332] text-white self-start rounded-bl-none'}`}>
+                    <div key={i} className={`max-w-[85%] p-[var(--spacing-4)] rounded-2xl animate-in slide-in-from-bottom-2 duration-300 ${msg.role === 'user' ? 'bg-white/10 text-white self-end rounded-br-none' : 'bg-[var(--color-accent)] text-white self-start rounded-bl-none'}`}>
                        <p className="text-sm font-medium leading-relaxed">{msg.text}</p>
-                       {msg.intent && <div className="mt-2 pt-2 border-t border-white/10 text-[9px] font-bold uppercase opacity-50 flex gap-2"><span>Intent: {msg.intent}</span><span>{(msg.confidence * 100).toFixed(0)}% Conf</span></div>}
+                       {msg.intent && <div className="mt-[var(--spacing-2)] pt-[var(--spacing-2)] border-t border-white/10 text-[9px] font-bold uppercase opacity-50 flex gap-[var(--spacing-2)]"><span>Matched: {msg.intent}</span><span>{(msg.confidence * 100).toFixed(0)}% Confidence</span></div>}
                     </div>
                   ))}
-                  {isTyping && <div className="bg-[#1B4332]/50 text-white self-start p-4 rounded-2xl animate-pulse text-xs">...</div>}
-                  {chatMessages.length === 0 && <div className="flex-grow flex items-center justify-center text-[10px] font-bold uppercase tracking-widest opacity-20 text-white">Start a test session</div>}
+                  {isTyping && <div className="bg-[var(--color-accent)]/50 text-white self-start p-[var(--spacing-4)] rounded-2xl animate-pulse text-xs">Thinking...</div>}
+                  {chatMessages.length === 0 && <div className="flex-grow flex items-center justify-center text-[10px] font-bold uppercase tracking-widest opacity-20 text-white">No active messages</div>}
                </div>
-               <form onSubmit={handleChatSend} className="p-6 bg-white/5 border-t border-white/5">
-                  <div className="relative"><input type="text" className="w-full h-14 bg-white/10 border border-white/10 rounded-full pl-6 pr-16 text-white outline-none focus:border-[#1B4332] font-bold" placeholder="Ask the chatbot..." value={chatInput} onChange={e => setChatInput(e.target.value)} /><button className="absolute right-2 top-2 w-10 h-10 bg-[#1B4332] text-white rounded-full flex items-center justify-center cursor-pointer border-none"><Send size={18} /></button></div>
+               <form onSubmit={handleChatSend} className="p-[var(--spacing-6)] bg-white/5 border-t border-white/5">
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      className="w-full h-14 bg-white/10 border border-white/10 rounded-full pl-[var(--spacing-6)] pr-16 text-white outline-none focus:border-[var(--color-accent)] font-bold placeholder:text-white/20" 
+                      placeholder="Simulate a message..." 
+                      value={chatInput} 
+                      onChange={e => setChatInput(e.target.value)} 
+                    />
+                    <button className="absolute right-2 top-2 w-10 h-10 bg-[var(--color-accent)] text-white rounded-full flex items-center justify-center cursor-pointer border-none transition-transform hover:scale-105 active:scale-95"><Send size={18} /></button>
+                  </div>
                </form>
             </div>
           </div>
         )}
 
         {activeTab === 'dev' && (
-          <div className="max-w-4xl space-y-12 animate-in fade-in duration-700 text-left">
-             <div className="bg-white p-6 md:p-10 rounded-[32px] border border-[#E5E4E0] space-y-4">
-                <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#6B6B68]">API Key</span>
-                <div className="flex gap-4 flex-col sm:flex-row"><div className="flex-grow p-5 bg-[#FAFAF8] rounded-2xl border border-[#E5E4E0] font-mono text-xs overflow-hidden truncate text-black">{currentProject.api_key || 'Retrain to generate key.'}</div><button className="px-8 h-14 bg-black text-white rounded-2xl font-bold text-[10px] uppercase tracking-widest cursor-pointer border-none whitespace-nowrap">Reveal Key</button></div>
-             </div>
-             <div className="bg-[#0F1210] p-6 md:p-10 rounded-[32px] text-white space-y-8">
-                <span className="text-[11px] font-bold uppercase tracking-[0.2em] opacity-40">Python Integration Snippet</span>
-                <div className="bg-white/5 p-6 md:p-8 rounded-2xl border border-white/5 font-mono text-[10px] md:text-xs text-[#9A9A96] overflow-x-auto space-y-2 leading-relaxed">
+          <div className="max-w-4xl space-y-[var(--spacing-8)] fade-in-up text-left">
+             <Card className="space-y-[var(--spacing-4)]">
+                <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">Production API Key</span>
+                <div className="flex gap-[var(--spacing-4)] flex-col sm:flex-row">
+                  <div className="flex-grow p-[var(--spacing-5)] bg-[var(--color-bg-base)] rounded-2xl border border-[var(--color-border-subtle)] font-mono text-xs overflow-hidden truncate text-[var(--color-text-primary)]">
+                    {currentProject.api_key || 'Retrain to generate production key.'}
+                  </div>
+                  <button className="px-[var(--spacing-6)] h-14 bg-[var(--color-text-primary)] text-[var(--color-text-inverse)] rounded-2xl font-bold text-[10px] uppercase tracking-widest cursor-pointer border-none whitespace-nowrap active:scale-95 transition-transform">Reveal Secret</button>
+                </div>
+             </Card>
+             <Card variant="dark" className="space-y-[var(--spacing-8)]">
+                <span className="text-[11px] font-bold uppercase tracking-[0.2em] opacity-40 tracking-[0.3em]">Integration: Python SDK</span>
+                <div className="bg-white/5 p-[var(--spacing-6)] md:p-[var(--spacing-7)] rounded-2xl border border-white/5 font-mono text-[10px] md:text-xs text-[#9A9A96] overflow-x-auto space-y-[var(--spacing-2)] leading-relaxed">
                    <div className="text-white">import pickle</div>
-                   <div className="text-[#1B4332]">with open('model.pkl', 'rb') as f:</div>
+                   <div className="text-[var(--color-accent)]">with open('toddler_model.pkl', 'rb') as f:</div>
                    <div className="pl-5 text-white">model = pickle.load(f)</div>
-                   <div className="text-white mt-4"># Run Inference locally</div>
-                   <div className="text-white">result = model.predict(["Hello from local Python!"])</div>
+                   <div className="text-white mt-[var(--spacing-4)]"># Perform offline inference</div>
+                   <div className="text-white">result = model.predict(["Test payload"])</div>
                    <div className="text-white">print(f"Outcome: {'{result[0]}'}")</div>
                 </div>
-                <button className="w-full py-5 border border-white/10 rounded-full font-bold uppercase tracking-widest text-[10px] hover:bg-white hover:text-black transition-all cursor-pointer bg-transparent text-white">Copy Code Snippet</button>
-             </div>
+                <Button variant="accent" className="w-full">Copy Integration Snippet</Button>
+             </Card>
           </div>
         )}
       </main>

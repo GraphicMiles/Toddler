@@ -1,367 +1,351 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowRight, Check, Play, Menu, X, Database, Cpu, Shield, Layers, Zap, Plus, Globe } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowRight, Check, Play, Menu, X, Database, Cpu, Shield, Layers, Zap, Globe } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
-const Button = ({ variant = 'primary', children, style = {}, icon: Icon, ...props }) => {
-  const baseStyle = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '14px 28px',
-    borderRadius: '999px',
-    fontSize: '15px',
-    fontWeight: '600',
-    border: '1px solid transparent',
-    transition: 'all 0.2s cubic-bezier(.16,.8,.24,1)',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap'
-  };
-  
-  const variants = {
-    primary: { backgroundColor: '#111111', color: '#F5F5F3' },
-    outline: { backgroundColor: 'transparent', color: '#111111', borderColor: '#E5E4E0' },
-    accent: { backgroundColor: '#1B4332', color: '#F5F5F3' }
-  };
-
-  return (
-    <button 
-      style={{ ...baseStyle, ...variants[variant], ...style }} 
-      onMouseOver={(e) => {
-        if(variant === 'outline') e.currentTarget.style.borderColor = '#111111';
-        if(variant === 'primary') e.currentTarget.style.backgroundColor = '#000';
-      }}
-      onMouseOut={(e) => {
-        if(variant === 'outline') e.currentTarget.style.borderColor = '#E5E4E0';
-        if(variant === 'primary') e.currentTarget.style.backgroundColor = '#111111';
-      }}
-      {...props}
-    >
-      {children}
-      {Icon && <Icon size={18} />}
-    </button>
-  );
-};
-
-const Card = ({ children, className = "", delay = 0 }) => (
-  <div 
-    className={`bg-white border border-[#E5E4E0] rounded-[16px] p-8 md:p-12 animate-in fade-in slide-in-from-bottom-4 duration-700 fill-mode-both ${className}`}
-    style={{ animationDelay: `${delay}ms` }}
-  >
-    {children}
-  </div>
-);
+import { Container, Button, Card, Badge } from './components/UI';
 
 const LandingPage = () => {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeFaq, setActiveFaq] = useState(0);
+  const [activeFaq, setActiveFaq] = useState(null);
+
+  const sections = {
+    padding: "py-[var(--spacing-8)] md:py-[var(--spacing-9)]",
+    headingGap: "mb-[var(--spacing-6)] md:mb-[var(--spacing-8)]"
+  };
 
   return (
-    <div className="min-h-screen bg-[#FAFAF8] text-[#111111] font-sans selection:bg-[#111111] selection:text-[#F5F5F3] overflow-x-hidden">
+    <div className="min-h-screen bg-[var(--color-bg-base)] text-[var(--color-text-primary)] font-sans overflow-x-hidden">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-[#FAFAF8]/90 backdrop-blur-md border-b border-[#E5E4E0]">
-        <div className="max-w-[1200px] mx-auto px-6 h-[72px] flex items-center justify-between">
-          <div className="flex items-center gap-10">
-            <div className="flex items-center gap-2.5 font-display font-bold text-[17px] tracking-tight cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-              <div className="w-7 h-7 bg-[#111111] rounded-lg flex items-center justify-center text-[#F5F5F3] text-sm font-bold">T</div>
+      <nav className="sticky top-0 z-50 bg-[var(--color-bg-base)]/80 backdrop-blur-md border-b border-[var(--color-border-subtle)]">
+        <Container wide className="h-[72px] flex items-center justify-between">
+          <div className="flex items-center gap-[var(--spacing-8)]">
+            <div 
+              className="flex items-center gap-[var(--spacing-2)] font-display font-bold text-[17px] tracking-tight cursor-pointer" 
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            >
+              <div className="w-8 h-8 bg-[var(--color-text-primary)] rounded-lg flex items-center justify-center text-[var(--color-text-inverse)] text-sm">T</div>
               Toddler
             </div>
-            <div className="hidden md:flex items-center gap-8">
-              <a href="#how-it-works" className="text-sm font-medium text-[#6B6B68] hover:text-[#111111] transition-colors">How it works</a>
-              <a href="#features" className="text-sm font-medium text-[#6B6B68] hover:text-[#111111] transition-colors">Features</a>
-              <a href="#pricing" className="text-sm font-medium text-[#6B6B68] hover:text-[#111111] transition-colors">Pricing</a>
+            <div className="hidden lg:flex items-center gap-[var(--spacing-6)]">
+              <a href="#how-it-works" className="text-sm font-semibold text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">How it works</a>
+              <a href="#features" className="text-sm font-semibold text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">Features</a>
+              <a href="#pricing" className="text-sm font-semibold text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">Pricing</a>
             </div>
           </div>
-          <div className="flex items-center gap-6">
-            <button onClick={() => navigate('/login')} className="hidden sm:block text-sm font-semibold text-[#6B6B68] hover:text-[#111111] border-none bg-transparent cursor-pointer transition-colors">Log in</button>
-            <Button onClick={() => navigate('/signup')} style={{ padding: '10px 20px', fontSize: '14px' }}>Get started free</Button>
-            <button className="md:hidden p-2 border-none bg-transparent cursor-pointer" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+          <div className="flex items-center gap-[var(--spacing-5)]">
+            <button 
+              onClick={() => navigate('/login')} 
+              className="hidden sm:block text-sm font-bold uppercase tracking-widest text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors border-none bg-transparent cursor-pointer"
+            >
+              Log in
+            </button>
+            <Button onClick={() => navigate('/signup')} className="!py-[var(--spacing-3)] !px-[var(--spacing-5)]">Get started free</Button>
+            <button className="lg:hidden p-[var(--spacing-2)] border-none bg-transparent cursor-pointer text-[var(--color-text-primary)]" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
               {mobileMenuOpen ? <X /> : <Menu />}
             </button>
           </div>
-        </div>
+        </Container>
       </nav>
 
-      {/* Mobile Menu Overlay */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-40 bg-[#FAFAF8] pt-24 px-6 flex flex-col gap-8 animate-in fade-in slide-in-from-top-4 duration-300">
-          <a href="#how-it-works" className="text-3xl font-display font-bold no-underline" onClick={() => setMobileMenuOpen(false)}>How it works</a>
-          <a href="#features" className="text-3xl font-display font-bold no-underline" onClick={() => setMobileMenuOpen(false)}>Features</a>
-          <a href="#pricing" className="text-3xl font-display font-bold no-underline" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
-          <Button onClick={() => navigate('/signup')} style={{ width: '100%', padding: '20px' }}>Get started free</Button>
-        </div>
-      )}
+      {/* Mobile Menu */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 z-40 bg-[var(--color-bg-base)] pt-[var(--spacing-9)] px-[var(--spacing-6)] flex flex-col gap-[var(--spacing-6)] fade-in-up">
+            <a href="#how-it-works" className="text-3xl font-display font-bold" onClick={() => setMobileMenuOpen(false)}>How it works</a>
+            <a href="#features" className="text-3xl font-display font-bold" onClick={() => setMobileMenuOpen(false)}>Features</a>
+            <a href="#pricing" className="text-3xl font-display font-bold" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
+            <Button onClick={() => navigate('/signup')} className="w-full !py-[var(--spacing-5)] text-lg">Get started free</Button>
+          </div>
+        )}
+      </AnimatePresence>
 
       <main>
         {/* Hero Section */}
-        <section className="pt-16 pb-0 px-6 text-center">
-          <div className="max-w-[1200px] mx-auto flex flex-col items-center">
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 flex items-center gap-2 px-4 py-2 border border-[#E5E4E0] rounded-full text-[13px] font-medium text-[#6B6B68] mb-8 bg-white">
-              <div className="w-1.5 h-1.5 rounded-full bg-[#1B4332] animate-pulse" />
+        <section className="pt-[var(--spacing-8)] md:pt-[var(--spacing-9)] text-center">
+          <Container className="flex flex-col items-center">
+            <Badge className="mb-[var(--spacing-6)]">
+              <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] animate-pulse" />
               V1.0 Now In Public Beta
-            </div>
+            </Badge>
             
-            <h1 className="font-display text-[44px] md:text-[72px] font-bold leading-[1.05] tracking-tighter mb-8 max-w-[18ch] animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100 fill-mode-both">
-              Turn your data into <span className="text-[#6B6B68]">pure intelligence.</span>
+            <h1 className="font-display text-[48px] md:text-[80px] font-bold leading-[1.05] tracking-tighter mb-[var(--spacing-6)] max-w-prose-head fade-in-up">
+              Turn your data into <span className="text-[var(--color-text-muted)]">pure intelligence.</span>
             </h1>
 
-            <p className="text-lg md:text-[18px] text-[#6B6B68] max-w-[46ch] mb-10 leading-relaxed animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200 fill-mode-both">
+            <p className="body-lg text-[var(--color-text-muted)] max-w-[var(--width-prose)] mb-[var(--spacing-7)] fade-in-up" style={{ animationDelay: '100ms' }}>
               Train, own, and deploy custom AI models without writing code. The sophisticated toolkit for modern domain experts.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 mb-16 md:mb-24 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 fill-mode-both">
+            <div className="flex flex-col sm:flex-row gap-[var(--spacing-4)] mb-[var(--spacing-9)] fade-in-up" style={{ animationDelay: '200ms' }}>
               <Button onClick={() => navigate('/signup')} icon={ArrowRight}>Start Training Free</Button>
               <Button variant="outline" icon={Play}>Watch 2min Demo</Button>
             </div>
 
-            {/* Hero Visual */}
-            <div className="w-full max-w-[960px] animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-400 fill-mode-both relative">
-              <div className="bg-white border border-[#E5E4E0] rounded-[20px] p-6 md:p-10 text-left shadow-[0_24px_60px_-30px_rgba(0,0,0,0.15)] relative">
-                <div className="grid md:grid-cols-[1.4fr_1fr] gap-8">
-                  <div className="space-y-6">
-                    <div className="border border-[#E5E4E0] rounded-xl p-4 flex items-center gap-3">
-                      <div className="w-9 h-9 bg-[#F2E9C9] text-[#8a6d1f] rounded-lg flex items-center justify-center text-[11px] font-bold">CSV</div>
-                      <div className="flex-grow">
-                        <div className="text-sm font-semibold">Dataset_final.csv</div>
-                        <div className="text-[12px] text-[#6B6B68]">2,400 rows processed</div>
+            {/* Hero Visual Mockup */}
+            <div className="w-full max-w-[1000px] fade-in-up" style={{ animationDelay: '300ms' }}>
+              <div className="bg-white border-2 border-[var(--color-border-strong)] rounded-[var(--radius-xl)] p-[var(--spacing-3)] md:p-[var(--spacing-5)] relative overflow-hidden shadow-[0_32px_64px_-12px_rgba(0,0,0,0.08)]">
+                <div className="bg-[var(--color-bg-base)] rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] aspect-[16/9] p-[var(--spacing-6)] md:p-[var(--spacing-9)] text-left flex flex-col gap-[var(--spacing-8)]">
+                  <div className="flex justify-between items-center">
+                    <div className="h-6 w-48 bg-black/5 rounded-full" />
+                    <div className="h-10 px-4 bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20 rounded-full flex items-center justify-center text-[10px] font-bold text-[var(--color-accent)] tracking-widest uppercase">Engine Linked</div>
+                  </div>
+                  <div className="grid md:grid-cols-[1.4fr_1fr] gap-[var(--spacing-6)] flex-grow">
+                    <div className="bg-white border border-[var(--color-border-subtle)] rounded-[var(--radius-lg)] p-[var(--spacing-6)] space-y-[var(--spacing-6)] flex flex-col">
+                      <div className="flex justify-between items-center pb-[var(--spacing-4)] border-b border-[var(--color-border-subtle)]">
+                        <span className="font-bold text-base">Customer_Reviews.csv</span>
+                        <span className="text-[11px] font-bold text-[var(--color-accent)] animate-pulse uppercase tracking-widest">Active</span>
+                      </div>
+                      <div className="space-y-[var(--spacing-4)] flex-grow">
+                        {[1,2,3,4].map(i => <div key={i} className="h-8 w-full bg-[var(--color-bg-base)] rounded-lg border border-[var(--color-border-subtle)]" />)}
                       </div>
                     </div>
-                    <div className="space-y-3 pt-2">
-                      <div className="h-2.5 w-[85%] bg-[#E5E4E0] rounded-full" />
-                      <div className="h-2.5 w-[65%] bg-[#E5E4E0] rounded-full" />
-                      <div className="h-2.5 w-[75%] bg-[#E5E4E0] rounded-full" />
+                    <div className="hidden md:flex flex-col gap-[var(--spacing-6)]">
+                      <div className="h-1/2 bg-[var(--color-text-primary)] rounded-[var(--radius-lg)] p-[var(--spacing-6)] text-[var(--color-text-inverse)] flex flex-col justify-between">
+                        <span className="text-[10px] uppercase font-bold opacity-40 tracking-widest">Accuracy</span>
+                        <span className="font-display text-5xl font-bold">98.4%</span>
+                      </div>
+                      <div className="h-1/2 bg-[var(--color-accent)] rounded-[var(--radius-lg)] p-[var(--spacing-6)] text-[var(--color-text-inverse)] flex flex-col justify-between">
+                        <span className="text-[10px] uppercase font-bold opacity-40 tracking-widest">State</span>
+                        <span className="text-2xl font-display font-bold">Deployed</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="bg-[#111111] rounded-xl p-6 text-white flex flex-col justify-center text-center">
-                    <span className="text-[11px] font-bold uppercase tracking-wider opacity-60">Accuracy</span>
-                    <div className="font-display text-[48px] md:text-[56px] font-bold leading-tight">98.4%</div>
                   </div>
                 </div>
                 
-                {/* Floating Badge */}
-                <div className="absolute -bottom-5 right-6 md:right-10 bg-[#1B4332] text-white px-5 py-3.5 rounded-xl flex items-center gap-2.5 font-semibold text-sm shadow-[0_12px_24px_-8px_rgba(0,0,0,.35)] animate-in fade-in slide-in-from-right-4 duration-500 delay-[1200ms] fill-mode-both">
-                  <div className="w-2 h-2 rounded-full bg-white" />
-                  Model Trained · Success in 42 sec
+                {/* Floating Success Badge */}
+                <div className="absolute bottom-[var(--spacing-6)] right-[var(--spacing-6)] bg-[var(--color-accent)] text-[var(--color-text-inverse)] px-[var(--spacing-5)] py-[var(--spacing-4)] rounded-[var(--radius-lg)] flex items-center gap-[var(--spacing-3)] font-semibold text-sm shadow-[0_20px_40px_-8px_rgba(0,0,0,0.3)] animate-bounce-slow">
+                  <Zap size={20} fill="currentColor" />
+                  Model Success · 42s
                 </div>
               </div>
             </div>
-          </div>
+          </Container>
         </section>
 
         {/* Feature Grid */}
-        <section id="features" className="py-24 md:py-32 px-6">
-          <div className="max-w-[1200px] mx-auto">
-            <div className="text-center max-w-[640px] mx-auto mb-16 space-y-4">
-              <h2 className="font-display text-4xl md:text-[36px] font-bold tracking-tight">Engineered for quality.</h2>
-              <p className="text-lg md:text-[18px] text-[#6B6B68] leading-relaxed">Toddler isn't just a wrapper. We've built a full-stack engine designed to make custom machine learning reliable and accessible.</p>
+        <section id="features" className={`${sections.padding} bg-white border-y border-[var(--color-border-subtle)]`}>
+          <Container>
+            <div className="text-center max-w-[640px] mx-auto mb-[var(--spacing-9)]">
+              <h2 className="font-display text-4xl font-bold tracking-tight mb-[var(--spacing-4)]">Engineered for quality.</h2>
+              <p className="body-md text-[var(--color-text-muted)]">Toddler isn't just a wrapper. We've built a full-stack engine designed to make custom machine learning reliable and accessible.</p>
             </div>
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-[var(--spacing-6)]">
               {[
                 { title: "Dataset Sanitization", icon: "◧", tag: "Data", desc: "Automatic handling of missing values, outliers, and encoding. We prepare your data so you don't have to." },
                 { title: "Real-time Training", icon: "◫", tag: "Engine", desc: "Synchronous training cycles with live metric updates. No hidden queues or waiting for hours." },
-                { title: "Full Ownership", icon: "◨", tag: "Legal", desc: "Every model you train is yours — trained on your data, for your use case.", note: "Model export coming to Pro" },
-                { title: "Cross-platform API", icon: "◪", tag: "API", desc: "Deploy models with a single click. Access them via a simple REST API or native SDKs.", note: "Coming to Pro" },
+                { title: "Full Ownership", icon: "◨", tag: "Legal", desc: "Every model you train is yours — trained on your data, for your use case.", note: "Model export available in Pro" },
+                { title: "Standard Architecture", icon: "◪", tag: "ML", desc: "Uses reliable TF-IDF + Logistic Regression optimized for specific datasets and small row counts.", note: "Auto-ML included" },
                 { title: "Interactive Playground", icon: "▷", tag: "Test", desc: "Test your models immediately in a human-friendly interface before deploying to production." },
                 { title: "Mobile Optimization", icon: "▤", tag: "UX", desc: "Monitor training and test predictions from any device with our optimized mobile dashboard." }
               ].map((f, i) => (
-                <Card key={i} delay={i * 80}>
-                  <div className="flex justify-between items-start mb-6">
-                    <div className="w-11 h-11 bg-[#F4F4F1] rounded-xl flex items-center justify-center text-[20px] text-[#1B4332]">{f.icon}</div>
-                    <span className="text-[13px] font-medium uppercase tracking-wider text-[#6B6B68]">{f.tag}</span>
+                <Card key={i} className="flex flex-col group hover:border-[var(--color-border-strong)] transition-colors">
+                  <div className="flex justify-between items-start mb-[var(--spacing-8)]">
+                    <div className="w-12 h-12 bg-[var(--color-bg-base)] rounded-xl flex items-center justify-center text-[20px] text-[var(--color-accent)] group-hover:scale-110 transition-transform">{f.icon}</div>
+                    <Badge>{f.tag}</Badge>
                   </div>
-                  <h3 className="font-display text-xl font-bold mb-3">{f.title}</h3>
-                  <p className="text-[#6B6B68] text-[15px] leading-relaxed">{f.desc}</p>
-                  {f.note && <div className="text-[12px] font-semibold text-[#1B4332] mt-4">{f.note}</div>}
+                  <h3 className="font-display text-2xl font-bold mb-[var(--spacing-3)]">{f.title}</h3>
+                  <p className="text-[var(--color-text-muted)] text-sm leading-relaxed">{f.desc}</p>
+                  {f.note && <div className="text-[12px] font-bold text-[var(--color-accent)] mt-[var(--spacing-5)]">{f.note}</div>}
                 </Card>
               ))}
             </div>
-          </div>
+          </Container>
         </section>
 
-        {/* How it Works */}
-        <section id="how-it-works" className="py-24 px-6 border-t border-[#E5E4E0]">
-          <div className="max-w-[1200px] mx-auto">
-            <h2 className="font-display text-3xl md:text-[36px] font-bold text-center mb-16">Train your model in three simple steps.</h2>
-            <div className="max-w-[720px] mx-auto border-t border-[#E5E4E0]">
+        {/* How it works */}
+        <section id="how-it-works" className={`${sections.padding} border-b border-[var(--color-border-subtle)]`}>
+          <Container>
+            <h2 className="font-display text-3xl md:text-[36px] font-bold text-center mb-[var(--spacing-9)]">Three simple steps.</h2>
+            <div className="max-w-[720px] mx-auto border-t border-[var(--color-border-subtle)]">
               {[
                 { step: "01", title: "Upload & Map", desc: "Drop your CSV and select which columns contain your text and labels." },
                 { step: "02", title: "Automated Training", desc: "Toddler optimizes the model architecture specifically for your data size." },
-                { step: "03", title: "Validate & Ship", desc: "Check accuracy on held-out data before you rely on it. Model export is coming with Pro." }
+                { step: "03", title: "Validate & Ship", desc: "Check accuracy on held-out data before you rely on it. Export when ready." }
               ].map((s, i) => (
-                <div key={i} className="grid grid-cols-[56px_1fr] gap-6 py-8 border-b border-[#E5E4E0] items-start hover:bg-[#111111]/[0.01] transition-colors group">
-                  <div className="font-display text-[22px] font-bold text-[#E5E4E0] group-hover:text-[#111111] transition-colors">{s.step}</div>
+                <div key={i} className="grid grid-cols-[56px_1fr] gap-[var(--spacing-6)] py-[var(--spacing-6)] border-b border-[var(--color-border-subtle)] items-start hover:bg-black/[0.01] transition-colors group">
+                  <div className="font-display text-2xl font-bold text-[var(--color-border-subtle)] group-hover:text-[var(--color-text-primary)] transition-colors">{s.step}</div>
                   <div>
-                    <h3 className="text-[18px] font-bold mb-2">{s.title}</h3>
-                    <p className="text-[#6B6B68] text-[15px]">{s.desc}</p>
+                    <h3 className="text-xl font-bold mb-[var(--spacing-1)]">{s.title}</h3>
+                    <p className="text-[var(--color-text-muted)] text-sm">{s.desc}</p>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          </Container>
         </section>
 
-        {/* Proof Section */}
-        <section className="py-24 px-6">
-          <div className="max-w-[1200px] mx-auto text-center">
-            <h2 className="font-display text-3xl md:text-[36px] font-bold mb-4">Real runs, real numbers.</h2>
-            <p className="text-[#6B6B68] text-lg mb-16">Internal benchmarks gatherered from early development runs.</p>
-            <div className="grid md:grid-cols-3 gap-6">
+        {/* Proof / Stats */}
+        <section className={`${sections.padding} bg-white`}>
+          <Container>
+            <div className="text-center max-w-[640px] mx-auto mb-[var(--spacing-9)]">
+              <h2 className="font-display text-3xl font-bold tracking-tight mb-[var(--spacing-4)]">Real runs, real numbers.</h2>
+              <p className="body-md text-[var(--color-text-muted)]">Gathered from our latest engine benchmarks.</p>
+            </div>
+            <div className="grid md:grid-cols-3 gap-[var(--spacing-6)]">
               {[
-                { stat: "91%", desc: "500 product reviews → star rating, 38s" },
+                { stat: "91%", desc: "500 reviews → star rating, 38s" },
                 { stat: "87%", desc: "1,200 tickets → category, 51s" },
                 { stat: "94%", desc: "800 responses → sentiment, 29s" }
               ].map((p, i) => (
-                <Card key={i} delay={i * 100} className="text-center">
-                  <div className="font-display text-[48px] font-bold text-[#111111]">{p.stat}</div>
-                  <div className="text-[14px] text-[#6B6B68] mt-2 max-w-[20ch] mx-auto">{p.desc}</div>
+                <Card key={i} className="text-center">
+                  <div className="font-display text-5xl font-bold text-[var(--color-text-primary)] mb-[var(--spacing-2)]">{p.stat}</div>
+                  <div className="text-sm text-[var(--color-text-muted)] font-medium max-w-[20ch] mx-auto">{p.desc}</div>
                 </Card>
               ))}
             </div>
-            <p className="text-[13px] text-[#6B6B68] mt-10 italic">These are internal test runs shown transparently — not user data.</p>
-          </div>
+            <p className="text-[13px] text-[var(--color-text-muted)] mt-[var(--spacing-7)] italic text-center">Internal development benchmarks, shown transparently.</p>
+          </Container>
         </section>
 
         {/* Ownership Section */}
-        <section className="py-24 px-6">
-          <div className="max-w-[1200px] mx-auto">
-            <div className="bg-[#0F1210] text-[#F5F5F3] rounded-[24px] p-12 md:p-20 text-center space-y-6">
-              <h2 className="font-display text-4xl font-bold tracking-tight max-w-[16ch] mx-auto">You own what you build.</h2>
-              <p className="text-[17px] text-[#9A9A96] max-w-[52ch] mx-auto leading-relaxed">Every model you train belongs to you, not a shared black box behind an API you don't control. Toddler exists so a domain expert can build something specific, keep the result, and not have to explain themselves to a platform to use it.</p>
+        <section className={`${sections.padding}`}>
+          <Container>
+            <div className="bg-[var(--color-bg-dark)] text-[var(--color-text-inverse)] rounded-[var(--radius-xl)] p-[var(--spacing-8)] md:p-[var(--spacing-9)] text-center">
+              <h2 className="font-display text-4xl font-bold tracking-tight max-w-[16ch] mx-auto mb-[var(--spacing-5)]">You own what you build.</h2>
+              <p className="text-lg text-[#9A9A96] max-w-[52ch] mx-auto leading-relaxed">
+                Every model you train belongs to you, not a shared black box behind an API you don't control. Toddler exists so domain experts can build proprietary intelligence without permission.
+              </p>
             </div>
-          </div>
+          </Container>
         </section>
 
-        {/* Pricing Section */}
-        <section id="pricing" className="py-24 md:py-32 px-6">
-          <div className="max-w-[1200px] mx-auto">
-            <div className="text-center mb-20 space-y-4">
-              <h2 className="font-display text-4xl md:text-[36px] font-bold tracking-tight">Simple, honest pricing.</h2>
-              <p className="text-lg text-[#6B6B68]">Build your first model for free. Upgrade as you scale.</p>
+        {/* Pricing */}
+        <section id="pricing" className={`${sections.padding} bg-white border-y border-[var(--color-border-subtle)]`}>
+          <Container>
+            <div className="text-center max-w-[640px] mx-auto mb-[var(--spacing-9)]">
+              <h2 className="font-display text-4xl font-bold tracking-tight mb-[var(--spacing-4)]">Simple, honest pricing.</h2>
+              <p className="body-md text-[var(--color-text-muted)]">Build your first model for free. Upgrade as you scale.</p>
             </div>
-            <div className="grid md:grid-cols-2 gap-8 max-w-[1000px] mx-auto items-stretch">
-              <div className="bg-white border border-[#E5E4E0] rounded-[20px] p-10 flex flex-col justify-between shadow-sm">
+            <div className="grid md:grid-cols-2 gap-[var(--spacing-8)] max-w-[1000px] mx-auto items-stretch">
+              <div className="bg-[var(--color-bg-base)] border border-[var(--color-border-subtle)] rounded-[var(--radius-xl)] p-[var(--spacing-8)] flex flex-col justify-between">
                 <div>
-                  <span className="text-[12px] font-bold uppercase tracking-wider text-[#6B6B68]">Free Tier</span>
-                  <div className="font-display text-[48px] font-bold mt-2">$0<span className="text-lg font-normal text-[#6B6B68] ml-1">/ mo</span></div>
-                  <p className="text-sm text-[#6B6B68] mt-4">Perfect for individuals and small tests.</p>
-                  <ul className="list-none p-0 my-10 space-y-4">
+                  <span className="plan-label caption text-[var(--color-text-muted)]">Free Tier</span>
+                  <div className="font-display text-5xl font-bold mt-[var(--spacing-3)]">$0<span className="text-lg font-normal text-[var(--color-text-muted)] ml-1">/ mo</span></div>
+                  <p className="text-sm text-[var(--color-text-muted)] mt-[var(--spacing-5)] mb-[var(--spacing-8)]">Perfect for individuals and validation tests.</p>
+                  <ul className="space-y-[var(--spacing-4)] mb-[var(--spacing-8)]">
                     {["1 Active Project", "Up to 2,000 Rows", "Community Support", "Standard Training Speed"].map(f => (
-                      <li key={f} className="flex items-center gap-3 text-sm font-medium"><div className="w-5 h-5 bg-[#EFEFEC] rounded-full flex items-center justify-center text-[10px]">✓</div> {f}</li>
+                      <li key={f} className="flex items-center gap-[var(--spacing-3)] text-sm font-semibold">
+                        <Check size={16} className="text-[var(--color-accent)]" /> {f}
+                      </li>
                     ))}
                   </ul>
                 </div>
-                <Button variant="outline" style={{ width: '100%' }}>Get Started</Button>
+                <Button variant="outline" className="w-full">Get Started</Button>
               </div>
-              <div className="bg-[#0F1210] text-white rounded-[20px] p-10 flex flex-col justify-between relative overflow-hidden">
-                <div className="absolute top-10 right-10 bg-[#1B4332] text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">Coming Soon</div>
+              <div className="bg-[var(--color-bg-dark)] text-white rounded-[var(--radius-xl)] p-[var(--spacing-8)] flex flex-col justify-between relative overflow-hidden">
+                <div className="absolute top-[var(--spacing-8)] right-[var(--spacing-8)] bg-[var(--color-accent)] text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest">Coming Soon</div>
                 <div>
-                  <span className="text-[12px] font-bold uppercase tracking-wider opacity-40">Pro Plan</span>
-                  <div className="font-display text-[48px] font-bold mt-2">$49<span className="text-lg font-normal opacity-40 ml-1">/ mo</span></div>
-                  <p className="text-sm opacity-60 mt-4">For production-scale models and advanced teams.</p>
-                  <ul className="list-none p-0 my-10 space-y-4">
-                    {["Unlimited Projects", "Up to 100k Rows", "API Deployment", "Model Export (.pkl)", "Priority Support", "Advanced Metrics"].map(f => (
-                      <li key={f} className="flex items-center gap-3 text-sm font-medium opacity-60"><div className="w-5 h-5 border border-white/10 rounded-full flex items-center justify-center text-[10px]">•</div> {f}</li>
+                  <span className="caption opacity-40">Pro Plan</span>
+                  <div className="font-display text-5xl font-bold mt-[var(--spacing-3)]">$49<span className="text-lg font-normal opacity-40 ml-1">/ mo</span></div>
+                  <p className="text-sm opacity-60 mt-[var(--spacing-5)] mb-[var(--spacing-8)]">For production-scale models and advanced teams.</p>
+                  <ul className="space-y-[var(--spacing-4)] mb-[var(--spacing-8)]">
+                    {["Unlimited Projects", "Up to 100k Rows", "API Deployment", "Model Export (.pkl)", "Priority Support"].map(f => (
+                      <li key={f} className="flex items-center gap-[var(--spacing-3)] text-sm font-semibold opacity-60">
+                        <span className="text-[var(--color-accent)]">—</span> {f}
+                      </li>
                     ))}
                   </ul>
-                  <p className="text-[12px] opacity-40 mb-6">Included at launch — join list for notifications.</p>
                 </div>
-                <Button variant="accent" style={{ width: '100%' }}>Join Waiting List</Button>
+                <Button variant="accent" className="w-full">Join Waiting List</Button>
               </div>
             </div>
-          </div>
+          </Container>
         </section>
 
         {/* FAQ */}
-        <section className="py-24 px-6 border-t border-[#E5E4E0]">
-          <div className="max-w-[720px] mx-auto">
-            <h2 className="font-display text-3xl font-bold text-center mb-16">Questions, answered honestly.</h2>
-            <div className="space-y-2">
+        <section className={`${sections.padding}`}>
+          <Container size="prose">
+            <h2 className="font-display text-3xl font-bold text-center mb-[var(--spacing-9)]">Questions, answered.</h2>
+            <div className="space-y-[var(--spacing-2)]">
               {[
                 { q: "What file formats are supported?", a: "CSV only for v1. One text column and one label column — you pick which is which after upload." },
                 { q: "Is my data secure?", a: "Yes — everything is encrypted end-to-end, both in transit and at rest using modern standards." },
                 { q: "What happens after 2,000 rows?", a: "Uploads over the cap are rejected partway through with a clear message, ensuring fast training cycles for everyone." },
                 { q: "Can I export my trained model?", a: "Not yet in v1 — model export (.pkl) is a Pro feature coming soon. We store all artifacts securely regardless." }
               ].map((faq, i) => (
-                <div key={i} className="border-b border-[#E5E4E0]">
+                <div key={i} className="border-b border-[var(--color-border-subtle)]">
                   <button 
                     onClick={() => setActiveFaq(activeFaq === i ? null : i)}
-                    className="w-full py-6 flex justify-between items-center text-left border-none bg-transparent cursor-pointer group"
+                    className="w-full py-[var(--spacing-6)] flex justify-between items-center text-left border-none bg-transparent cursor-pointer group"
                   >
-                    <span className="font-bold text-[16px] group-hover:text-[#1B4332] transition-colors">{faq.q}</span>
+                    <span className="font-bold text-base group-hover:text-[var(--color-accent)] transition-colors">{faq.q}</span>
                     <div className={`transition-transform duration-300 text-xl font-light ${activeFaq === i ? 'rotate-45' : ''}`}>+</div>
                   </button>
-                  <div className={`overflow-hidden transition-all duration-300 ${activeFaq === i ? 'max-h-40 pb-6' : 'max-h-0'}`}>
-                    <p className="text-[#6B6B68] text-[15px] leading-relaxed">{faq.a}</p>
+                  <div className={`overflow-hidden transition-all duration-300 ${activeFaq === i ? 'max-h-40 pb-[var(--spacing-6)]' : 'max-h-0'}`}>
+                    <p className="text-[var(--color-text-muted)] text-[15px] leading-relaxed">{faq.a}</p>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          </Container>
         </section>
 
         {/* Final CTA */}
-        <section className="py-32 px-6 text-center">
-          <div className="max-w-[1200px] mx-auto space-y-10">
-            <h2 className="font-display text-4xl md:text-[40px] font-bold tracking-tight max-w-[16ch] mx-auto">Turn your data into pure intelligence.</h2>
-            <Button onClick={() => navigate('/signup')} style={{ padding: '18px 40px' }} icon={ArrowRight}>Start Training Free</Button>
-          </div>
+        <section className="py-[var(--spacing-9)] text-center">
+          <Container>
+            <h2 className="font-display text-4xl font-bold tracking-tight max-w-prose-head mx-auto mb-[var(--spacing-8)]">Turn your data into pure intelligence.</h2>
+            <Button onClick={() => navigate('/signup')} className="!py-[var(--spacing-5)] !px-[var(--spacing-8)] text-lg" icon={ArrowRight}>Start Training Free</Button>
+          </Container>
         </section>
       </main>
 
       {/* Footer */}
-      <footer className="bg-[#0F1210] text-[#F5F5F3] pt-24 pb-12 px-6 relative border-t-0 rounded-t-[32px] mt-12 overflow-hidden">
-        <div className="absolute bottom-[-40px] left-0 right-0 text-center font-display font-bold text-[min(18vw,220px)] text-white/[0.035] select-none pointer-events-none uppercase">
+      <footer className="bg-[var(--color-bg-dark)] text-[var(--color-text-inverse)] pt-[var(--spacing-9)] pb-[var(--spacing-7)] relative rounded-t-[32px] overflow-hidden">
+        <div className="absolute bottom-[-40px] left-0 right-0 text-center font-display font-black text-[min(18vw,220px)] text-white/[0.03] select-none pointer-events-none">
           TODDLER
         </div>
-        <div className="max-w-[1200px] mx-auto relative z-10">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12 mb-20">
-            <div className="space-y-6">
-              <div className="logo flex items-center gap-2.5 font-display font-bold text-[17px] tracking-tight">
-                <div className="w-7 h-7 bg-white text-black rounded-lg flex items-center justify-center text-sm font-bold">T</div>
+        <Container wide className="relative z-10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[var(--spacing-8)] mb-[var(--spacing-9)]">
+            <div className="space-y-[var(--spacing-6)]">
+              <div className="flex items-center gap-[var(--spacing-2)] font-display font-bold text-[17px] tracking-tight">
+                <div className="w-8 h-8 bg-white text-black rounded-lg flex items-center justify-center text-sm font-bold">T</div>
                 Toddler
               </div>
-              <p className="text-sm text-[#9A9A96] leading-relaxed max-w-[32ch]">The intelligence layer for specific domain problems. Built for experts who build the future.</p>
-              <div className="flex gap-4">
-                {[1,2,3].map(i => <div key={i} className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity cursor-pointer">◔</div>)}
+              <p className="text-sm text-[#9A9A96] leading-relaxed max-w-[30ch]">The intelligence layer for experts who build the future.</p>
+              <div className="flex gap-[var(--spacing-4)]">
+                {[1,2,3].map(i => <div key={i} className="w-9 h-9 rounded-full border border-white/10 flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity cursor-pointer">◔</div>)}
               </div>
             </div>
             <div>
-              <h4 className="text-[12px] font-bold uppercase tracking-widest text-[#9A9A96] mb-8">Platform</h4>
-              <div className="flex flex-col gap-4 text-sm font-medium">
-                <a href="#" className="no-underline hover:opacity-60 transition-opacity">Overview</a>
-                <a href="#" className="no-underline hover:opacity-60 transition-opacity">Integrations</a>
-                <a href="#" className="no-underline hover:opacity-60 transition-opacity">Documentation</a>
+              <h4 className="text-[12px] font-bold uppercase tracking-widest text-[#9A9A96] mb-[var(--spacing-6)]">Platform</h4>
+              <div className="flex flex-col gap-[var(--spacing-4)] text-sm font-medium">
+                <a href="#" className="no-underline hover:text-[var(--color-accent)] transition-colors">Overview</a>
+                <a href="#" className="no-underline hover:text-[var(--color-accent)] transition-colors">Integrations</a>
+                <a href="#" className="no-underline hover:text-[var(--color-accent)] transition-colors">Documentation</a>
               </div>
             </div>
             <div>
-              <h4 className="text-[12px] font-bold uppercase tracking-widest text-[#9A9A96] mb-8">Company</h4>
-              <div className="flex flex-col gap-4 text-sm font-medium">
-                <a href="#" className="no-underline hover:opacity-60 transition-opacity">About Us</a>
-                <a href="#" className="no-underline hover:opacity-60 transition-opacity">Changelog</a>
-                <a href="#" className="no-underline hover:opacity-60 transition-opacity">Privacy</a>
+              <h4 className="text-[12px] font-bold uppercase tracking-widest text-[#9A9A96] mb-[var(--spacing-6)]">Company</h4>
+              <div className="flex flex-col gap-[var(--spacing-4)] text-sm font-medium">
+                <a href="#" className="no-underline hover:text-[var(--color-accent)] transition-colors">About Us</a>
+                <a href="#" className="no-underline hover:text-[var(--color-accent)] transition-colors">Changelog</a>
+                <a href="#" className="no-underline hover:text-[var(--color-accent)] transition-colors">Privacy</a>
               </div>
             </div>
             <div>
-              <h4 className="text-[12px] font-bold uppercase tracking-widest text-[#9A9A96] mb-8">Newsletter</h4>
-              <p className="text-sm text-[#9A9A96] mb-6">Machine learning insights for builders.</p>
+              <h4 className="text-[12px] font-bold uppercase tracking-widest text-[#9A9A96] mb-[var(--spacing-6)]">Newsletter</h4>
+              <p className="text-sm text-[#9A9A96] mb-[var(--spacing-5)]">Machine learning insights for builders.</p>
               <div className="flex">
-                <input type="email" placeholder="name@email.com" className="flex-grow bg-transparent border border-white/10 rounded-l-full px-5 py-3 text-sm focus:outline-none focus:border-white/20" />
-                <button className="bg-white text-black font-bold text-[12px] px-6 rounded-r-full uppercase tracking-widest">Join</button>
+                <input type="email" placeholder="name@email.com" className="flex-grow bg-transparent border border-white/10 rounded-l-full px-[var(--spacing-5)] py-[var(--spacing-3)] text-sm focus:outline-none focus:border-white/30" />
+                <button className="bg-white text-black font-bold text-[12px] px-[var(--spacing-6)] rounded-r-full uppercase tracking-widest">Join</button>
               </div>
             </div>
           </div>
-          <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 text-[13px] text-[#9A9A96]">
+          <div className="pt-[var(--spacing-6)] border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-[var(--spacing-5)] text-[13px] text-[#9A9A96]">
             <span>© 2026 Toddler AI. Designed by hand.</span>
-            <div className="flex gap-8">
-              <a href="#" className="no-underline hover:text-white transition-colors">Terms</a>
-              <a href="#" className="no-underline hover:text-white transition-colors">Cookies</a>
-              <a href="#" className="no-underline hover:text-white transition-colors">GDPR</a>
+            <div className="flex gap-[var(--spacing-6)]">
+              <a href="#" className="no-underline hover:text-white">Terms</a>
+              <a href="#" className="no-underline hover:text-white">Cookies</a>
+              <a href="#" className="no-underline hover:text-white">GDPR</a>
             </div>
           </div>
-        </div>
+        </Container>
       </footer>
     </div>
   );
 };
+
+// Add helper for AnimatePresence simulation if framer-motion is removed
+const AnimatePresence = ({ children }) => <>{children}</>;
 
 export default LandingPage;

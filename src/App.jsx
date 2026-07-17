@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LandingPage from './LandingPage'
 import Auth from './Auth'
 import Dashboard from './Dashboard'
+import MobileDashboard from './MobileDashboard'
+import { Capacitor } from '@capacitor/core'
 import { auth } from './firebase'
 import { onAuthStateChanged } from 'firebase/auth'
 import { Toaster } from 'react-hot-toast'
@@ -42,7 +44,7 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Auth mode="login" />} />
           <Route path="/signup" element={<Auth mode="signup" />} />
-          <Route path="/dashboard/*" element={user ? <Dashboard /> : <Navigate to="/login" />} />
+          <Route path="/dashboard/*" element={user ? (Capacitor.isNativePlatform() ? <MobileDashboard /> : <Dashboard />) : <Navigate to="/login" />} />
         </Routes>
       </BrowserRouter>
     </>

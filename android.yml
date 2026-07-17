@@ -1,0 +1,37 @@
+name: Build Android APK
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install & Build
+        run: |
+          cd toddler
+          npm install
+          npm run build
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Capacitor Sync
+        run: |
+          cd toddler
+          npx cap add android
+          npx cap sync android
+      - name: Build APK
+        run: |
+          cd toddler/android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: toddler-app-debug
+          path: toddler/android/app/build/outputs/apk/debug/app-debug.apk

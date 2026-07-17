@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase';
 import { collection, query, where, getDocs, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Play, Menu, X, Download, Trash2, Edit3, Database, Cpu, Globe, Terminal, History, BarChart3, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Shield, Play, Menu, X, Download, Trash2, Edit3, Database, Cpu, Globe, Terminal, History, BarChart3, AlertTriangle, CheckCircle2, MessageSquare, Send } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import Onboarding from './Onboarding';
 
@@ -14,10 +14,57 @@ const Dashboard = () => {
   const [predicting, setPredicting] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [history, setHistory] = useState([]);
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'playground', 'analytics', 'dev'
-  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'playground', 'analytics', 'dev', 'chat'
+  const [responses, setResponses] = useState({});
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
 
-  const currentProject = projects[0];
+  const handleChatSend = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+
+    const userMsg = { role: 'user', text: chatInput };
+    setChatMessages(prev => [...prev, userMsg]);
+    setChatInput('');
+    setIsTyping(true);
+
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL;
+      const formData = new FormData();
+      formData.append('project_id', currentProject.id);
+      formData.append('text', chatInput);
+
+      const response = await fetch(`${apiUrl}/predict`, { method: 'POST', body: formData });
+      const data = await response.json();
+      
+      const botResponse = responses[data.prediction] || `I understood that as "${data.prediction}", but no response is set.`;
+      
+      setTimeout(() => {
+        setChatMessages(prev => [...prev, { role: 'bot', text: botResponse, intent: data.prediction, confidence: data.confidence }]);
+        setIsTyping(false);
+      }, 600);
+    } catch (e) {
+      setIsTyping(false);
+    }
+  };
+
+  const saveResponse = async (label, text) => {
+    const newResponses = { ...responses, [label]: text };
+    setResponses(newResponses);
+    try {
+      await updateDoc(doc(db, "projects", currentProject.id), { responses: newResponses });
+      toast.success('Response updated');
+    } catch (e) {
+      toast.error('Failed to save');
+    }
+  };
+
+  useEffect(() => {
+    if (currentProject?.responses) {
+      setResponses(currentProject.responses);
+    }
+  }, [currentProject]);
 
   const handlePredict = async () => {
     if (!predictText) return;
@@ -113,6 +160,7 @@ const Dashboard = () => {
             { id: 'overview', label: 'Dashboard', icon: Globe },
             { id: 'playground', label: 'Playground', icon: Play },
             { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+            { id: 'chat', label: 'Chatbot', icon: MessageSquare },
             { id: 'dev', label: 'Developer API', icon: Terminal }
           ].map(t => (
             <button 
@@ -315,35 +363,85 @@ const Dashboard = () => {
           </div>
         )}
 
-        {activeTab === 'dev' && (
-          <div className="max-w-4xl space-y-12">
-             <div className="bg-white p-10 rounded-[32px] border border-[#E5E4E0] space-y-6">
-                <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#6B6B68]">API Key</span>
-                <div className="flex gap-4">
-                   <div className="flex-grow p-5 bg-[#FAFAF8] rounded-2xl border border-[#E5E4E0] font-mono text-sm overflow-hidden truncate">
-                      tdlr_live_7k29{currentProject.id.slice(0, 12)}...
-                   </div>
-                   <button className="px-6 bg-[#111111] text-white rounded-2xl font-bold text-xs uppercase tracking-widest">Reveal</button>
-                </div>
-             </div>
+        {activeTab === 'chat' && (
+          <div className="grid lg:grid-cols-3 gap-12 h-[calc(100vh-280px)]">
+            {/* Response Manager */}
+            <div className="lg:col-span-1 bg-white border border-[#E5E4E0] rounded-[32px] p-8 overflow-y-auto space-y-8">
+               <div>
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#6B6B68] mb-2">Intent Manager</h3>
+                  <p className="text-xs text-[#6B6B68]">Assign responses to your trained labels.</p>
+               </div>
+               <div className="space-y-6">
+                  {currentProject.labels.map(label => (
+                    <div key={label} className="space-y-2">
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#1B4332]">{label}</label>
+                       <textarea 
+                        className="w-full p-4 bg-[#FAFAF8] border border-[#E5E4E0] rounded-xl text-sm focus:outline-none focus:border-black resize-none"
+                        placeholder={`Response for ${label}...`}
+                        value={responses[label] || ''}
+                        onChange={(e) => setResponses({...responses, [label]: e.target.value})}
+                        onBlur={(e) => saveResponse(label, e.target.value)}
+                       />
+                    </div>
+                  ))}
+               </div>
+            </div>
 
-             <div className="bg-[#0F1210] p-10 rounded-[32px] text-white space-y-8">
-                <div className="flex justify-between items-center">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.2em] opacity-40">Integration Example</span>
-                  <div className="flex gap-2">
-                     <div className="w-2 h-2 rounded-full bg-red-400" />
-                     <div className="w-2 h-2 rounded-full bg-yellow-400" />
-                     <div className="w-2 h-2 rounded-full bg-green-400" />
+            {/* Chat Interface */}
+            <div className="lg:col-span-2 bg-[#0F1210] rounded-[32px] flex flex-col overflow-hidden border border-white/5 shadow-2xl">
+               <div className="p-6 border-b border-white/5 bg-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                     <div className="w-2 h-2 rounded-full bg-[#1B4332] animate-pulse" />
+                     <span className="text-xs font-bold uppercase tracking-widest text-white">Live Chat Preview</span>
                   </div>
-                </div>
-                <div className="bg-white/5 p-8 rounded-2xl border border-white/5 font-mono text-sm text-[#9A9A96] overflow-x-auto">
-                   <div className="text-white">curl -X POST "{import.meta.env.VITE_API_URL}/predict" \</div>
-                   <div className="pl-5">-H "Authorization: Bearer YOUR_API_KEY" \</div>
-                   <div className="pl-5">-F "project_id={currentProject.id}" \</div>
-                   <div className="pl-5">-F "text=Hello, this is a test!"</div>
-                </div>
-                <button className="w-full py-5 border border-white/10 rounded-full font-bold uppercase tracking-widest text-[10px] hover:bg-white hover:text-black transition-all">Copy to Clipboard</button>
-             </div>
+                  <button onClick={() => setChatMessages([])} className="text-[10px] font-bold uppercase text-white/40 hover:text-white transition-colors">Clear</button>
+               </div>
+
+               <div className="flex-grow p-8 overflow-y-auto space-y-6 flex flex-col">
+                  {chatMessages.length === 0 && (
+                    <div className="flex-grow flex flex-col items-center justify-center text-center space-y-4 opacity-20">
+                       <MessageSquare size={48} className="text-white" />
+                       <p className="text-white text-sm font-medium uppercase tracking-widest">Start a conversation with your model</p>
+                    </div>
+                  )}
+                  {chatMessages.map((msg, i) => (
+                    <div key={i} className={`max-w-[80%] p-4 rounded-2xl ${msg.role === 'user' ? 'bg-white/10 text-white self-end rounded-br-none' : 'bg-[#1B4332] text-white self-start rounded-bl-none'}`}>
+                       <p className="text-sm font-medium leading-relaxed">{msg.text}</p>
+                       {msg.intent && (
+                         <div className="mt-2 pt-2 border-t border-white/10 flex items-center gap-2">
+                            <span className="text-[9px] font-bold uppercase opacity-60">Intent: {msg.intent}</span>
+                            <span className="text-[9px] font-bold uppercase opacity-60">·</span>
+                            <span className="text-[9px] font-bold uppercase opacity-60">Conf: {(msg.confidence * 100).toFixed(0)}%</span>
+                         </div>
+                       )}
+                    </div>
+                  ))}
+                  {isTyping && (
+                    <div className="bg-[#1B4332]/50 text-white self-start p-4 rounded-2xl rounded-bl-none animate-pulse">
+                       <div className="flex gap-1">
+                          <div className="w-1.5 h-1.5 bg-white/50 rounded-full" />
+                          <div className="w-1.5 h-1.5 bg-white/50 rounded-full" />
+                          <div className="w-1.5 h-1.5 bg-white/50 rounded-full" />
+                       </div>
+                    </div>
+                  )}
+               </div>
+
+               <form onSubmit={handleChatSend} className="p-6 bg-white/5 border-t border-white/5">
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      className="w-full h-14 bg-white/10 border border-white/10 rounded-full pl-6 pr-16 text-white placeholder:text-white/20 focus:outline-none focus:border-[#1B4332] transition-all"
+                      placeholder="Ask the chatbot something..."
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                    />
+                    <button className="absolute right-2 top-2 w-10 h-10 bg-[#1B4332] text-white rounded-full flex items-center justify-center hover:scale-105 transition-transform">
+                       <Send size={18} />
+                    </button>
+                  </div>
+               </form>
+            </div>
           </div>
         )}
       </main>

@@ -61,7 +61,6 @@ body {
   -webkit-font-smoothing: antialiased;
   line-height: 1.5;
   background-color: var(--color-bg-base);
-  /* Hero Gradient Background */
   background-image: radial-gradient(ellipse 900px 500px at 50% -10%, rgba(125, 57, 235, 0.16), transparent 60%);
   position: relative;
   min-height: 100vh;
@@ -115,7 +114,7 @@ h1, h2, h3, h4, .font-display {
   @keyframes fade-in-up {
     from {
       opacity: 0;
-      transform: translateY(16px);
+      transform: translateY(24px);
     }
     to {
       opacity: 1;

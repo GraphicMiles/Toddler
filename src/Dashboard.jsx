@@ -28,7 +28,7 @@ const Dashboard = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState('');
-  const [loadingMessage, setLoadingMessage] = useState('Initializing...');
+  const [loadingMessage, setLoadingMessage] = useState('Initializing Engine...');
   const [batchFile, setBatchFile] = useState(null);
   const [batchTextCol, setBatchTextCol] = useState('');
   const [batching, setBatching] = useState(false);
@@ -73,31 +73,6 @@ const Dashboard = () => {
     };
     fetchProjects();
   }, []);
-
-  if (loading) return (
-    <div className="min-h-screen bg-[var(--color-bg-base)] p-[var(--spacing-6)] lg:p-[var(--spacing-9)] font-sans">
-      <Container wide className="space-y-[var(--spacing-8)]">
-        <div className="flex justify-between items-end">
-          <div className="space-y-[var(--spacing-4)] text-left">
-            <Skeleton className="h-10 w-64" />
-            <Skeleton className="h-4 w-32" />
-          </div>
-          <Skeleton className="h-10 w-48 rounded-full" />
-        </div>
-        <div className="grid lg:grid-cols-3 gap-[var(--spacing-6)]">
-           <Skeleton className="h-64 col-span-2 rounded-[var(--radius-lg)]" />
-           <Skeleton className="h-64 rounded-[var(--radius-lg)]" />
-        </div>
-        <Skeleton className="h-96 rounded-[var(--radius-lg)]" />
-      </Container>
-      <div className="fixed bottom-[var(--spacing-8)] right-[var(--spacing-8)] flex items-center gap-[var(--spacing-3)] text-[var(--color-text-muted)] font-bold uppercase tracking-[0.2em] text-[10px]">
-        <div className="w-4 h-4 border-2 border-[var(--color-accent-lime)] border-t-transparent rounded-full animate-spin" />
-        Seeking Wisdom...
-      </div>
-    </div>
-  );
-
-  if (projects.length === 0) return <Onboarding onComplete={(p) => setProjects([p])} />;
 
   const currentProject = projects[0];
 
@@ -170,7 +145,7 @@ const Dashboard = () => {
       await updateDoc(doc(db, "projects", currentProject.id), { name: newName });
       setProjects(prev => [{ ...prev[0], name: newName }]);
       setIsEditingName(false);
-      toast.success('Project discombobulated.');
+      toast.success('Identity updated.');
     } catch (e) {
       toast.error('Rename failed');
     }
@@ -255,6 +230,31 @@ const Dashboard = () => {
     }
   };
 
+  if (loading) return (
+    <div className="min-h-screen bg-[var(--color-bg-base)] p-[var(--spacing-6)] lg:p-[var(--spacing-9)] font-sans">
+      <Container wide className="space-y-[var(--spacing-8)]">
+        <div className="flex justify-between items-end">
+          <div className="space-y-[var(--spacing-4)]">
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <Skeleton className="h-10 w-48 rounded-full" />
+        </div>
+        <div className="grid lg:grid-cols-3 gap-[var(--spacing-6)]">
+           <Skeleton className="h-64 col-span-2 rounded-[var(--radius-lg)]" />
+           <Skeleton className="h-64 rounded-[var(--radius-lg)]" />
+        </div>
+        <Skeleton className="h-96 rounded-[var(--radius-lg)]" />
+      </Container>
+      <div className="fixed bottom-[var(--spacing-8)] right-[var(--spacing-8)] flex items-center gap-[var(--spacing-3)] text-[var(--color-text-muted)] font-bold uppercase tracking-[0.2em] text-[10px]">
+        <div className="w-4 h-4 border-2 border-[var(--color-accent-lime)] border-t-transparent rounded-full animate-spin" />
+        Seeking Wisdom...
+      </div>
+    </div>
+  );
+
+  if (projects.length === 0) return <Onboarding onComplete={(p) => setProjects([p])} />;
+
   return (
     <div className="min-h-screen bg-[var(--color-bg-base)] flex font-sans relative overflow-hidden text-white selection:bg-[var(--color-accent-purple)]">
       <Toaster />
@@ -312,8 +312,8 @@ const Dashboard = () => {
       {/* Main Content Area */}
       <main className="flex-grow overflow-auto p-[var(--spacing-6)] pt-24 md:p-[var(--spacing-8)] lg:p-[var(--spacing-9)] relative bg-[var(--color-bg-base)]">
         {/* Mobile Navbar */}
-        <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#08090C]/80 backdrop-blur-md border-b border-white/5 z-30 px-[var(--spacing-6)] flex items-center justify-between text-white">
-          <div className="font-display font-bold text-lg tracking-tighter">Toddler</div>
+        <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#08090C]/80 backdrop-blur-md border-b border-white/5 z-30 px-[var(--spacing-6)] flex items-center justify-between">
+          <div className="font-display font-bold text-lg tracking-tighter text-white">Toddler</div>
           <button onClick={() => setSidebarOpen(true)} className="p-[var(--spacing-2)] border-none bg-transparent cursor-pointer text-white"><Menu size={24} /></button>
         </div>
 
@@ -351,7 +351,7 @@ const Dashboard = () => {
         {activeTab === 'overview' && (
           <div className="space-y-[var(--spacing-8)] fade-in-up">
             <div className="grid lg:grid-cols-3 gap-[var(--spacing-6)] md:gap-[var(--spacing-8)]">
-              <Card variant="green" className="col-span-2 !bg-[#0D0F14] !p-[var(--spacing-8)] md:!p-[var(--spacing-9)] border-[var(--color-accent-green)] shadow-[0_0_30px_rgba(198,255,51,0.05)]">
+              <Card variant="green" className="col-span-2 !bg-[#0D0F14] !p-[var(--spacing-8)] md:!p-[var(--spacing-9)] border-[var(--color-accent-green)] shadow-[0_0_30px_rgba(198,255,51,0.05)] text-left">
                 <div className="flex justify-between items-start mb-[var(--spacing-8)] text-left">
                   <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-white/30">Primary Accuracy</span>
                   <CheckCircle2 className="text-[var(--color-accent-green)]" size={20} />
@@ -368,7 +368,7 @@ const Dashboard = () => {
                    ))}
                 </div>
               </Card>
-              <Card variant="dark" className="flex flex-col justify-between !bg-[#0D0F14] border-[var(--color-accent-purple)] shadow-[0_0_30px_rgba(125,57,235,0.05)]">
+              <Card variant="dark" className="flex flex-col justify-between !bg-[#0D0F14] border-[var(--color-accent-purple)] shadow-[0_0_30px_rgba(125,57,235,0.05)] text-left">
                  <div className="space-y-[var(--spacing-6)] text-left">
                     <span className="text-[11px] font-bold uppercase tracking-[0.25em] opacity-30">Architecture</span>
                     <div className="flex items-center gap-[var(--spacing-4)] p-[var(--spacing-5)] bg-white/[0.03] rounded-2xl border border-white/5">
@@ -408,7 +408,7 @@ const Dashboard = () => {
 
         {activeTab === 'playground' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--spacing-7)] md:gap-[var(--spacing-9)] fade-in-up">
-            <Card className="!bg-[#0D0F14] !border-2 !border-[var(--color-accent-purple)] space-y-[var(--spacing-8)] text-left h-fit">
+            <Card className="!bg-[#0D0F14] !border-2 !border-[var(--color-accent-purple)] space-y-[var(--spacing-8)] text-left h-fit glow-purple">
               <div className="flex justify-between items-start">
                 <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-white/30">Logic Terminal</span>
                 <Terminal className="text-[var(--color-accent-purple)]" size={20} />
@@ -425,7 +425,7 @@ const Dashboard = () => {
                 <div className="p-[var(--spacing-7)] bg-[var(--color-accent-purple)]/10 border border-[var(--color-accent-purple)]/20 rounded-[var(--radius-xl)] animate-in fade-in slide-in-from-top-4 duration-500">
                   <div className="flex justify-between items-center mb-[var(--spacing-5)]">
                      <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent-purple)]">Classification Output</span>
-                     <span className="px-3 py-1 bg-[var(--color-accent-purple)] text-white rounded-full text-[10px] font-bold">{(prediction.confidence * 100).toFixed(1)}% Match</span>
+                     <span className="px-3 py-1 bg-[var(--color-accent-purple)] text-white rounded-full text-[10px] font-bold">{(prediction.confidence * 100).toFixed(1)}% Confidence</span>
                   </div>
                   <div className="text-4xl md:text-5xl font-display font-bold text-[var(--color-accent-purple)] mb-[var(--spacing-7)] leading-none break-all">{prediction.prediction}</div>
                   <div className="flex flex-wrap gap-[var(--spacing-3)]">

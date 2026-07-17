@@ -6,7 +6,6 @@ import Dashboard from './Dashboard'
 import { auth } from './firebase'
 import { onAuthStateChanged } from 'firebase/auth'
 import { Toaster } from 'react-hot-toast'
-import { Skeleton } from './components/UI'
 
 function App() {
   const [user, setUser] = React.useState(null)

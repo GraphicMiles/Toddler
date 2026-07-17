@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { auth, googleProvider } from './firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
 import { useNavigate, Link } from 'react-router-dom';
 
 const Auth = ({ mode = 'login' }) => {
@@ -30,6 +31,12 @@ const Auth = ({ mode = 'login' }) => {
   };
 
   const handleGoogle = async () => {
+    // Firebase's web popup hands off to Chrome on Android WebViews and cannot
+    // complete authentication reliably. Keep Android signup inside the app.
+    if (Capacitor.isNativePlatform()) {
+      setError('Google sign-in is not enabled in the Android build yet. Please create an account with email and password.');
+      return;
+    }
     if (loading) return;
     setError('');
     setLoading(true);
@@ -85,7 +92,7 @@ const Auth = ({ mode = 'login' }) => {
               <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
               <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
             </svg>
-            Continue with Google
+            {Capacitor.isNativePlatform() ? 'Google sign-in unavailable on Android' : 'Continue with Google'}
           </button>
 
           <div className="flex items-center gap-4 mb-6">

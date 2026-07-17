@@ -286,6 +286,34 @@ def verify_bearer_token(authorization: str | None):
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid Firebase token")
 
+@app.post("/datasets")
+async def create_dataset(payload: dict, authorization: str | None = Header(default=None)):
+    user = verify_bearer_token(authorization)
+    if "db" not in globals():
+        raise HTTPException(status_code=503, detail="Firestore is not configured")
+    required = ("name", "publicId", "secureUrl", "bytes", "format")
+    if any(not payload.get(key) for key in required):
+        raise HTTPException(status_code=400, detail="Dataset metadata is incomplete")
+    data = {
+        "ownerUid": user["uid"], "name": payload["name"],
+        "cloudinaryPublicId": payload["publicId"], "secureUrl": payload["secureUrl"],
+        "sizeBytes": payload["bytes"], "format": payload["format"],
+        "status": "ready", "createdAt": firestore.SERVER_TIMESTAMP
+    }
+    ref = db.collection("users").document(user["uid"]).collection("datasets").document()
+    ref.set(data)
+    return {"id": ref.id, "dataset": {**data, "createdAt": None}}
+
+@app.get("/datasets")
+def list_datasets(authorization: str | None = Header(default=None)):
+    user = verify_bearer_token(authorization)
+    if "db" not in globals():
+        raise HTTPException(status_code=503, detail="Firestore is not configured")
+    rows = []
+    for doc in db.collection("users").document(user["uid"]).collection("datasets").stream():
+        item = doc.to_dict(); item["id"] = doc.id; rows.append(item)
+    return {"datasets": rows}
+
 @app.post("/uploads/sign")
 def sign_cloudinary_upload(resource_type: str = "raw", authorization: str | None = Header(default=None)):
     """Create a short-lived Cloudinary signature; the API secret stays on Render."""

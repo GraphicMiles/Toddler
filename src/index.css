@@ -18,11 +18,7 @@
   --color-border-subtle: rgba(255, 255, 255, 0.08);
   --color-border-accent: #7D39EB;
 
-  /* Typography */
-  --font-sans: "Inter", system-ui, sans-serif;
-  --font-display: "Space Grotesk", sans-serif;
-
-  /* Spacing Scale - Layout Discipline */
+  /* Spacing Scale - Strict Layout Discipline */
   --spacing-1: 4px;
   --spacing-2: 8px;
   --spacing-3: 12px;
@@ -33,16 +29,16 @@
   --spacing-8: 64px;
   --spacing-9: 96px;
 
-  /* Constraints */
-  --width-container: 1200px;
-  --width-prose: 65ch;
-  
-  /* Radius */
+  /* Radius Tokens */
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 16px;
   --radius-xl: 32px;
   --radius-pill: 9999px;
+
+  /* Typography */
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
 }
 
 :root {
@@ -55,26 +51,16 @@ body {
   margin: 0;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  line-height: 1.5;
   background-color: var(--color-bg-base);
 }
 
-h1, h2, h3, h4, .font-display {
-  font-family: var(--font-display);
-  margin: 0;
-}
-
 @layer utilities {
-  .max-w-prose-head {
-    max-width: 20ch;
-  }
-  
-  .glow-purple {
-    box-shadow: 0 0 40px var(--color-accent-purple-glow);
-  }
-
   .text-glow-green {
     text-shadow: 0 0 20px rgba(198, 255, 51, 0.4);
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 40px var(--color-accent-purple-glow);
   }
 
   .fade-in-up {
@@ -82,13 +68,7 @@ h1, h2, h3, h4, .font-display {
   }
   
   @keyframes fade-in-up {
-    from {
-      opacity: 0;
-      transform: translateY(24px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 }

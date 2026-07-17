@@ -9,7 +9,7 @@ import re
 import numpy as np
 import pandas as pd
 import zipfile
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Header
 from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sklearn.model_selection import train_test_split
@@ -238,3 +238,61 @@ async def download_model(project_id: str):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Public catalog for the Android Model Zoo. Files are published only after
+# their license and mobile memory profile have been reviewed.
+MODEL_CATALOG = [
+    {
+        "id": "tiny-sentiment-v1", "name": "Tiny Sentiment", "type": "Text classification",
+        "description": "Fast positive, negative and neutral predictions.", "format": "onnx",
+        "sizeMb": 42, "parameterCount": 1000000, "minimumRamGb": 2,
+        "trainingRamMb": 700, "inferenceRamMb": 250, "supportsTraining": True,
+        "supportsTesting": True, "license": "Apache-2.0", "status": "published"
+    },
+    {
+        "id": "mobile-vision-v1", "name": "Vision Lite", "type": "Image classification",
+        "description": "Compact image classification for low-memory devices.", "format": "tflite",
+        "sizeMb": 28, "parameterCount": 2000000, "minimumRamGb": 2,
+        "trainingRamMb": 620, "inferenceRamMb": 180, "supportsTraining": True,
+        "supportsTesting": True, "license": "Apache-2.0", "status": "published"
+    },
+    {
+        "id": "mini-embed-v1", "name": "Embed Mini", "type": "Text embeddings",
+        "description": "Generate sentence vectors locally.", "format": "onnx",
+        "sizeMb": 86, "parameterCount": 8000000, "minimumRamGb": 4,
+        "trainingRamMb": 1100, "inferenceRamMb": 360, "supportsTraining": False,
+        "supportsTesting": True, "license": "Apache-2.0", "status": "published"
+    }
+]
+
+@app.get("/models")
+def list_models():
+    return {"models": MODEL_CATALOG}
+
+@app.get("/models/recommended")
+def recommended_models(ram_gb: float = 2, storage_mb: float = 2048, task: str | None = None):
+    available_training_ram = max(256, ram_gb * 1024 * 0.45)
+    models = [m for m in MODEL_CATALOG if m["sizeMb"] <= storage_mb and m["trainingRamMb"] <= available_training_ram and (not task or task.lower() in m["type"].lower())]
+    return {"ramGb": ram_gb, "availableTrainingRamMb": round(available_training_ram), "models": models}
+
+def verify_bearer_token(authorization: str | None):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Firebase bearer token required")
+    if not firebase_admin._apps:
+        raise HTTPException(status_code=503, detail="Firebase Admin is not configured")
+    try:
+        from firebase_admin import auth
+        return auth.verify_id_token(authorization[7:])
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid Firebase token")
+
+@app.post("/uploads/sign")
+def sign_cloudinary_upload(resource_type: str = "raw", authorization: str | None = Header(default=None)):
+    """Create a short-lived Cloudinary signature; the API secret stays on Render."""
+    user = verify_bearer_token(authorization)
+    import cloudinary, cloudinary.utils, time
+    cloudinary.config(cloud_name=os.environ["CLOUDINARY_CLOUD_NAME"], api_key=os.environ["CLOUDINARY_API_KEY"], api_secret=os.environ["CLOUDINARY_API_SECRET"], secure=True)
+    timestamp = int(time.time())
+    folder = f"toddler/datasets/{user['uid']}"
+    params = {"timestamp": timestamp, "folder": folder, "resource_type": resource_type}
+    return {"timestamp": timestamp, "signature": cloudinary.utils.api_sign_request(params, os.environ["CLOUDINARY_API_SECRET"]), "apiKey": os.environ["CLOUDINARY_API_KEY"], "cloudName": os.environ["CLOUDINARY_CLOUD_NAME"], "folder": folder}

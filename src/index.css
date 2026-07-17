@@ -2,7 +2,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap');
 
 @theme {
-  /* Dark webapp base — violet-black depth */
+  /* Colors - Toddler Dark V2 (Neon) */
   --color-bg-base: #0A0812;
   --color-bg-surface: #141020;
   --color-bg-surface-2: #1B1529;
@@ -22,11 +22,7 @@
   --color-border-subtle: rgba(255, 255, 255, 0.08);
   --color-border-hairlight: rgba(255, 255, 255, 0.14);
 
-  /* Typography */
-  --font-sans: "Inter", system-ui, sans-serif;
-  --font-display: "Space Grotesk", sans-serif;
-
-  /* Spacing Scale - Layout Discipline */
+  /* Spacing Scale - Rule #1 (Layout Discipline) */
   --spacing-1: 4px;
   --spacing-2: 8px;
   --spacing-3: 12px;
@@ -37,6 +33,14 @@
   --spacing-8: 64px;
   --spacing-9: 96px;
 
+  /* Typography */
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+
+  /* Constraints */
+  --width-container: 1200px;
+  --width-prose: 65ch;
+  
   /* Radius */
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -48,7 +52,7 @@
 :root {
   background-color: var(--color-bg-base);
   color: var(--color-text-primary);
-  --ease-standard: cubic-bezier(0.16, 0.8, 0.24, 1);
+  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 body {
@@ -57,11 +61,13 @@ body {
   -webkit-font-smoothing: antialiased;
   line-height: 1.5;
   background-color: var(--color-bg-base);
+  /* Hero Gradient Background */
   background-image: radial-gradient(ellipse 900px 500px at 50% -10%, rgba(125, 57, 235, 0.16), transparent 60%);
   position: relative;
+  min-height: 100vh;
 }
 
-/* Film-grain overlay */
+/* Film-grain global overlay */
 body::before {
   content: "";
   position: fixed;
@@ -91,21 +97,6 @@ h1, h2, h3, h4, .font-display {
     box-shadow: 0 0 0 1px rgba(198,255,51,.32), 0 8px 32px -8px rgba(198,255,51,.38);
   }
 
-  .fade-in-up {
-    animation: fade-in-up 0.8s var(--ease-standard) both;
-  }
-  
-  @keyframes fade-in-up {
-    from {
-      opacity: 0;
-      transform: translateY(24px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
   .orb {
     position: absolute;
     border-radius: 50%;
@@ -116,4 +107,19 @@ h1, h2, h3, h4, .font-display {
   }
   .orb-violet { background: radial-gradient(circle, var(--color-accent-violet) 0%, transparent 70%); }
   .orb-lime { background: radial-gradient(circle, var(--color-accent-lime) 0%, transparent 70%); }
+
+  .fade-in-up {
+    animation: fade-in-up 0.8s var(--ease-standard) both;
+  }
+  
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }

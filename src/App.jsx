@@ -1,25 +1,51 @@
 import React from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import LandingPage from './LandingPage'
+import Auth from './Auth'
+import Dashboard from './Dashboard'
+import { auth } from './firebase'
+import { onAuthStateChanged } from 'firebase/auth'
+import { Toaster } from 'react-hot-toast'
 
 function App() {
-  return (
-    <div style={{ 
-      minHeight: '100vh', 
-      display: 'flex', 
-      flexDirection: 'column', 
-      alignItems: 'center', 
-      justifyContent: 'center',
-      backgroundColor: '#0B0C10',
-      color: '#FFFFFF',
-      textAlign: 'center',
-      padding: '24px',
-      fontFamily: 'sans-serif'
-    }}>
-      <h1 style={{ fontSize: '48px', fontWeight: 'bold', marginBottom: '16px', color: '#C6FF33' }}>Toddler is Stabilizing</h1>
-      <p style={{ fontSize: '18px', color: '#8B949E' }}>Performing deep logic reconciliation. Please wait 60 seconds.</p>
-      <div style={{ marginTop: '32px', padding: '12px 24px', backgroundColor: '#C6FF33', color: '#0B0C10', borderRadius: '9999px', fontWeight: 'bold' }}>
-        System Protocol Initialized
-      </div>
+  const [user, setUser] = React.useState(null)
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    try {
+      const unsubscribe = onAuthStateChanged(auth, (u) => {
+        setUser(u)
+        setLoading(false)
+      }, () => setLoading(false))
+      return () => unsubscribe()
+    } catch (e) {
+      setLoading(false)
+    }
+  }, [])
+
+  if (loading) return (
+    <div style={{minHeight: '100vh', backgroundColor: '#0A0812', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'}}>
+      <div style={{width: '32px', height: '32px', border: '4px solid #C6FF33', borderTopColor: 'transparent', borderRadius: '50%'}} className="animate-spin"></div>
     </div>
+  )
+
+  return (
+    <>
+      <Toaster 
+        position="bottom-right"
+        toastOptions={{
+          style: { background: '#141020', color: '#F3F1F7', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px' }
+        }}
+      />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<Auth mode="login" />} />
+          <Route path="/signup" element={<Auth mode="signup" />} />
+          <Route path="/dashboard/*" element={user ? <Dashboard /> : <Navigate to="/login" />} />
+        </Routes>
+      </BrowserRouter>
+    </>
   )
 }
 

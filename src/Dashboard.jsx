@@ -16,7 +16,9 @@ const Dashboard = () => {
     if (!predictText) return;
     setPredicting(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const apiUrl = import.meta.env.VITE_API_URL;
+      if (!apiUrl) throw new Error('API URL missing');
+
       const formData = new FormData();
       formData.append('project_id', projects[0].id);
       formData.append('text', predictText);

@@ -67,7 +67,9 @@ const Onboarding = ({ onComplete }) => {
       formData.append('label_column', selection.label);
 
       // 3. Call Render Backend
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const apiUrl = import.meta.env.VITE_API_URL;
+      if (!apiUrl) throw new Error('Backend URL (VITE_API_URL) is not configured in Vercel settings');
+
       const response = await fetch(`${apiUrl}/train`, {
         method: 'POST',
         body: formData,

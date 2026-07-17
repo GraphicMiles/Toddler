@@ -6,7 +6,8 @@ import {
   Shield, Play, Menu, X, Download, Trash2, Edit3, 
   Database, Cpu, Globe, Terminal, BarChart3, 
   CheckCircle2, MessageSquare, Send, Layers, Check,
-  AlertTriangle, History, Zap, Settings, Activity
+  AlertTriangle, History, Zap, Settings, Activity,
+  ShieldCheck
 } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import Onboarding from './Onboarding';
@@ -39,6 +40,7 @@ const Dashboard = () => {
     "Finding Nemo...",
     "Seeking wisdom...",
     "Discombobulating data...",
+    "Teaching the model...",
     "Polishing the prediction..."
   ];
 
@@ -66,7 +68,7 @@ const Dashboard = () => {
       } catch (e) {
         console.error(e);
       } finally {
-        setTimeout(() => setLoading(false), 800); // Small delay for award-tier shimmer effect
+        setTimeout(() => setLoading(false), 800);
       }
     };
     fetchProjects();
@@ -85,11 +87,20 @@ const Dashboard = () => {
       formData.append('text', predictText);
 
       const response = await fetch(`${apiUrl}/predict`, { method: 'POST', body: formData });
+      if (!response.ok) throw new Error('Prediction failed');
       const data = await response.json();
-      setPrediction(data);
-      setHistory(prev => [{ text: predictText, ...data }, ...prev].slice(0, 10));
+      
+      const processedData = {
+        prediction: data.prediction || 'Unknown',
+        confidence: typeof data.confidence === 'number' ? data.confidence : 0,
+        weights: data.weights || {}
+      };
+
+      setPrediction(processedData);
+      setHistory(prev => [{ text: predictText, ...processedData }, ...prev].slice(0, 10));
       toast.success('Wisdom found.');
     } catch (e) {
+      console.error(e);
       toast.error('Prediction failed.');
     } finally {
       setPredicting(false);
@@ -108,6 +119,7 @@ const Dashboard = () => {
       formData.append('file', batchFile);
 
       const response = await fetch(`${apiUrl}/batch`, { method: 'POST', body: formData });
+      if (!response.ok) throw new Error('Batch failed');
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -115,6 +127,7 @@ const Dashboard = () => {
       a.download = `results_${currentProject.id}.csv`;
       document.body.appendChild(a);
       a.click();
+      window.URL.revokeObjectURL(url);
       toast.success('Batch processing complete.');
     } catch (e) {
       toast.error('Batch failed.');
@@ -132,7 +145,7 @@ const Dashboard = () => {
       await updateDoc(doc(db, "projects", currentProject.id), { name: newName });
       setProjects(prev => [{ ...prev[0], name: newName }]);
       setIsEditingName(false);
-      toast.success('Name updated.');
+      toast.success('Project discombobulated.');
     } catch (e) {
       toast.error('Rename failed');
     }
@@ -154,16 +167,25 @@ const Dashboard = () => {
       formData.append('text', chatInput);
 
       const response = await fetch(`${apiUrl}/predict`, { method: 'POST', body: formData });
+      if (!response.ok) throw new Error('Chat prediction failed');
       const data = await response.json();
       
-      const botResponse = responses[data.prediction] || `Decision: "${data.prediction}". (No custom response set)`;
+      const predictionLabel = data.prediction || 'Unknown';
+      const botResponse = responses[predictionLabel] || `Decision: "${predictionLabel}". (Response not set)`;
       
       setTimeout(() => {
-        setChatMessages(prev => [...prev, { role: 'bot', text: botResponse, intent: data.prediction, confidence: data.confidence }]);
+        setChatMessages(prev => [...prev, { 
+          role: 'bot', 
+          text: botResponse, 
+          intent: predictionLabel, 
+          confidence: data.confidence || 0 
+        }]);
         setIsTyping(false);
       }, 800);
     } catch (e) {
+      console.error(e);
       setIsTyping(false);
+      toast.error('Chat failed');
     }
   };
 
@@ -182,6 +204,7 @@ const Dashboard = () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
       const response = await fetch(`${apiUrl}/projects/${currentProject.id}/download`);
+      if (!response.ok) throw new Error('Download failed');
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -197,13 +220,13 @@ const Dashboard = () => {
   };
 
   const handleDelete = async () => {
-    if (!window.confirm("Delete project permanently?")) return;
+    if (!window.confirm("Delete this project?")) return;
     try {
       await deleteDoc(doc(db, "projects", currentProject.id));
       setProjects([]);
       toast.success('Erased from existence.');
     } catch (e) {
-      toast.error('Deletion failed');
+      toast.error('Delete failed');
     }
   };
 
@@ -212,16 +235,16 @@ const Dashboard = () => {
       <Container wide className="space-y-[var(--spacing-8)]">
         <div className="flex justify-between items-end">
           <div className="space-y-[var(--spacing-4)]">
-            <Skeleton className="h-[var(--spacing-9)] w-72" />
-            <Skeleton className="h-[var(--spacing-4)] w-48" />
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-4 w-32" />
           </div>
-          <Skeleton className="h-10 w-48 rounded-full" />
+          <Skeleton className="h-9 w-48 rounded-full" />
         </div>
         <div className="grid lg:grid-cols-3 gap-[var(--spacing-6)]">
-           <Skeleton className="h-72 col-span-2 rounded-[var(--radius-xl)]" />
-           <Skeleton className="h-72 rounded-[var(--radius-xl)]" />
+           <Skeleton className="h-64 col-span-2 rounded-[var(--radius-lg)]" />
+           <Skeleton className="h-64 rounded-[var(--radius-lg)]" />
         </div>
-        <Skeleton className="h-96 rounded-[var(--radius-xl)]" />
+        <Skeleton className="h-96 rounded-[var(--radius-lg)]" />
       </Container>
       <div className="fixed bottom-[var(--spacing-8)] right-[var(--spacing-8)] flex items-center gap-[var(--spacing-3)] text-[var(--color-text-muted)] font-bold uppercase tracking-[0.2em] text-[10px]">
         <div className="w-4 h-4 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
@@ -238,20 +261,14 @@ const Dashboard = () => {
       
       {/* Sidebar Overlay */}
       {sidebarOpen && (
-        <div 
-          className="lg:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
-          onClick={() => setSidebarOpen(false)}
-        />
+        <div className="lg:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-40" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* Sidebar */}
-      <aside className={`
-        fixed lg:static inset-y-0 left-0 w-72 bg-white border-r border-[var(--color-border-subtle)] flex flex-col z-50 transition-transform duration-300 transform
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
+      <aside className={`fixed lg:static inset-y-0 left-0 w-72 bg-white border-r border-[var(--color-border-subtle)] flex flex-col z-50 transition-transform duration-300 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="p-[var(--spacing-6)] flex items-center justify-between border-b border-[var(--color-border-subtle)] h-[72px]">
           <div className="flex items-center gap-[var(--spacing-2)] cursor-pointer" onClick={() => window.location.reload()}>
-            <div className="w-8 h-8 bg-[var(--color-text-primary)] rounded flex items-center justify-center text-[var(--color-text-inverse)] font-display font-bold text-sm transition-transform hover:scale-110">T</div>
+            <div className="w-8 h-8 bg-[var(--color-text-primary)] rounded flex items-center justify-center text-[var(--color-text-inverse)] font-display font-bold text-sm hover:scale-110 transition-transform">T</div>
             <span className="font-display font-bold text-lg tracking-tight text-[var(--color-text-primary)]">Toddler</span>
           </div>
           <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-1 border-none bg-transparent cursor-pointer text-[var(--color-text-primary)]">
@@ -306,7 +323,7 @@ const Dashboard = () => {
               <div className="flex items-center gap-[var(--spacing-3)]">
                 <input 
                   type="text" 
-                  className="font-display text-4xl md:text-5xl font-bold tracking-tighter leading-none bg-transparent border-none border-b-4 border-[var(--color-accent)] outline-none text-[var(--color-text-primary)]"
+                  className="font-display text-3xl md:text-5xl font-bold tracking-tighter leading-none bg-transparent border-none border-b-4 border-[var(--color-accent)] outline-none text-[var(--color-text-primary)]"
                   value={newName} onChange={(e) => setNewName(e.target.value)}
                   autoFocus onBlur={handleRename}
                   onKeyDown={(e) => e.key === 'Enter' && handleRename()}
@@ -314,7 +331,7 @@ const Dashboard = () => {
               </div>
             ) : (
               <div className="flex items-center gap-[var(--spacing-4)] group">
-                <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tighter leading-none text-[var(--color-text-primary)]">{currentProject.name}</h1>
+                <h1 className="font-display text-3xl md:text-5xl font-bold tracking-tighter leading-none text-[var(--color-text-primary)]">{currentProject.name}</h1>
                 <button onClick={() => { setNewName(currentProject.name); setIsEditingName(true); }} className="p-[var(--spacing-2)] opacity-0 group-hover:opacity-100 transition-opacity bg-black/5 rounded-lg cursor-pointer border-none"><Edit3 size={18} className="text-[var(--color-text-muted)]" /></button>
               </div>
             )}
@@ -324,9 +341,7 @@ const Dashboard = () => {
             </div>
           </div>
           <div className="flex items-center gap-[var(--spacing-4)]">
-             <button onClick={handleDownload} className="px-[var(--spacing-5)] py-[var(--spacing-3)] bg-white border border-[var(--color-border-subtle)] rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-[var(--spacing-2)] hover:border-[var(--color-text-primary)] transition-all cursor-pointer text-[var(--color-text-primary)]">
-              <Download size={14} /> Export .pkl
-            </button>
+             <Button variant="outline" size="sm" onClick={handleDownload} icon={Download}>Export .pkl</Button>
             <div className={`px-[var(--spacing-4)] py-[var(--spacing-2)] rounded-full text-[9px] font-bold uppercase tracking-widest flex items-center gap-[var(--spacing-2)] ${currentProject.health === 'Optimal' ? 'bg-[var(--color-accent)] text-[var(--color-text-inverse)]' : 'bg-amber-500 text-[var(--color-text-primary)]'}`}>
               <div className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" /> Engine: {currentProject.health || 'Optimal'}
             </div>
@@ -341,7 +356,7 @@ const Dashboard = () => {
                   <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">Core Performance</span>
                   <CheckCircle2 className="text-[var(--color-accent)]" size={20} />
                 </div>
-                <div className="text-7xl md:text-[120px] font-display font-bold tracking-tighter leading-none text-[var(--color-text-primary)] mb-[var(--spacing-6)] text-left">
+                <div className="text-7xl md:text-[100px] font-display font-bold tracking-tighter leading-none text-[var(--color-text-primary)] mb-[var(--spacing-6)] text-left">
                   {currentProject.accuracy ? (currentProject.accuracy * 100).toFixed(1) : '0'}<span className="text-2xl md:text-4xl text-[var(--color-text-muted)]/30 ml-[var(--spacing-2)]">%</span>
                 </div>
                 <div className="flex gap-[var(--spacing-6)] md:gap-[var(--spacing-9)] border-t border-[var(--color-border-subtle)] pt-[var(--spacing-8)]">
@@ -355,7 +370,7 @@ const Dashboard = () => {
               </Card>
               <Card variant="dark" className="flex flex-col justify-between">
                  <div className="space-y-[var(--spacing-6)] text-left">
-                    <span className="text-[11px] font-bold uppercase tracking-[0.2em] opacity-40">Operational Status</span>
+                    <span className="text-[11px] font-bold uppercase tracking-[0.2em] opacity-40">System Metrics</span>
                     <div className="flex items-center gap-[var(--spacing-4)] p-[var(--spacing-4)] bg-white/5 rounded-2xl border border-white/5">
                        <Database size={20} className="text-[var(--color-accent)]" />
                        <div className="text-sm font-bold">{currentProject.dataset?.rowCount || 0} Training Rows</div>
@@ -373,7 +388,7 @@ const Dashboard = () => {
             </div>
             
             <Card className="text-left">
-               <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)] mb-[var(--spacing-8)]">Dataset Balance</h3>
+               <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)] mb-[var(--spacing-8)]">Training Balance</h3>
                <div className="flex items-end gap-[var(--spacing-2)] md:gap-[var(--spacing-4)] h-48">
                   {currentProject.distribution ? Object.entries(currentProject.distribution).map(([label, count]) => {
                     const maxVal = Math.max(...Object.values(currentProject.distribution), 1);
@@ -403,7 +418,7 @@ const Dashboard = () => {
                 placeholder="Type to test your model..."
                 value={predictText} onChange={(e) => setPredictText(e.target.value)}
               />
-              <Button onClick={handlePredict} loading={predicting} className="w-full !py-[var(--spacing-5)]">
+              <Button onClick={handlePredict} loading={predicting} className="w-full" size="md">
                 {predicting ? loadingMessage : 'Run Prediction'}
               </Button>
               {prediction && (
@@ -429,14 +444,14 @@ const Dashboard = () => {
               <div className="space-y-[var(--spacing-4)]">
                 {history.map((h, i) => (
                   <Card key={i} className="!p-[var(--spacing-5)] flex justify-between items-center group fade-in-up" style={{ animationDelay: `${i * 50}ms` }}>
-                    <div className="truncate pr-[var(--spacing-4)] text-left">
-                      <div className="text-sm font-bold truncate text-[var(--color-text-primary)]">{h.text}</div>
+                    <div className="truncate pr-[var(--spacing-4)] text-left text-[var(--color-text-primary)]">
+                      <div className="text-sm font-bold truncate">{h.text}</div>
                       <div className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase mt-[var(--spacing-1)] tracking-widest">{h.prediction}</div>
                     </div>
                     <div className="text-lg font-display font-bold text-[var(--color-accent)]">{(h.confidence * 100).toFixed(0)}%</div>
                   </Card>
                 ))}
-                {history.length === 0 && <div className="p-[var(--spacing-9)] border-2 border-dashed border-[var(--color-border-subtle)] rounded-[var(--radius-xl)] text-center text-sm text-[var(--color-text-muted)] italic">No activity recorded in this session.</div>}
+                {history.length === 0 && <div className="p-[var(--spacing-9)] border-2 border-dashed border-[var(--color-border-subtle)] rounded-[var(--radius-xl)] text-center text-sm text-[var(--color-text-muted)] italic">No activity recorded.</div>}
               </div>
             </div>
           </div>
@@ -455,31 +470,26 @@ const Dashboard = () => {
                       return (
                         <div key={`${i}-${j}`} className="aspect-square rounded-[var(--radius-md)] flex items-center justify-center p-[var(--spacing-2)] transition-all hover:scale-105 group relative" style={{ backgroundColor: isCorrect ? `rgba(27, 67, 50, ${intensity})` : `rgba(185, 28, 28, ${intensity * 0.2})`, color: intensity > 0.5 ? 'white' : 'inherit' }}>
                             <div className="text-lg md:text-xl font-bold">{val}</div>
-                            {/* Hover tooltip logic could go here */}
                         </div>
                       );
                     }))}
                   </div>
-                ) : <div className="p-[var(--spacing-9)] border-2 border-dashed border-[var(--color-border-subtle)] rounded-[var(--radius-xl)] text-center text-sm text-[var(--color-text-muted)] italic">Analytics data unavailable.</div>}
-                <div className="mt-[var(--spacing-6)] flex justify-between text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]/50">
-                   <span>Actual Labels</span>
-                   <span>Predicted Labels</span>
-                </div>
+                ) : <div className="p-[var(--spacing-9)] border-2 border-dashed border-[var(--color-border-subtle)] rounded-[var(--radius-xl)] text-center text-sm text-[var(--color-text-muted)] italic">Retrain for analytics.</div>}
              </Card>
              <Card className="text-left">
                 <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)] mb-[var(--spacing-8)]">Feature Importance</h3>
                 <div className="space-y-[var(--spacing-5)]">
                    {currentProject.top_features ? Object.entries(currentProject.top_features).sort((a,b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 10).map(([word, weight]) => (
                      <div key={word} className="space-y-[var(--spacing-2)]">
-                        <div className="flex justify-between text-xs font-bold uppercase tracking-widest">
-                          <span className="text-[var(--color-text-primary)]">{word}</span>
+                        <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-[var(--color-text-primary)]">
+                          <span>{word}</span>
                           <span className={weight > 0 ? 'text-[var(--color-accent)]' : 'text-red-400'}>{weight > 0 ? '+' : ''}{weight.toFixed(2)}</span>
                         </div>
                         <div className="h-2 bg-[var(--color-bg-base)] rounded-full overflow-hidden">
                            <div className={`h-full transition-all duration-1000 ${weight > 0 ? 'bg-[var(--color-accent)]' : 'bg-red-400'}`} style={{ width: `${Math.min(Math.abs(weight) * 50, 100)}%` }} />
                         </div>
                      </div>
-                   )) : <div className="p-[var(--spacing-9)] border-2 border-dashed border-[var(--color-border-subtle)] rounded-[var(--radius-xl)] text-center text-sm text-[var(--color-text-muted)] italic">Insights require retraining.</div>}
+                   )) : <div className="p-[var(--spacing-9)] border-2 border-dashed border-[var(--color-border-subtle)] rounded-[var(--radius-xl)] text-center text-sm text-[var(--color-text-muted)] italic">Retrain for insights.</div>}
                 </div>
              </Card>
           </div>
@@ -489,7 +499,7 @@ const Dashboard = () => {
           <div className="max-w-3xl space-y-[var(--spacing-7)] fade-in-up text-left">
              <Card className="space-y-[var(--spacing-8)]">
                 <div className="space-y-[var(--spacing-2)]">
-                   <h2 className="text-2xl font-bold font-display tracking-tight text-[var(--color-text-primary)]">Bulk Processing</h2>
+                   <h2 className="text-2xl font-bold font-display tracking-tight text-[var(--color-text-primary)] leading-none">Bulk Engine</h2>
                    <p className="text-sm text-[var(--color-text-muted)]">Classify entire datasets in one pass.</p>
                 </div>
                 <form onSubmit={handleBatchPredict} className="space-y-[var(--spacing-6)]">
@@ -497,18 +507,15 @@ const Dashboard = () => {
                       <input type="file" accept=".csv" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => setBatchFile(e.target.files[0])} />
                       <div className="flex flex-col items-center gap-[var(--spacing-4)]">
                         <Database size={32} className="opacity-20 text-[var(--color-text-primary)]" />
-                        <div className="font-bold text-sm break-all text-[var(--color-text-primary)]">{batchFile ? batchFile.name : 'Select target CSV file'}</div>
+                        <div className="font-bold text-sm break-all text-[var(--color-text-primary)]">{batchFile ? batchFile.name : 'Select CSV file'}</div>
                       </div>
                    </div>
-                   <div className="space-y-[var(--spacing-2)]">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-muted)] ml-1">Target Column Name</label>
-                      <input 
-                        type="text" placeholder="e.g. comment_text" value={batchTextCol} onChange={e => setBatchTextCol(e.target.value)}
-                        className="w-full h-14 px-[var(--spacing-6)] bg-[var(--color-bg-base)] border border-[var(--color-border-subtle)] rounded-xl outline-none focus:border-[var(--color-text-primary)] font-bold text-[var(--color-text-primary)]"
-                      />
-                   </div>
-                   <Button disabled={!batchFile || !batchTextCol || batching} type="submit" className="w-full h-16" loading={batching}>
-                     {batching ? loadingMessage : 'Execute Batch Job'}
+                   <input 
+                    type="text" placeholder="Text column name..." value={batchTextCol} onChange={e => setBatchTextCol(e.target.value)}
+                    className="w-full h-14 px-[var(--spacing-6)] bg-[var(--color-bg-base)] border border-[var(--color-border-subtle)] rounded-xl outline-none focus:border-[var(--color-text-primary)] font-bold text-[var(--color-text-primary)] text-sm"
+                   />
+                   <Button disabled={!batchFile || !batchTextCol || batching} type="submit" className="w-full" loading={batching}>
+                     {batching ? loadingMessage : 'Run Batch Job'}
                    </Button>
                 </form>
              </Card>
@@ -516,7 +523,7 @@ const Dashboard = () => {
         )}
 
         {activeTab === 'chat' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-[var(--spacing-6)] h-auto lg:h-[calc(100vh-280px)] fade-in-up text-left pb-[var(--spacing-9)] lg:pb-0">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-[var(--spacing-6)] h-auto lg:h-[calc(100vh-280px)] fade-in-up text-left">
             <Card className="lg:col-span-1 !p-[var(--spacing-6)] md:!p-[var(--spacing-7)] overflow-y-auto space-y-[var(--spacing-7)] h-[400px] lg:h-full">
                <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">Intent Logic</h3>
                <div className="space-y-[var(--spacing-6)]">
@@ -524,7 +531,7 @@ const Dashboard = () => {
                     <div key={label} className="space-y-[var(--spacing-2)]">
                        <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-accent)]">{label}</label>
                        <textarea 
-                        className="w-full p-[var(--spacing-4)] bg-[var(--color-bg-base)] border border-[var(--color-border-subtle)] rounded-xl text-sm outline-none focus:border-[var(--color-text-primary)] resize-none font-bold text-[var(--color-text-primary)]" 
+                        className="w-full p-[var(--spacing-4)] bg-[var(--color-bg-base)] border border-[var(--color-border-subtle)] rounded-xl text-xs outline-none focus:border-[var(--color-text-primary)] resize-none font-bold text-[var(--color-text-primary)] leading-relaxed" 
                         value={responses[label] || ''} 
                         onChange={e => setResponses({...responses, [label]: e.target.value})} 
                         onBlur={e => saveResponse(label, e.target.value)} 
@@ -539,23 +546,23 @@ const Dashboard = () => {
                     <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] animate-pulse" />
                     <span>Live Simulation</span>
                   </div>
-                  <button onClick={() => setChatMessages([])} className="opacity-40 hover:opacity-100 transition-opacity cursor-pointer border-none bg-transparent text-white uppercase font-bold text-[10px]">Reset Session</button>
+                  <button onClick={() => setChatMessages([])} className="opacity-40 hover:opacity-100 transition-opacity cursor-pointer border-none bg-transparent text-white uppercase font-bold text-[10px]">Reset</button>
                </div>
                <div className="flex-grow p-[var(--spacing-6)] md:p-[var(--spacing-7)] overflow-y-auto space-y-[var(--spacing-6)] flex flex-col">
                   {chatMessages.map((msg, i) => (
                     <div key={i} className={`max-w-[85%] p-[var(--spacing-4)] rounded-2xl animate-in slide-in-from-bottom-2 duration-300 ${msg.role === 'user' ? 'bg-white/10 text-white self-end rounded-br-none' : 'bg-[var(--color-accent)] text-white self-start rounded-bl-none'}`}>
                        <p className="text-sm font-medium leading-relaxed">{msg.text}</p>
-                       {msg.intent && <div className="mt-[var(--spacing-2)] pt-[var(--spacing-2)] border-t border-white/10 text-[9px] font-bold uppercase opacity-50 flex gap-[var(--spacing-2)]"><span>Matched: {msg.intent}</span><span>{(msg.confidence * 100).toFixed(0)}% Confidence</span></div>}
+                       {msg.intent && <div className="mt-[var(--spacing-2)] pt-[var(--spacing-2)] border-t border-white/10 text-[9px] font-bold uppercase opacity-50 flex gap-[var(--spacing-2)]"><span>Matched: {msg.intent}</span><span>{(msg.confidence * 100).toFixed(0)}% Conf</span></div>}
                     </div>
                   ))}
                   {isTyping && <div className="bg-[var(--color-accent)]/50 text-white self-start p-[var(--spacing-4)] rounded-2xl animate-pulse text-xs">Thinking...</div>}
-                  {chatMessages.length === 0 && <div className="flex-grow flex items-center justify-center text-[10px] font-bold uppercase tracking-widest opacity-20 text-white">No active messages</div>}
+                  {chatMessages.length === 0 && <div className="flex-grow flex items-center justify-center text-[10px] font-bold uppercase tracking-widest opacity-20 text-white">Start a test session</div>}
                </div>
                <form onSubmit={handleChatSend} className="p-[var(--spacing-6)] bg-white/5 border-t border-white/5">
                   <div className="relative">
                     <input 
                       type="text" 
-                      className="w-full h-14 bg-white/10 border border-white/10 rounded-full pl-[var(--spacing-6)] pr-16 text-white outline-none focus:border-[var(--color-accent)] font-bold placeholder:text-white/20" 
+                      className="w-full h-14 bg-white/10 border border-white/10 rounded-full pl-[var(--spacing-6)] pr-16 text-white outline-none focus:border-[var(--color-accent)] font-bold placeholder:text-white/20 text-sm" 
                       placeholder="Simulate a message..." 
                       value={chatInput} 
                       onChange={e => setChatInput(e.target.value)} 
@@ -573,22 +580,22 @@ const Dashboard = () => {
                 <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">Production API Key</span>
                 <div className="flex gap-[var(--spacing-4)] flex-col sm:flex-row">
                   <div className="flex-grow p-[var(--spacing-5)] bg-[var(--color-bg-base)] rounded-2xl border border-[var(--color-border-subtle)] font-mono text-xs overflow-hidden truncate text-[var(--color-text-primary)]">
-                    {currentProject.api_key || 'Retrain to generate production key.'}
+                    {currentProject.api_key || 'Retrain for production key.'}
                   </div>
-                  <button className="px-[var(--spacing-6)] h-14 bg-[var(--color-text-primary)] text-[var(--color-text-inverse)] rounded-2xl font-bold text-[10px] uppercase tracking-widest cursor-pointer border-none whitespace-nowrap active:scale-95 transition-transform">Reveal Secret</button>
+                  <Button variant="primary" size="sm">Reveal Secret</Button>
                 </div>
              </Card>
              <Card variant="dark" className="space-y-[var(--spacing-8)]">
-                <span className="text-[11px] font-bold uppercase tracking-[0.2em] opacity-40 tracking-[0.3em]">Integration: Python SDK</span>
+                <span className="text-[11px] font-bold uppercase tracking-[0.3em] opacity-40">Integration: Python SDK</span>
                 <div className="bg-white/5 p-[var(--spacing-6)] md:p-[var(--spacing-7)] rounded-2xl border border-white/5 font-mono text-[10px] md:text-xs text-[#9A9A96] overflow-x-auto space-y-[var(--spacing-2)] leading-relaxed">
                    <div className="text-white">import pickle</div>
                    <div className="text-[var(--color-accent)]">with open('toddler_model.pkl', 'rb') as f:</div>
                    <div className="pl-5 text-white">model = pickle.load(f)</div>
-                   <div className="text-white mt-[var(--spacing-4)]"># Perform offline inference</div>
+                   <div className="text-white mt-[var(--spacing-4)]"># Offline inference</div>
                    <div className="text-white">result = model.predict(["Test payload"])</div>
                    <div className="text-white">print(f"Outcome: {'{result[0]}'}")</div>
                 </div>
-                <Button variant="accent" className="w-full">Copy Integration Snippet</Button>
+                <Button variant="accent" className="w-full" size="md">Copy Snippet</Button>
              </Card>
           </div>
         )}

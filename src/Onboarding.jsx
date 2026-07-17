@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowRight, Upload, X, Check, AlertCircle, Database, ChevronRight } from 'lucide-react';
 import Papa from 'papaparse';
 import { auth, db } from './firebase';
@@ -24,7 +24,7 @@ const Onboarding = ({ onComplete }) => {
     "Polishing the prediction..."
   ];
 
-  React.useEffect(() => {
+  useEffect(() => {
     let interval;
     if (isUploading) {
       let index = 0;
@@ -68,8 +68,12 @@ const Onboarding = ({ onComplete }) => {
       setError('Please select both text and label columns.');
       return;
     }
+
     setIsUploading(true);
+    setError('');
+    
     try {
+      // 1. Create project in Firestore
       const projectData = {
         ownerUid: auth.currentUser.uid,
         name: projectName,
@@ -79,6 +83,7 @@ const Onboarding = ({ onComplete }) => {
       };
       const docRef = await addDoc(collection(db, "projects"), projectData);
 
+      // 2. Send to Backend
       const formData = new FormData();
       formData.append('file', file);
       formData.append('project_id', docRef.id);
@@ -86,17 +91,26 @@ const Onboarding = ({ onComplete }) => {
       formData.append('label_column', selection.label);
 
       const apiUrl = import.meta.env.VITE_API_URL;
-      const response = await fetch(`${apiUrl}/train`, { method: 'POST', body: formData });
+      if (!apiUrl) throw new Error('Backend URL (VITE_API_URL) is not configured in Vercel settings');
 
-      if (!response.ok) throw new Error('Training failed on server');
+      const response = await fetch(`${apiUrl}/train`, { 
+        method: 'POST', 
+        body: formData 
+      }).catch(err => {
+        throw new Error(`Connection error: ${err.message}. Please check if the Render backend is live and the URL is correct.`);
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Server error' }));
+        throw new Error(errorData.detail || 'Training failed on server');
+      }
 
       const result = await response.json();
       onComplete({ id: docRef.id, ...projectData, status: 'trained', accuracy: result.accuracy });
 
     } catch (err) {
-      console.error(err);
-      setError('Failed to process model: ' + err.message);
-    } finally {
+      console.error("Onboarding error:", err);
+      setError(err.message);
       setIsUploading(false);
     }
   };
@@ -180,19 +194,23 @@ const Onboarding = ({ onComplete }) => {
                   </select>
                 </div>
               </div>
-              <div className="flex justify-between items-center pt-8">
-                <button onClick={prevStep} className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#6B6B68] hover:text-black transition-colors cursor-pointer border-none bg-transparent">Go Back</button>
-                <button 
-                  disabled={!selection.text || !selection.label || isUploading} onClick={handleComplete}
-                  className="bg-[#1B4332] text-white px-10 py-5 rounded-full font-bold uppercase tracking-widest text-xs border-2 border-[#1B4332] hover:bg-transparent hover:text-[#1B4332] transition-all disabled:opacity-20 cursor-pointer flex items-center gap-4"
-                >
-                  {isUploading ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      {loadingMessage}
-                    </>
-                  ) : 'Initialize Workspace'}
-                </button>
+              <div className="flex flex-col gap-6 pt-8">
+                {error && <div className="p-4 bg-red-50 text-red-600 text-xs font-bold rounded-xl flex items-start gap-3"><AlertCircle size={16} className="shrink-0 mt-0.5" /> <span>{error}</span></div>}
+                
+                <div className="flex justify-between items-center">
+                  <button onClick={prevStep} className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#6B6B68] hover:text-black transition-colors cursor-pointer border-none bg-transparent">Go Back</button>
+                  <button 
+                    disabled={!selection.text || !selection.label || isUploading} onClick={handleComplete}
+                    className="bg-[#1B4332] text-white px-10 py-5 rounded-full font-bold uppercase tracking-widest text-xs border-2 border-[#1B4332] hover:bg-transparent hover:text-[#1B4332] transition-all disabled:opacity-20 cursor-pointer flex items-center gap-4"
+                  >
+                    {isUploading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        {loadingMessage}
+                      </>
+                    ) : 'Initialize Workspace'}
+                  </button>
+                </div>
               </div>
             </div>
           )}

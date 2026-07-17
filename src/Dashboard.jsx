@@ -1,21 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase';
-import { collection, query, where, getDocs, doc, deleteDoc, updateDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import { useNavigate, Link } from 'react-router-dom';
-import { 
-  Shield, Play, Menu, X, Download, Trash2, Edit3, 
-  Database, Cpu, Globe, Terminal, BarChart3, 
-  CheckCircle2, MessageSquare, Send, Layers, Check,
-  AlertTriangle, History, Zap, Settings, Activity,
-  ShieldCheck
-} from 'lucide-react';
-import { Toaster, toast } from 'react-hot-toast';
+import { collection, query, where, getDocs, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { Link } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 import Onboarding from './Onboarding';
-import { Button, Card, Skeleton, Container, Badge } from './components/UI';
 
 const Dashboard = () => {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Vision UI State
+  const [previewImage, setPreviewImage] = useState(null);
+
   const [predictText, setPredictText] = useState('');
   const [prediction, setPrediction] = useState(null);
   const [predicting, setPredicting] = useState(false);
@@ -32,71 +28,9 @@ const Dashboard = () => {
   const [batchFile, setBatchFile] = useState(null);
   const [batchTextCol, setBatchTextCol] = useState('');
   const [batching, setBatching] = useState(false);
-  const [logs, setLogs] = useState([]);
-  const [logsLoading, setLogsLoading] = useState(false);
-  const [trainingJob, setTrainingJob] = useState(null);
-  const [catalog, setCatalog] = useState([
-    { id: 'sent-001', name: 'Sentiment Engine V2', type: 'Text Classification', description: 'General purpose sentiment analysis (Positive/Negative/Neutral).', rows: '450k', accuracy: 0.92, tags: ['NLP', 'Base'] },
-    { id: 'spam-001', name: 'Guardian Spam Shield', type: 'Binary Filter', description: 'Highly optimized filter for marketing spam and phishing detection.', rows: '1.2M', accuracy: 0.98, tags: ['Security', 'Production'] },
-    { id: 'intent-001', name: 'Support Intent Hub', type: 'Multi-class', description: 'Categorize customer support tickets into 12 distinct intents.', rows: '85k', accuracy: 0.89, tags: ['SaaS', 'Support'] }
-  ]);
 
-  const navigate = useNavigate();
 
-  const handleImportModel = async (model) => {
-    toast.loading(`Importing ${model.name}...`);
-    try {
-      // 1. Create a new project based on the catalog model
-      const projectRef = doc(collection(db, "projects"));
-      const newProject = {
-        name: `${model.name} (Fork)`,
-        ownerUid: auth.currentUser.uid,
-        status: 'ready_to_tune',
-        base_model_id: model.id,
-        accuracy: model.accuracy,
-        health: 'Baseline',
-        version: 1,
-        createdAt: new Date(),
-        // In a real app, we'd fetch the base artifact from a 'catalog' collection
-        // For now, we'll mark it for the agent to fetch
-      };
-      
-      await setDoc(projectRef, newProject);
-      setProjects([newProject, ...projects]);
-      
-      toast.dismiss();
-      toast.success(`${model.name} imported. Ready for fine-tuning.`);
-      setActiveTab('overview');
-    } catch (e) {
-      toast.error("Import failed.");
-    }
-  };
-
-  useEffect(() => {
-    if (currentProject?.current_job_id) {
-        // Listen to the specific job progress
-        const unsub = onSnapshot(doc(db, "training_jobs", currentProject.current_job_id), (doc) => {
-            if (doc.exists()) {
-                const data = doc.data();
-                setTrainingJob(data);
-                if (data.status === 'completed') {
-                    toast.success("Local training complete! Engine synchronized.");
-                    window.location.reload(); // Refresh to get new metrics
-                }
-            }
-        });
-        return () => unsub();
-    }
-  }, [currentProject]);
-
-  const messages = [
-    "Caramelizing onions...",
-    "Finding Nemo...",
-    "Seeking wisdom...",
-    "Discombobulating data...",
-    "Teaching the model...",
-    "Polishing the prediction..."
-  ];
+  const messages = ["Caramelizing onions...", "Finding Nemo...", "Seeking wisdom...", "Teaching the model..."];
 
   useEffect(() => {
     let interval;
@@ -132,33 +66,36 @@ const Dashboard = () => {
 
   const handlePredict = async () => {
     if (!predictText || !currentProject) return;
-    setPredicting(true);
-    setPrediction(null);
+    setPredicting(true); setPrediction(null);
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
+      if (!apiUrl) throw new Error("VITE_API_URL is missing.");
       const formData = new FormData();
       formData.append('project_id', currentProject.id);
       formData.append('text', predictText);
-
-      const response = await fetch(`${apiUrl}/predict`, { method: 'POST', body: formData });
-      if (!response.ok) throw new Error('Prediction failed');
-      const data = await response.json();
       
-      const processedData = {
-        prediction: data.prediction || 'Unknown',
-        confidence: typeof data.confidence === 'number' ? data.confidence : 0,
-        weights: data.weights || {}
-      };
+      let response;
+      try {
+        response = await fetch(`${apiUrl}/predict`, { method: 'POST', body: formData });
+      } catch (e) {
+        throw new Error('Network Error: Check backend CORS or URL.');
+      }
 
+      if (!response.ok) {
+        let errText = `HTTP Error ${response.status}`;
+        try {
+          const errData = await response.json();
+          errText = errData.detail || errData.message || errText;
+        } catch (e) {}
+        throw new Error(errText);
+      }
+      
+      const data = await response.json();
+      const processedData = { prediction: data.prediction || 'Unknown', confidence: typeof data.confidence === 'number' ? data.confidence : 0, weights: data.weights || {} };
       setPrediction(processedData);
       setHistory(prev => [{ text: predictText, ...processedData }, ...prev].slice(0, 10));
       toast.success('Wisdom found.');
-    } catch (e) {
-      console.error(e);
-      toast.error('Prediction failed.');
-    } finally {
-      setPredicting(false);
-    }
+    } catch (e) { toast.error(e.message || 'Prediction failed.'); } finally { setPredicting(false); }
   };
 
   const handleBatchPredict = async (e) => {
@@ -167,79 +104,178 @@ const Dashboard = () => {
     setBatching(true);
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
+      if (!apiUrl) throw new Error("VITE_API_URL is missing.");
       const formData = new FormData();
       formData.append('project_id', currentProject.id);
       formData.append('text_column', batchTextCol);
       formData.append('file', batchFile);
-
-      const response = await fetch(`${apiUrl}/batch`, { method: 'POST', body: formData });
-      if (!response.ok) throw new Error('Batch failed');
+      
+      let response;
+      try {
+        response = await fetch(`${apiUrl}/batch`, { method: 'POST', body: formData });
+      } catch(e) {
+        throw new Error('Network Error: Check backend CORS or URL.');
+      }
+      
+      if (!response.ok) {
+        let errText = `HTTP Error ${response.status}`;
+        try {
+          const errData = await response.json();
+          errText = errData.detail || errData.message || errText;
+        } catch (e) {}
+        throw new Error(errText);
+      }
+      
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `results_${currentProject.id}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
+      const a = document.createElement('a'); a.href = url; a.download = `results_${currentProject.id}.csv`;
+      document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url);
       toast.success('Batch processing complete.');
-    } catch (e) {
-      toast.error('Batch failed.');
-    } finally {
-      setBatching(false);
-    }
+    } catch (e) { toast.error(e.message || 'Batch failed.'); } finally { setBatching(false); }
   };
 
   const handleRename = async () => {
-    if (!newName || newName === currentProject.name) {
-      setIsEditingName(false);
-      return;
-    }
+    if (!newName || newName === currentProject.name) { setIsEditingName(false); return; }
     try {
       await updateDoc(doc(db, "projects", currentProject.id), { name: newName });
       setProjects(prev => [{ ...prev[0], name: newName }]);
-      setIsEditingName(false);
-      toast.success('Identity updated.');
-    } catch (e) {
-      toast.error('Rename failed');
-    }
+      setIsEditingName(false); toast.success('Identity updated.');
+    } catch (e) { toast.error('Rename failed'); }
   };
 
   const handleChatSend = async (e) => {
     e.preventDefault();
-    if (!chatInput.trim() || !currentProject) return;
+    if (!chatInput && !previewImage) return;
+    
+    // Handle Vision Chat
+    if (currentProject.type === 'vision') {
+      if (!previewImage) return;
+      const userMsg = { role: 'user', imageSrc: previewImage };
+      setChatMessages(prev => [...prev, userMsg]);
+      setPreviewImage(null);
+      setIsTyping(true);
+      
+      try {
+        let datasetJson;
+        if (currentProject.modelUrl) {
+          const { fetchFromCloudinary } = await import('./cloud');
+          datasetJson = await fetchFromCloudinary(currentProject.modelUrl);
+        } else {
+          const localforageModule = await import('localforage');
+          const lf = localforageModule.default || localforageModule;
+          datasetJson = await lf.getItem(`model_${currentProject.id}`);
+        }
+        
+        if (!datasetJson) throw new Error("Local model weights not found.");
+        
+        const { predictVisionImage } = await import('./visionML');
+        const result = await predictVisionImage(userMsg.imageSrc, datasetJson);
+        const botResponse = responses[result.prediction] || `Decision: "${result.prediction}". (No custom response set)`;
+        
+        setChatMessages(prev => [...prev, { role: 'bot', text: botResponse, intent: result.prediction, confidence: result.confidence || 0, originImage: userMsg.imageSrc }]);
+      } catch(e) {
+        toast.error(e.message || "Vision prediction failed");
+      } finally {
+        setIsTyping(false);
+      }
+      return;
+    }
+    
+    // Handle Generative Chat Simulation
+    if (currentProject.type === 'generative') {
+      if (!chatInput.trim()) return;
+      const userMsg = { role: 'user', text: chatInput };
+      setChatMessages(prev => [...prev, userMsg]); 
+      setChatInput(''); 
+      setIsTyping(true);
+      
+      // Simulate Generative Streaming API delay
+      setTimeout(() => {
+        const mockResponses = [
+          "That's an interesting question. Based on the fine-tuned dataset, the most likely protocol involves adjusting the top-k sampling rate.",
+          "I've analyzed your input. The system prompt suggests we should prioritize technical accuracy here. Proceed with the deployment.",
+          "As an AI trained on your specific documentation, I recommend checking the internal API routing logic before pushing to production."
+        ];
+        const randomResp = mockResponses[Math.floor(Math.random() * mockResponses.length)];
+        
+        setChatMessages(prev => [...prev, { 
+          role: 'bot', 
+          text: randomResp, 
+          intent: null, 
+          confidence: null 
+        }]);
+        setIsTyping(false);
+      }, 2500);
+      return;
+    }
 
+    // Handle Text Chat
+    if (!chatInput.trim()) return;
     const userMsg = { role: 'user', text: chatInput };
-    setChatMessages(prev => [...prev, userMsg]);
-    setChatInput('');
-    setIsTyping(true);
-
+    setChatMessages(prev => [...prev, userMsg]); setChatInput(''); setIsTyping(true);
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
+      if (!apiUrl) throw new Error("VITE_API_URL is missing.");
       const formData = new FormData();
       formData.append('project_id', currentProject.id);
       formData.append('text', chatInput);
-
-      const response = await fetch(`${apiUrl}/predict`, { method: 'POST', body: formData });
-      if (!response.ok) throw new Error('Chat prediction failed');
-      const data = await response.json();
       
+      let response;
+      try {
+        response = await fetch(`${apiUrl}/predict`, { method: 'POST', body: formData });
+      } catch(e) {
+        throw new Error('Network Error: Check backend CORS or URL.');
+      }
+      
+      if (!response.ok) {
+        let errText = `HTTP Error ${response.status}`;
+        try {
+          const errData = await response.json();
+          errText = errData.detail || errData.message || errText;
+        } catch (e) {}
+        throw new Error(errText);
+      }
+      
+      const data = await response.json();
       const predictionLabel = data.prediction || 'Unknown';
       const botResponse = responses[predictionLabel] || `Decision: "${predictionLabel}". (No custom response set)`;
-      
       setTimeout(() => {
-        setChatMessages(prev => [...prev, { 
-          role: 'bot', 
-          text: botResponse, 
-          intent: predictionLabel, 
-          confidence: data.confidence || 0 
-        }]);
+        setChatMessages(prev => [...prev, { role: 'bot', text: botResponse, intent: predictionLabel, confidence: data.confidence || 0 }]);
         setIsTyping(false);
       }, 800);
+    } catch (e) { setIsTyping(false); toast.error(e.message || 'Chat failed'); }
+  };
+
+  const handleRetrainVision = async (imageSrc, correctLabel) => {
+    if (!correctLabel || correctLabel === "Correct this?") return;
+    const loadingToast = toast.loading("Fine-tuning model...");
+    try {
+      let datasetJson;
+      const localforageModule = await import('localforage');
+      const lf = localforageModule.default || localforageModule;
+      
+      if (currentProject.modelUrl) {
+        const { fetchFromCloudinary } = await import('./cloud');
+        datasetJson = await fetchFromCloudinary(currentProject.modelUrl);
+      } else {
+        datasetJson = await lf.getItem(`model_${currentProject.id}`);
+      }
+      
+      const { retrainVisionImage } = await import('./visionML');
+      const newWeightsJson = await retrainVisionImage(imageSrc, datasetJson, correctLabel);
+      
+      const { uploadToCloudinary } = await import('./cloud');
+      const newUrl = await uploadToCloudinary(newWeightsJson);
+      
+      if (newUrl) {
+        await updateDoc(doc(db, "projects", currentProject.id), { modelUrl: newUrl });
+        setProjects(prev => [{...prev[0], modelUrl: newUrl}]);
+      } else {
+        await lf.setItem(`model_${currentProject.id}`, newWeightsJson);
+      }
+      toast.success("Model successfully fine-tuned!", { id: loadingToast });
     } catch (e) {
-      console.error(e);
-      setIsTyping(false);
-      toast.error('Chat failed');
+      toast.error(e.message || "Fine-tuning failed", { id: loadingToast });
     }
   };
 
@@ -249,609 +285,416 @@ const Dashboard = () => {
     try {
       await updateDoc(doc(db, "projects", currentProject.id), { responses: newResponses });
       toast.success('Response memorized.');
-    } catch (e) {
-      toast.error('Save failed');
-    }
-  };
-
-  const fetchLogs = async () => {
-    if (!currentProject) return;
-    setLogsLoading(true);
-    try {
-      const q = query(
-        collection(db, "projects", currentProject.id, "logs"), 
-        where("reviewed", "==", false)
-      );
-      const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      setLogs(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLogsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === 'review') {
-      fetchLogs();
-    }
-  }, [activeTab]);
-
-  const handleReview = async (logId, correctLabel) => {
-    try {
-      await updateDoc(doc(db, "projects", currentProject.id, "logs", logId), {
-        reviewed: true,
-        finalLabel: correctLabel,
-        reviewedAt: new Date()
-      });
-      setLogs(prev => prev.filter(l => l.id !== logId));
-      toast.success('Wisdom recorded.');
-    } catch (e) {
-      toast.error('Review failed.');
-    }
-  };
-
-  const handleExport = async () => {
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL;
-      const response = await fetch(`${apiUrl}/projects/${currentProject.id}/export`);
-      if (!response.ok) throw new Error('Export failed');
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `toddler_bundle_${currentProject.id}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      toast.success('Integration Bundle ready.');
-    } catch (e) {
-      toast.error('Export failed');
-    }
+    } catch (e) { toast.error('Save failed'); }
   };
 
   const handleDownload = async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
+      if (!apiUrl) throw new Error("VITE_API_URL is missing.");
       const response = await fetch(`${apiUrl}/projects/${currentProject.id}/download`);
       if (!response.ok) throw new Error('Download failed');
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `model_${currentProject.id}.pkl`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
+      const a = document.createElement('a'); a.href = url; a.download = `model_${currentProject.id}.pkl`;
+      document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url);
       toast.success('Model exported.');
-    } catch (e) {
-      toast.error('Export failed');
-    }
+    } catch (e) { toast.error('Export failed'); }
   };
 
   const handleDelete = async () => {
     if (!window.confirm("Delete this project?")) return;
     try {
       await deleteDoc(doc(db, "projects", currentProject.id));
-      setProjects([]);
-      toast.success('Erased from existence.');
-    } catch (e) {
-      toast.error('Deletion failed');
-    }
+      setProjects([]); toast.success('Erased from existence.');
+    } catch (e) { toast.error('Deletion failed'); }
   };
 
   if (loading) return (
-    <div className="min-h-screen bg-[var(--color-bg-base)] p-[var(--spacing-6)] lg:p-[var(--spacing-9)] font-sans">
-      <Container wide className="space-y-[var(--spacing-8)]">
-        <div className="flex justify-between items-end">
-          <div className="space-y-[var(--spacing-4)]">
-            <Skeleton className="h-10 w-64" />
-            <Skeleton className="h-4 w-32" />
-          </div>
-          <Skeleton className="h-10 w-48 rounded-full" />
-        </div>
-        <div className="grid lg:grid-cols-3 gap-[var(--spacing-6)]">
-           <Skeleton className="h-64 col-span-2 rounded-[var(--radius-lg)]" />
-           <Skeleton className="h-64 rounded-[var(--radius-lg)]" />
-        </div>
-        <Skeleton className="h-96 rounded-[var(--radius-lg)]" />
-      </Container>
-      <div className="fixed bottom-[var(--spacing-8)] right-[var(--spacing-8)] flex items-center gap-[var(--spacing-3)] text-[var(--color-text-muted)] font-bold uppercase tracking-[0.2em] text-[10px]">
-        <div className="w-4 h-4 border-2 border-[var(--color-accent-lime)] border-t-transparent rounded-full animate-spin" />
-        Seeking Wisdom...
-      </div>
+    <div className="min-h-screen bg-[var(--bg)] p-12 text-[var(--text-dim)] font-mono text-sm">
+      Loading workspace...
     </div>
   );
 
   if (projects.length === 0) return <Onboarding onComplete={(p) => setProjects([p])} />;
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg-base)] flex font-sans relative overflow-hidden text-white selection:bg-[var(--color-accent-purple)]">
-      <Toaster />
+    <div className="app-container text-[var(--text)] font-sans">
       
-      {/* Sidebar Overlay */}
-      {sidebarOpen && (
-        <div className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={() => setSidebarOpen(false)} />
-      )}
+      {/* Sidebar Mobile Overlay */}
+      {sidebarOpen && <div className="md:hidden fixed inset-0 bg-black/60 z-40" onClick={() => setSidebarOpen(false)} />}
 
-      {/* Sidebar - Deep Dark */}
-      <aside className={`fixed lg:static inset-y-0 left-0 w-72 bg-[#08090C] border-r border-white/5 flex flex-col z-50 transition-transform duration-300 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-        <div className="p-[var(--spacing-6)] flex items-center justify-between border-b border-white/5 h-[72px]">
-          <div className="flex items-center gap-[var(--spacing-2)] cursor-pointer group" onClick={() => window.location.reload()}>
-            <div className="w-8 h-8 bg-[var(--color-accent-green)] rounded flex items-center justify-center text-black font-display font-black text-sm transition-transform group-hover:rotate-12">T</div>
-            <span className="font-display font-bold text-lg tracking-tighter text-white">Toddler</span>
-          </div>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-1 border-none bg-transparent cursor-pointer text-white">
-            <X size={20} />
-          </button>
+      <aside className={`sidebar fixed md:static inset-y-0 left-0 z-50 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} transition-transform duration-200`}>
+        <div className="sidebar-header justify-between">
+          <Link to="/" className="logo text-white cursor-pointer no-underline">
+            <span className="logo-mark"></span>TODDLER
+          </Link>
+          <button className="md:hidden btn-ghost" onClick={() => setSidebarOpen(false)}>✕</button>
         </div>
-        
-        <nav className="flex-grow p-[var(--spacing-5)] space-y-[var(--spacing-2)]">
-          <div className="px-[var(--spacing-4)] py-[var(--spacing-2)] text-[10px] font-bold text-white/20 uppercase tracking-[0.25em]">Workspace</div>
-          {[
-            { id: 'overview', label: 'Dashboard', icon: Activity },
-            { id: 'playground', label: 'Playground', icon: Play },
-            { id: 'review', label: 'Review', icon: ShieldCheck },
-            { id: 'library', label: 'Model Zoo', icon: Globe },
-            { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-            { id: 'batch', label: 'Batch Jobs', icon: Layers },
-            { id: 'chat', label: 'Chatbot', icon: MessageSquare },
-            { id: 'dev', label: 'API Keys', icon: Terminal }
-          ].map(t => (
-            <button 
-              key={t.id}
-              onClick={() => { setActiveTab(t.id); setSidebarOpen(false); }}
-              className={`
-                w-full text-left px-[var(--spacing-4)] py-[var(--spacing-3)] rounded-xl font-bold text-[13px] flex items-center gap-[var(--spacing-3)] 
-                transition-all cursor-pointer border-none bg-transparent group uppercase tracking-widest
-                ${activeTab === t.id ? 'bg-[var(--color-accent-green)] text-black border-none shadow-[0_0_20px_rgba(198,255,51,0.2)]' : 'text-white/40 hover:text-white hover:bg-white/5'}
-              `}
-            >
-              <t.icon size={18} /> 
-              {t.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="p-[var(--spacing-6)] border-t border-white/5 space-y-[var(--spacing-4)]">
-           <button onClick={handleDelete} className="w-full text-left px-[var(--spacing-4)] py-[var(--spacing-2)] text-[10px] font-bold text-red-500/50 hover:text-red-500 transition-colors uppercase tracking-[0.2em] cursor-pointer border-none bg-transparent flex items-center gap-[var(--spacing-2)] group">
-            <Trash2 size={14} className="group-hover:animate-bounce" /> Erase Data
-          </button>
-          <button onClick={() => auth.signOut()} className="w-full text-left px-[var(--spacing-4)] py-[var(--spacing-2)] text-[10px] font-bold text-white/20 hover:text-white transition-colors uppercase tracking-[0.2em] cursor-pointer border-none bg-transparent">Log out</button>
+        <div className="p-4 flex-grow flex flex-col gap-2">
+          <div className="input-label mb-2 px-2">Projects</div>
+          <div className="bg-[var(--surface-2)] border border-[var(--line)] px-4 py-3 cursor-pointer">
+            <div className="font-medium">{currentProject.name}</div>
+            <div className="font-mono text-[10px] text-[var(--accent-lime)] mt-1">Status: Active</div>
+          </div>
+        </div>
+        <div className="p-4 border-t border-[var(--line)] space-y-3">
+          <button className="btn w-full !border-[var(--danger)] !text-[var(--danger)] hover:!bg-[var(--danger)] hover:!text-white" onClick={handleDelete}>Delete Model</button>
+          <button className="btn-ghost w-full text-left font-mono text-xs" onClick={() => auth.signOut()}>Log out</button>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-grow overflow-auto p-[var(--spacing-6)] pt-24 md:p-[var(--spacing-8)] lg:p-[var(--spacing-9)] relative bg-[var(--color-bg-base)]">
-        {/* Mobile Navbar */}
-        <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#08090C]/80 backdrop-blur-md border-b border-white/5 z-30 px-[var(--spacing-6)] flex items-center justify-between">
-          <div className="font-display font-bold text-lg tracking-tighter text-white">Toddler</div>
-          <button onClick={() => setSidebarOpen(true)} className="p-[var(--spacing-2)] border-none bg-transparent cursor-pointer text-white"><Menu size={24} /></button>
+      <main className="main-content flex flex-col h-screen overflow-hidden">
+        {/* Mobile Header */}
+        <div className="md:hidden p-4 border-b border-[var(--line)] flex justify-between items-center bg-[var(--surface)]">
+          <span className="font-display font-bold">Toddler Dashboard</span>
+          <button className="btn-ghost" onClick={() => setSidebarOpen(true)}>Menu</button>
         </div>
 
-        <header className="mb-[var(--spacing-9)] flex flex-col md:flex-row justify-between items-start md:items-end gap-[var(--spacing-6)] fade-in-up">
-          <div className="space-y-[var(--spacing-3)] text-left">
+        <header className="dash-header p-6 md:p-8 flex flex-wrap justify-between items-center gap-4 bg-[var(--surface)] border-b border-[var(--line)]">
+          <div>
+            <div className="eyebrow mb-4"><span className="dot"></span>Production Model</div>
             {isEditingName ? (
-              <div className="flex items-center gap-[var(--spacing-3)]">
-                <input 
-                  type="text" 
-                  className="font-display text-4xl md:text-5xl font-bold tracking-tighter leading-none bg-transparent border-none border-b-4 border-[var(--color-accent-green)] outline-none text-white"
-                  value={newName} onChange={(e) => setNewName(e.target.value)}
-                  autoFocus onBlur={handleRename}
-                  onKeyDown={(e) => e.key === 'Enter' && handleRename()}
-                />
-              </div>
+              <input 
+                type="text" 
+                className="input-field !text-3xl !font-display !font-bold !bg-transparent !border-b-2 !border-[var(--accent-lime)] !p-0 !pb-2"
+                value={newName} onChange={(e) => setNewName(e.target.value)}
+                autoFocus onBlur={handleRename}
+                onKeyDown={(e) => e.key === 'Enter' && handleRename()}
+              />
             ) : (
-              <div className="flex items-center gap-[var(--spacing-4)] group">
-                <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tighter leading-none text-white">{currentProject?.name}</h1>
-                <button onClick={() => { setNewName(currentProject?.name); setIsEditingName(true); }} className="p-[var(--spacing-2)] opacity-0 group-hover:opacity-100 transition-opacity bg-white/5 rounded-lg cursor-pointer border-none text-white/40 hover:text-white"><Edit3 size={18} /></button>
+              <div className="flex items-center gap-3">
+                <h1 className="text-4xl font-display font-bold">{currentProject.name}</h1>
+                <button className="text-[var(--text-faint)] hover:text-[var(--text)] transition-colors cursor-pointer bg-transparent border-none" onClick={() => { setNewName(currentProject.name); setIsEditingName(true); }}>✎</button>
               </div>
             )}
-            <div className="flex items-center gap-[var(--spacing-3)]">
-              <Badge variant="purple">Stable Build</Badge>
-              <Badge variant="neutral">v{currentProject?.version || '1.0'}</Badge>
-            </div>
           </div>
-          <div className="flex items-center gap-[var(--spacing-4)]">
-             <Button variant="outline" size="sm" onClick={handleDownload} icon={Download} className="!border-[var(--color-accent-green)] !text-[var(--color-accent-green)]">Export .pkl</Button>
-            <div className={`px-[var(--spacing-4)] py-[var(--spacing-2)] rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-[var(--spacing-2)] ${currentProject?.health === 'Optimal' ? 'bg-[var(--color-accent-green)] text-black shadow-[0_0_15px_rgba(198,255,51,0.2)]' : 'bg-[var(--color-accent-purple)] text-white shadow-[0_0_15px_var(--color-accent-purple-glow)]'}`}>
-              <div className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" /> Engine: {currentProject?.health || 'Optimal'}
-            </div>
+          <div className="flex gap-3">
+            <button className="btn" onClick={handleDownload}>Export .pkl</button>
           </div>
         </header>
 
-        {activeTab === 'overview' && (
-          <div className="space-y-[var(--spacing-8)] fade-in-up">
-            <div className="grid lg:grid-cols-3 gap-[var(--spacing-6)] md:gap-[var(--spacing-8)]">
-              <Card variant="green" className="col-span-2 !bg-[#0D0F14] !p-[var(--spacing-8)] md:!p-[var(--spacing-9)] border-[var(--color-accent-green)] shadow-[0_0_30px_rgba(198,255,51,0.05)] text-left">
-                <div className="flex justify-between items-start mb-[var(--spacing-8)] text-left">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-white/30">Primary Accuracy</span>
-                  <CheckCircle2 className="text-[var(--color-accent-green)]" size={20} />
-                </div>
-                <div className="text-7xl md:text-[100px] font-display font-bold tracking-tighter leading-none text-white mb-[var(--spacing-6)] text-left flex items-baseline">
-                  {currentProject?.accuracy ? (currentProject.accuracy * 100).toFixed(1) : '0'}<span className="text-2xl md:text-4xl text-[var(--color-accent-green)] ml-[var(--spacing-3)] opacity-40">%</span>
-                </div>
-                <div className="flex gap-[var(--spacing-8)] md:gap-[var(--spacing-9)] border-t border-white/5 pt-[var(--spacing-8)]">
-                   {['F1 Score', 'Recall', 'Precision'].map((m, i) => (
-                     <div key={m} className="text-left">
-                        <div className="text-[10px] font-bold opacity-30 uppercase mb-[var(--spacing-1)] tracking-widest">{m}</div>
-                        <div className="text-2xl font-bold font-display text-white">0.9{[4, 1, 2][i]}</div>
-                     </div>
-                   ))}
-                </div>
-              </Card>
-              <Card variant="dark" className="flex flex-col justify-between !bg-[#0D0F14] border-[var(--color-accent-purple)] shadow-[0_0_30px_rgba(125,57,235,0.05)] text-left">
-                 <div className="space-y-[var(--spacing-6)] text-left">
-                    <span className="text-[11px] font-bold uppercase tracking-[0.25em] opacity-30">Architecture</span>
-                    <div className="flex items-center gap-[var(--spacing-4)] p-[var(--spacing-5)] bg-white/[0.03] rounded-2xl border border-white/5">
-                       <Database size={20} className="text-[var(--color-accent-purple)]" />
-                       <div className="text-sm font-bold text-white">{currentProject?.dataset?.rowCount || 0} training rows</div>
-                    </div>
-                    <div className="flex items-center gap-[var(--spacing-4)] p-[var(--spacing-5)] bg-white/[0.03] rounded-2xl border border-white/5">
-                       <ShieldCheck size={20} className="text-[var(--color-accent-purple)]" />
-                       <div className="text-sm font-bold text-white">Private Weights</div>
-                    </div>
-                 </div>
-                 <div className={`p-[var(--spacing-6)] mt-[var(--spacing-7)] rounded-2xl space-y-[var(--spacing-1)] text-left bg-[var(--color-accent-purple)] shadow-[0_0_20px_var(--color-accent-purple-glow)]`}>
-                    <div className="text-[10px] font-bold uppercase opacity-60 tracking-widest text-white">Engine Integrity</div>
-                    <div className="text-sm font-bold leading-tight text-white">Deployed & Stable</div>
-                 </div>
-              </Card>
-            </div>
-            
-            <Card className="text-left !bg-[#0D0F14] !border-white/5 shadow-xl">
-               <h3 className="text-[11px] font-bold uppercase tracking-[0.25em] text-white/30 mb-[var(--spacing-9)]">Classification Balance</h3>
-               <div className="flex items-end gap-[var(--spacing-3)] md:gap-[var(--spacing-5)] h-56">
-                  {currentProject?.distribution ? Object.entries(currentProject.distribution).map(([label, count]) => {
-                    const maxVal = Math.max(...Object.values(currentProject.distribution), 1);
-                    return (
-                      <div key={label} className="flex-1 flex flex-col items-center gap-[var(--spacing-4)] group h-full">
-                        <div className="w-full bg-white/[0.03] rounded-xl relative flex flex-col justify-end overflow-hidden h-full group-hover:bg-white/[0.05] transition-all">
-                            <div className="bg-[var(--color-accent-green)] w-full rounded-t-lg transition-all duration-1000 shadow-[0_0_20px_rgba(198,255,51,0.2)]" style={{ height: `${(count / maxVal) * 100}%` }} />
-                        </div>
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 truncate w-full text-center">{label}</span>
+        <div className="border-b border-[var(--line)] bg-[var(--bg)] px-6 md:px-8 flex gap-6 md:gap-8 overflow-x-auto">
+          {(currentProject.type === 'vision' ? ['overview', 'chat', 'dev'] : currentProject.type === 'generative' ? ['chat', 'dev'] : ['overview', 'batch', 'chat', 'dev']).map(tab => (
+            <button 
+              key={tab}
+              className={`py-4 font-mono text-xs uppercase tracking-wider border-b-2 transition-colors cursor-pointer bg-transparent ${activeTab === tab ? 'border-[var(--accent-lime)] text-[var(--accent-lime)]' : 'border-transparent text-[var(--text-dim)] hover:text-[var(--text)]'}`}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-grow overflow-auto p-8 bg-[var(--bg)]">
+          {activeTab === 'overview' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                <div className="panel">
+                  <h3 className="font-display font-bold text-xl mb-4">Live Inference</h3>
+                  {currentProject.type === 'vision' ? (
+                    <div className="flex flex-col gap-4">
+                      <div className="border-2 border-dashed border-[var(--line)] bg-[var(--surface-2)] p-12 text-center relative hover:border-[var(--accent-lime)] transition-colors cursor-pointer">
+                        <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => {
+                          if(e.target.files[0]) {
+                            if (previewImage) URL.revokeObjectURL(previewImage); // Prevent memory leak
+                            setPreviewImage(URL.createObjectURL(e.target.files[0]));
+                            setPrediction(null);
+                          }
+                        }} />
+                        <div className="font-mono text-sm text-[var(--accent-lime)]">Drop image here or click to upload</div>
                       </div>
-                    );
-                  }) : <div className="w-full h-full flex items-center justify-center text-xs opacity-30 italic">No distribution metrics available.</div>}
-               </div>
-            </Card>
-          </div>
-        )}
-
-        {activeTab === 'playground' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--spacing-7)] md:gap-[var(--spacing-9)] fade-in-up">
-            <Card className="!bg-[#0D0F14] !border-2 !border-[var(--color-accent-purple)] space-y-[var(--spacing-8)] text-left h-fit glow-purple">
-              <div className="flex justify-between items-start">
-                <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-white/30">Logic Terminal</span>
-                <Terminal className="text-[var(--color-accent-purple)]" size={20} />
-              </div>
-              <textarea 
-                className="w-full h-32 md:h-56 p-[var(--spacing-6)] bg-white/[0.03] border border-white/10 rounded-2xl focus:outline-none focus:border-[var(--color-accent-purple)] transition-all font-medium text-sm leading-relaxed resize-none text-white placeholder:text-white/10 mb-8"
-                placeholder="Paste payload to predict..."
-                value={predictText} onChange={(e) => setPredictText(e.target.value)}
-              />
-              <Button onClick={handlePredict} loading={predicting} className="w-full !py-[var(--spacing-6)] !text-base" variant="secondary">
-                {predicting ? loadingMessage : 'Run Prediction Job'}
-              </Button>
-              {prediction && (
-                <div className="p-[var(--spacing-7)] bg-[var(--color-accent-purple)]/10 border border-[var(--color-accent-purple)]/20 rounded-[var(--radius-xl)] animate-in fade-in slide-in-from-top-4 duration-500">
-                  <div className="flex justify-between items-center mb-[var(--spacing-5)]">
-                     <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent-purple)]">Classification Output</span>
-                     <span className="px-3 py-1 bg-[var(--color-accent-purple)] text-white rounded-full text-[10px] font-bold">{(prediction.confidence * 100).toFixed(1)}% Confidence</span>
-                  </div>
-                  <div className="text-4xl md:text-5xl font-display font-bold text-[var(--color-accent-purple)] mb-[var(--spacing-7)] leading-none break-all">{prediction.prediction}</div>
-                  <div className="flex flex-wrap gap-[var(--spacing-3)]">
-                    {predictText.split(/\s+/).map((word, i) => {
-                      const clean = word.toLowerCase().replace(/[.,!?;]/g, '');
-                      const weight = (prediction.weights && prediction.weights[clean]) || 0;
-                      const opacity = weight ? Math.min(Math.max(Math.abs(weight) * 3, 0.1), 0.7) : 0;
-                      return <span key={i} className="px-3 py-1 rounded text-xs md:text-sm font-bold transition-all duration-300" style={{ backgroundColor: opacity > 0 ? `rgba(125, 57, 235, ${opacity})` : 'rgba(255,255,255,0.03)', color: opacity > 0.4 ? 'white' : 'inherit' }}>{word}</span>;
-                    })}
-                  </div>
-                </div>
-              )}
-            </Card>
-            <div className="space-y-[var(--spacing-8)]">
-              <h3 className="text-[11px] font-bold uppercase tracking-[0.25em] text-white/30 text-left px-[var(--spacing-5)]">Historical Log</h3>
-              <div className="space-y-[var(--spacing-4)]">
-                {history.map((h, i) => (
-                  <Card key={i} className="!p-[var(--spacing-6)] !bg-[#0D0F14] !border-white/5 flex justify-between items-center group fade-in-up" style={{ animationDelay: `${i * 60}ms` }}>
-                    <div className="truncate pr-[var(--spacing-5)] text-left">
-                      <div className="text-sm font-bold truncate text-white">{h.text}</div>
-                      <div className="text-[10px] font-bold text-[var(--color-accent-green)] uppercase mt-[var(--spacing-2)] tracking-[0.1em]">{h.prediction}</div>
-                    </div>
-                    <div className="text-xl font-display font-bold text-[var(--color-accent-purple)]">{(h.confidence * 100).toFixed(0)}%</div>
-                  </Card>
-                ))}
-                {history.length === 0 && <div className="p-[var(--spacing-9)] border-2 border-dashed border-white/5 rounded-[var(--radius-xl)] text-center text-sm text-white/20 italic">No historical records found.</div>}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'review' && (
-          <div className="space-y-[var(--spacing-8)] fade-in-up text-left">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div>
-                <h2 className="text-2xl font-bold font-display text-white">Review & Improve</h2>
-                <p className="text-sm text-white/40">Calibrate the engine by verifying low-confidence predictions.</p>
-              </div>
-              <Button onClick={fetchLogs} variant="outline" size="sm" icon={Zap} disabled={logsLoading}>
-                Refresh Logs
-              </Button>
-            </div>
-
-            <div className="grid gap-[var(--spacing-4)]">
-              {logsLoading ? (
-                [1,2,3].map(i => <Skeleton key={i} className="h-24 w-full rounded-2xl" />)
-              ) : logs.length > 0 ? (
-                logs.map((log) => (
-                  <Card key={log.id} className="!bg-[#0D0F14] !border-white/5 flex flex-col md:flex-row justify-between items-center gap-[var(--spacing-6)] group">
-                    <div className="flex-grow space-y-[var(--spacing-2)] w-full text-left">
-                      <div className="text-sm font-medium text-white/90 leading-relaxed bg-white/5 p-4 rounded-xl border border-white/5">{log.text}</div>
-                      <div className="flex items-center gap-4 mt-2">
-                        <Badge variant={log.confidence > 0.8 ? 'green' : 'purple'}>
-                          Inferred: {log.prediction}
-                        </Badge>
-                        <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">
-                          {(log.confidence * 100).toFixed(1)}% Confidence
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex gap-[var(--spacing-3)] w-full md:w-auto">
-                      <Button 
-                        size="sm" 
-                        variant="primary" 
-                        className="flex-1 md:flex-none !bg-[var(--color-accent-green)] !text-black"
-                        onClick={() => handleReview(log.id, log.prediction)}
-                      >
-                        Verify
-                      </Button>
-                      <div className="relative group/menu flex-1 md:flex-none">
-                        <Button size="sm" variant="outline" className="w-full">Correct</Button>
-                        <div className="absolute right-0 bottom-full mb-2 w-48 bg-[#0D0F14] border border-white/10 rounded-xl shadow-2xl opacity-0 group-hover/menu:opacity-100 pointer-events-none group-hover/menu:pointer-events-auto transition-all z-10 p-2">
-                          {currentProject?.labels?.filter(l => l !== log.prediction).map(label => (
-                            <button 
-                              key={label}
-                              onClick={() => handleReview(log.id, label)}
-                              className="w-full text-left px-4 py-2 text-xs font-bold text-white/60 hover:text-[var(--color-accent-green)] hover:bg-white/5 rounded-lg transition-colors border-none bg-transparent cursor-pointer"
-                            >
-                              Mark as {label}
-                            </button>
-                          ))}
+                      {previewImage && (
+                        <div className="flex gap-4 items-end">
+                          <img src={previewImage} alt="Preview" className="h-32 object-contain border border-[var(--line)]" />
+                          <button className="btn btn-solid" onClick={async () => {
+                            setPredicting(true);
+                            try {
+                              let datasetJson;
+                              if (currentProject.modelUrl) {
+                                const { fetchFromCloudinary } = await import('./cloud');
+                                datasetJson = await fetchFromCloudinary(currentProject.modelUrl);
+                              } else {
+                                const localforageModule = await import('localforage');
+                                const lf = localforageModule.default || localforageModule;
+                                datasetJson = await lf.getItem(`model_${currentProject.id}`);
+                              }
+                              
+                              if (!datasetJson) throw new Error("Local model weights not found.");
+                              
+                              const { predictVisionImage } = await import('./visionML');
+                              const result = await predictVisionImage(previewImage, datasetJson);
+                              setPrediction({ prediction: result.prediction, confidence: result.confidence, weights: {} });
+                            } catch(e) {
+                              toast.error(e.message || "Vision prediction failed");
+                            } finally {
+                              setPredicting(false);
+                            }
+                          }} disabled={predicting}>
+                            {predicting ? 'Analyzing...' : 'Predict Image Class'}
+                          </button>
                         </div>
-                      </div>
+                      )}
                     </div>
-                  </Card>
-                ))
-              ) : (
-                <div className="p-20 border-2 border-dashed border-white/5 rounded-[var(--radius-xl)] text-center">
-                  <Activity size={48} className="mx-auto mb-4 opacity-10" />
-                  <div className="text-sm text-white/20 italic">The engine is currently stable. No new logs to review.</div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'library' && (
-          <div className="space-y-[var(--spacing-8)] fade-in-up text-left">
-            <div className="space-y-2">
-              <h2 className="text-2xl font-bold font-display text-white">Model Zoo</h2>
-              <p className="text-sm text-white/40">Download pre-trained foundations to skip cold-start training.</p>
-            </div>
-            
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {catalog.map((m) => (
-                <Card key={m.id} className="!bg-[#0D0F14] !border-white/5 flex flex-col justify-between h-full group hover:border-[var(--color-accent-green)]/30 transition-all">
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-start">
-                      <div className="p-3 bg-white/5 rounded-xl group-hover:bg-[var(--color-accent-green)]/10 transition-colors">
-                        <Zap size={20} className="text-[var(--color-accent-green)]" />
-                      </div>
-                      <Badge variant="neutral">{m.accuracy * 100}% Acc</Badge>
-                    </div>
-                    <div className="space-y-1">
-                      <h4 className="font-bold text-white text-lg">{m.name}</h4>
-                      <p className="text-xs text-white/40 leading-relaxed">{m.description}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {m.tags.map(t => <span key={t} className="text-[9px] font-black uppercase tracking-widest text-white/20 border border-white/5 px-2 py-0.5 rounded-full">{t}</span>)}
-                    </div>
-                  </div>
-                  <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between">
-                    <div className="text-[10px] font-bold text-white/20 uppercase tracking-widest">
-                      {m.rows} Base Rows
-                    </div>
-                    <Button size="sm" variant="outline" onClick={() => handleImportModel(m)}>Import & Tune</Button>
-                  </div>
-                </Card>
-              ))}
-            </div>
-
-            <Card className="!bg-[var(--color-accent-purple)]/5 border-dashed border-[var(--color-accent-purple)]/20 p-12 text-center space-y-4">
-               <Globe size={40} className="mx-auto text-[var(--color-accent-purple)] opacity-40" />
-               <div className="space-y-1">
-                 <h3 className="font-bold text-white">Community Catalog Coming Soon</h3>
-                 <p className="text-sm text-white/40">Soon you'll be able to publish your own .pkl artifacts to the Toddler ecosystem.</p>
-               </div>
-               <Button variant="outline" size="sm" className="!border-[var(--color-accent-purple)]/40 !text-[var(--color-accent-purple)]">Request Early Access</Button>
-            </Card>
-          </div>
-        )}
-
-        {activeTab === 'analytics' && (
-          <div className="grid lg:grid-cols-2 gap-[var(--spacing-8)] md:gap-[var(--spacing-10)] fade-in-up">
-             <Card className="text-left !bg-[#0D0F14] !border-white/5">
-                <h3 className="text-[11px] font-bold uppercase tracking-[0.25em] text-white/30 mb-[var(--spacing-9)]">Confusion Matrix</h3>
-                {currentProject?.confusion_matrix ? (
-                  <div className="grid gap-[var(--spacing-3)]" style={{ gridTemplateColumns: `repeat(${currentProject.labels?.length || 1}, 1fr)` }}>
-                    {currentProject.confusion_matrix.map((row, i) => row.map((val, j) => {
-                      const isCorrect = i === j;
-                      const max = Math.max(...currentProject.confusion_matrix.flat(), 1);
-                      const intensity = (val / max);
-                      return (
-                        <div key={`${i}-${j}`} className="aspect-square rounded-xl flex items-center justify-center p-[var(--spacing-3)] transition-all hover:scale-105 group relative border border-white/5" style={{ backgroundColor: isCorrect ? `rgba(198, 255, 51, ${intensity * 0.4})` : `rgba(239, 68, 68, ${intensity * 0.2})`, color: intensity > 0.4 ? 'white' : 'inherit' }}>
-                            <div className="text-2xl font-bold">{val}</div>
-                        </div>
-                      );
-                    }))}
-                  </div>
-                ) : <div className="p-20 border-2 border-dashed border-white/5 rounded-[var(--radius-xl)] text-center text-sm text-white/20 italic">Analytics data not generated.</div>}
-                <div className="mt-8 flex justify-between text-[9px] font-bold uppercase tracking-[0.3em] text-white/10">
-                   <span>Actual Labels</span>
-                   <span>Inferred Labels</span>
-                </div>
-             </Card>
-             <Card className="text-left !bg-[#0D0F14] !border-white/5">
-                <h3 className="text-[11px] font-bold uppercase tracking-[0.25em] text-white/30 mb-[var(--spacing-8)]">Feature Weights</h3>
-                <div className="space-y-[var(--spacing-6)]">
-                   {currentProject?.top_features ? Object.entries(currentProject.top_features).sort((a,b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 10).map(([word, weight]) => (
-                     <div key={word} className="space-y-[var(--spacing-2)]">
-                        <div className="flex justify-between text-xs font-bold uppercase tracking-[0.15em] text-white/60">
-                          <span>{word}</span>
-                          <span className={weight > 0 ? 'text-[var(--color-accent-green)]' : 'text-[var(--color-accent-purple)]'}>{weight > 0 ? '+' : ''}{weight.toFixed(2)}</span>
-                        </div>
-                        <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-                           <div className={`h-full transition-all duration-1000 ${weight > 0 ? 'bg-[var(--color-accent-green)]' : 'bg-[var(--color-accent-purple)]'}`} style={{ width: `${Math.min(Math.abs(weight) * 50, 100)}%` }} />
-                        </div>
-                     </div>
-                   )) : <div className="p-20 border-2 border-dashed border-white/5 rounded-[var(--radius-xl)] text-center text-sm text-white/20 italic">Retrain to see insights.</div>}
-                </div>
-             </Card>
-          </div>
-        )}
-
-        {activeTab === 'batch' && (
-          <div className="max-w-3xl space-y-[var(--spacing-8)] fade-in-up text-left">
-             <Card className="space-y-[var(--spacing-9)] !bg-[#0D0F14] border-[var(--color-accent-green)] shadow-[0_0_30px_rgba(198,255,51,0.05)]">
-                <div className="space-y-[var(--spacing-2)]">
-                   <h2 className="text-2xl font-bold font-display tracking-tight text-white leading-none">Bulk Engine</h2>
-                   <p className="text-sm text-[#9A9A96]">Classify entire datasets in one pass.</p>
-                </div>
-                <form onSubmit={handleBatchPredict} className="space-y-[var(--spacing-7)]">
-                   <div className="border-4 border-dashed border-white/5 rounded-[var(--radius-xl)] p-[var(--spacing-10)] text-center relative hover:border-[var(--color-accent-green)]/20 transition-all cursor-pointer bg-white/[0.02]">
-                      <input type="file" accept=".csv" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => setBatchFile(e.target.files[0])} />
-                      <div className="flex flex-col items-center gap-[var(--spacing-5)]">
-                        <Database size={40} className="opacity-10 text-white" />
-                        <div className="font-bold text-sm break-all text-white/60">{batchFile ? batchFile.name : 'Drop target file here'}</div>
-                      </div>
-                   </div>
-                   <div className="space-y-[var(--spacing-3)]">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 ml-2">Target Data Column</label>
+                  ) : (
+                    <div className="flex gap-3 items-stretch">
                       <input 
-                        type="text" placeholder="e.g. comment_body" value={batchTextCol} onChange={e => setBatchTextCol(e.target.value)}
-                        className="w-full h-16 px-[var(--spacing-6)] bg-white/5 border border-white/5 rounded-xl outline-none focus:border-[var(--color-accent-green)] font-bold text-white transition-all"
+                        type="text" 
+                        className="input-field m-0" 
+                        placeholder="Enter text to classify..." 
+                        value={predictText} 
+                        onChange={e => setPredictText(e.target.value)} 
+                        onKeyDown={e => e.key === 'Enter' && handlePredict()}
                       />
-                   </div>
-                   <Button disabled={!batchFile || !batchTextCol || batching} type="submit" className="w-full !h-16" loading={batching}>
-                     {batching ? loadingMessage : 'Execute Batch Analysis'}
-                   </Button>
-                </form>
-             </Card>
-          </div>
-        )}
+                      <button className="btn btn-solid shrink-0 m-0" onClick={handlePredict} disabled={predicting}>
+                        {predicting ? 'Wait' : 'Predict'}
+                      </button>
+                    </div>
+                  )}
 
-        {activeTab === 'chat' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-[var(--spacing-8)] h-auto lg:h-[calc(100vh-280px)] fade-in-up text-left">
-            <Card className="lg:col-span-1 !p-[var(--spacing-7)] !bg-[#0D0F14] !border-white/5 overflow-y-auto space-y-[var(--spacing-8)] h-[400px] lg:h-full">
-               <h3 className="text-[11px] font-bold uppercase tracking-[0.25em] text-white/30">Intent Logic</h3>
-               <div className="space-y-[var(--spacing-7)]">
-                  {currentProject?.labels?.map(label => (
-                    <div key={label} className="space-y-[var(--spacing-3)]">
-                       <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-accent-green)]">{label}</label>
-                       <textarea 
-                        className="w-full p-[var(--spacing-5)] bg-white/[0.03] border border-white/10 rounded-xl text-sm outline-none focus:border-[var(--color-accent-green)] resize-none font-bold text-white leading-relaxed h-32" 
-                        value={responses[label] || ''} 
-                        onChange={e => setResponses({...responses, [label]: e.target.value})} 
-                        onBlur={e => saveResponse(label, e.target.value)} 
-                       />
+                  {prediction && (
+                    <div className="mt-6 p-6 border border-[var(--line)] bg-[var(--surface-2)]">
+                      <div className="flex justify-between items-center mb-6">
+                        <div>
+                          <div className="input-label mb-1">Result</div>
+                          <div className="text-2xl font-bold text-[var(--accent-lime)]">{prediction.prediction}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="input-label mb-1">Confidence</div>
+                          <div className="text-xl font-mono text-[var(--text-dim)]">{(prediction.confidence * 100).toFixed(1)}%</div>
+                        </div>
+                      </div>
+                      
+                      <div className="input-label mb-3">Feature Weights</div>
+                      <div className="space-y-2">
+                        {Object.entries(prediction.weights || {}).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,5).map(([word, weight]) => (
+                          <div key={word} className="flex items-center gap-4 text-sm font-mono">
+                            <div className="w-24 text-right truncate text-[var(--text-dim)]">{word}</div>
+                            <div className="flex-grow h-2 bg-[var(--surface)] relative">
+                              <div className={`absolute top-0 h-full ${weight > 0 ? 'bg-[var(--accent-lime)] left-1/2' : 'bg-[var(--danger)] right-1/2'}`} style={{ width: `${Math.min(Math.abs(weight) * 50, 50)}%` }} />
+                            </div>
+                            <div className="w-12 text-[10px] text-[var(--text-faint)]">{weight > 0 ? '+' : ''}{weight.toFixed(2)}</div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
-               </div>
-            </Card>
-            <div className="lg:col-span-2 bg-[var(--color-bg-dark)] rounded-[var(--radius-xl)] flex flex-col overflow-hidden border border-white/5 h-[600px] lg:h-full shadow-2xl relative">
-               <div className="p-[var(--spacing-6)] border-b border-white/5 bg-white/5 flex items-center justify-between text-white uppercase tracking-widest text-[10px] font-bold">
-                  <div className="flex items-center gap-[var(--spacing-3)]">
-                    <div className="w-2 h-2 rounded-full bg-[var(--color-accent-green)] animate-pulse" />
-                    <span>Real-time Simulation</span>
-                  </div>
-                  <button onClick={() => setChatMessages([])} className="opacity-40 hover:opacity-100 transition-opacity cursor-pointer border-none bg-transparent text-white uppercase font-bold text-[10px] tracking-widest">Reset</button>
-               </div>
-               <div className="flex-grow p-[var(--spacing-8)] overflow-y-auto space-y-[var(--spacing-6)] flex flex-col">
-                  {chatMessages.map((msg, i) => (
-                    <div key={i} className={`max-w-[85%] p-[var(--spacing-5)] rounded-2xl animate-in slide-in-from-bottom-2 duration-300 ${msg.role === 'user' ? 'bg-white/10 text-white self-end rounded-br-none' : 'bg-[var(--color-accent-purple)] text-white self-start rounded-bl-none shadow-[0_0_20px_var(--color-accent-purple-glow)]'}`}>
-                       <p className="text-[15px] font-medium leading-relaxed">{msg.text}</p>
-                       {msg.intent && <div className="mt-4 pt-3 border-t border-white/10 text-[9px] font-bold uppercase opacity-50 flex gap-4"><span>Intent: {msg.intent}</span><span>{(msg.confidence * 100).toFixed(0)}% Conf</span></div>}
+                  )}
+                </div>
+              </div>
+              <div className="space-y-6">
+                <div className="panel">
+                  <h3 className="font-display font-bold text-lg mb-4">Model Health</h3>
+                  <div className="space-y-4">
+                    <div className="flex justify-between font-mono text-sm border-b border-[var(--line)] pb-2">
+                      <span className="text-[var(--text-dim)]">Accuracy</span>
+                      <span className="text-[var(--accent-lime)]">{(currentProject?.accuracy * 100 || 0).toFixed(1)}%</span>
                     </div>
-                  ))}
-                  {isTyping && <div className="bg-white/5 text-white self-start p-[var(--spacing-4)] rounded-2xl animate-pulse text-xs uppercase tracking-widest font-bold">Thinking...</div>}
-                  {chatMessages.length === 0 && <div className="flex-grow flex flex-col items-center justify-center gap-4 opacity-10">
-                     <MessageSquare size={48} />
-                     <span className="text-[10px] font-bold uppercase tracking-[0.4em]">Empty Protocol</span>
-                  </div>}
-               </div>
-               <form onSubmit={handleChatSend} className="p-[var(--spacing-7)] bg-white/5 border-t border-white/5">
-                  <div className="relative">
-                    <input 
-                      type="text" 
-                      className="w-full h-16 bg-white/5 border border-white/10 rounded-full pl-8 pr-20 text-white outline-none focus:border-[var(--color-accent-green)] font-bold placeholder:text-white/10 text-sm" 
-                      placeholder="Simulate an input..." 
-                      value={chatInput} 
-                      onChange={e => setChatInput(e.target.value)} 
-                    />
-                    <button className="absolute right-2 top-2 w-12 h-12 bg-[var(--color-accent-green)] text-black rounded-full flex items-center justify-center cursor-pointer border-none transition-transform hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(198,255,51,0.3)]"><Send size={20} /></button>
+                    <div className="flex justify-between font-mono text-sm border-b border-[var(--line)] pb-2">
+                      <span className="text-[var(--text-dim)]">{currentProject.type === 'vision' ? 'Training Images' : 'Dataset Rows'}</span>
+                      <span className="text-white">{currentProject.type === 'vision' ? (currentProject.dataset?.imageCount || 0) : (currentProject.dataset?.rowCount || 0)}</span>
+                    </div>
+                    <div className="flex justify-between font-mono text-sm pb-2">
+                      <span className="text-[var(--text-dim)]">Status</span>
+                      <span className="text-[var(--accent-purple)]">Active</span>
+                    </div>
                   </div>
-               </form>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {activeTab === 'dev' && (
-          <div className="max-w-4xl space-y-[var(--spacing-9)] fade-in-up text-left">
-             <Card className="space-y-[var(--spacing-5)] !bg-[#0D0F14] !border-white/5">
-                <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-white/30">Infrastructure Key</span>
-                <div className="flex gap-[var(--spacing-4)] flex-col sm:flex-row">
-                  <div className="flex-grow p-[var(--spacing-6)] bg-white/[0.02] border border-white/5 rounded-2xl font-mono text-xs overflow-hidden truncate text-[var(--color-accent-green)]">
-                    {currentProject?.api_key || 'Generate key via re-training.'}
+          {activeTab === 'batch' && (
+            <div className="max-w-2xl">
+              <div className="panel">
+                <h3 className="font-display font-bold text-xl mb-2">Bulk Processing</h3>
+                <p className="text-[var(--text-dim)] text-sm mb-6">Upload a CSV to classify multiple rows at once.</p>
+                
+                <form onSubmit={handleBatchPredict} className="space-y-6">
+                  <div className="border-2 border-dashed border-[var(--line)] p-8 text-center bg-[var(--surface-2)] relative">
+                    <input type="file" accept=".csv" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => setBatchFile(e.target.files[0])} />
+                    <div className="font-mono text-sm text-[var(--accent-lime)]">
+                      {batchFile ? batchFile.name : 'Drop target file here or click to upload'}
+                    </div>
                   </div>
-                  <Button variant="primary" size="md" className="!rounded-2xl">Reveal Production Key</Button>
-                </div>
-             </Card>
-             <Card variant="dark" className="space-y-[var(--spacing-8)] !bg-[#0D0F14] border-[var(--color-accent-purple)] shadow-[0_0_30px_rgba(125,57,235,0.05)]">
-                <div className="flex justify-between items-center">
-                   <span className="text-[11px] font-bold uppercase tracking-[0.3em] opacity-40">Local Implementation: Python</span>
-                   <Badge variant="neutral">Offline Sync</Badge>
-                </div>
-                <div className="bg-white/5 p-[var(--spacing-7)] md:p-[var(--spacing-8)] rounded-2xl border border-white/5 font-mono text-[11px] md:text-[13px] text-[#9A9A96] overflow-x-auto space-y-[var(--spacing-3)] leading-relaxed">
-                   <div className="text-white">import pickle</div>
-                   <div className="text-[var(--color-accent-green)]"># Load serialized Scikit-learn artifact</div>
-                   <div className="text-white">with open('toddler_v1_model.pkl', 'rb') as f:</div>
-                   <div className="pl-6 text-[var(--color-accent-purple)]">pipeline = pickle.load(f)</div>
-                   <div className="text-white mt-[var(--spacing-5)]"># Execute local prediction</div>
-                   <div className="text-white">result = pipeline.predict(["Specific test string"])</div>
-                   <div className="text-[var(--color-accent-green)]">print(f"Engine Decision: {'{result[0]}'}")</div>
-                </div>
-                <Button variant="secondary" className="w-full !h-16" size="lg" onClick={handleExport}>Generate Integration Zip</Button>
-             </Card>
+                  <div>
+                    <label className="input-label">Target Text Column Name</label>
+                    <input type="text" className="input-field" placeholder="e.g. comment_body" value={batchTextCol} onChange={e => setBatchTextCol(e.target.value)} />
+                  </div>
+                  <button disabled={!batchFile || !batchTextCol || batching} type="submit" className="btn btn-solid w-full">
+                    {batching ? loadingMessage : 'Execute Batch Analysis'}
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
 
-             <Card className="space-y-[var(--spacing-8)] !bg-[#0D0F14] !border-white/5">
-                <div className="flex justify-between items-center">
-                   <span className="text-[11px] font-bold uppercase tracking-[0.3em] opacity-40">Web Integration: Embeddable Widget</span>
-                   <Globe className="text-[var(--color-accent-green)]" size={18} />
+          {activeTab === 'chat' && (
+            <div className={`flex flex-col lg:flex-row gap-6 h-full min-h-[500px] ${currentProject.type === 'generative' ? 'lg:flex-col' : ''}`}>
+              {currentProject.type !== 'generative' && (
+                <div className="panel lg:w-1/3 overflow-y-auto mb-0">
+                  <h3 className="input-label mb-6">Intent Mapping</h3>
+                  <div className="space-y-6">
+                    {currentProject?.labels?.map(label => (
+                      <div key={label}>
+                         <label className="font-mono text-[10px] text-[var(--accent-lime)] uppercase mb-2 block">{label}</label>
+                         <textarea 
+                          className="input-field h-24 resize-none" 
+                          value={responses[label] || ''} 
+                          onChange={e => setResponses({...responses, [label]: e.target.value})} 
+                          onBlur={e => saveResponse(label, e.target.value)} 
+                          placeholder="Response logic..."
+                         />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <p className="text-xs text-white/40">Copy and paste this snippet before the &lt;/body&gt; tag of your website.</p>
-                <div className="bg-white/5 p-6 rounded-2xl border border-white/5 font-mono text-[11px] text-[var(--color-accent-green)] overflow-x-auto">
-                   {`<script \n  src="${window.location.origin}/widget.js" \n  data-project-id="${currentProject.id}">\n</script>`}
+              )}
+              <div className={`panel flex flex-col p-0 mb-0 ${currentProject.type === 'generative' ? 'w-full lg:h-[700px]' : 'lg:w-2/3'}`}>
+                <div className="p-4 border-b border-[var(--line)] bg-[var(--surface-2)] flex items-center justify-between">
+                  <div className="eyebrow !m-0"><span className="dot"></span>Simulation</div>
+                  <button className="btn-ghost !text-[10px]" onClick={() => setChatMessages([])}>Reset</button>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => {
-                  navigator.clipboard.writeText(`<script src="${window.location.origin}/widget.js" data-project-id="${currentProject.id}"></script>`);
-                  toast.success('Snippet copied.');
-                }}>Copy Snippet</Button>
-             </Card>
-          </div>
-        )}
+                <div className="flex-grow overflow-y-auto bg-[var(--bg)] flex flex-col">
+                  {chatMessages.length === 0 && (
+                    <div className="flex-grow flex items-center justify-center font-mono text-[var(--text-faint)] text-xs">
+                      System: Ready for input.
+                    </div>
+                  )}
+                  {chatMessages.map((msg, i) => (
+                    <div key={i} className={`p-6 border-b border-[var(--line)] flex gap-4 md:gap-6 ${msg.role === 'user' ? 'bg-[var(--surface)]' : 'bg-[var(--bg)]'}`}>
+                       <div className={`font-mono text-xs font-bold uppercase shrink-0 w-16 md:w-24 mt-1 ${msg.role === 'user' ? 'text-[var(--text-dim)]' : 'text-[var(--accent-purple)]'}`}>
+                         {msg.role === 'user' ? 'USER >' : 'TODDLER >'}
+                       </div>
+                       <div className="flex-grow space-y-4 min-w-0">
+                         {msg.imageSrc ? (
+                           <img src={msg.imageSrc} alt="User input" className="max-h-64 object-contain border border-[var(--line)] bg-black" />
+                         ) : (
+                           <p className="text-[15px] font-sans leading-relaxed text-[var(--text)]">{msg.text}</p>
+                         )}
+                         
+                         {msg.intent && (
+                           <div className="pt-4 border-t border-[var(--line)] border-opacity-50 flex flex-col gap-3">
+                             <div className="flex flex-wrap items-center text-xs font-mono text-[var(--accent-lime)] bg-[var(--accent-lime)]/10 px-3 py-2 border border-[var(--accent-lime)]/20 w-fit gap-6">
+                               <span>INTENT_MATCH: {msg.intent}</span>
+                               <span>CONFIDENCE: {(msg.confidence * 100).toFixed(1)}%</span>
+                             </div>
+                             
+                             {msg.originImage && currentProject.type === 'vision' && (
+                               <div className="mt-2">
+                                 <label className="text-[10px] font-mono text-[var(--text-dim)] uppercase block mb-1">Incorrect? Recalibrate weight:</label>
+                                 <select 
+                                   className="input-field !h-10 !text-xs !w-auto min-w-[200px]"
+                                   onChange={(e) => {
+                                     if(e.target.value) handleRetrainVision(msg.originImage, e.target.value);
+                                     e.target.value = "";
+                                   }}
+                                 >
+                                   <option value="">Select correct label...</option>
+                                   {currentProject.labels?.map(l => <option key={l} value={l}>{l}</option>)}
+                                 </select>
+                               </div>
+                             )}
+                           </div>
+                         )}
+                       </div>
+                    </div>
+                  ))}
+                  {isTyping && (
+                    <div className="p-6 border-b border-[var(--line)] flex gap-4 md:gap-6 bg-[var(--bg)]">
+                       <div className="font-mono text-xs font-bold uppercase shrink-0 w-16 md:w-24 mt-1 text-[var(--accent-lime)]">
+                         TODDLER &gt;
+                       </div>
+                       <div className="flex-grow">
+                         <div className="w-3 h-5 bg-[var(--accent-lime)] animate-pulse" />
+                       </div>
+                    </div>
+                  )}
+                </div>
+                <form onSubmit={handleChatSend} className="p-4 border-t border-[var(--line)] bg-[var(--surface-2)] flex gap-3 items-center">
+                  {currentProject.type === 'vision' ? (
+                    <div className="flex-grow flex items-center gap-3">
+                      <input 
+                        key={previewImage ? 'has-img' : 'empty'}
+                        type="file" accept="image/*" 
+                        className="hidden" id="chat-img-upload"
+                        onChange={e => {
+                          if(e.target.files[0]) setPreviewImage(URL.createObjectURL(e.target.files[0]));
+                        }} 
+                      />
+                      <label htmlFor="chat-img-upload" className="btn-ghost !text-xs cursor-pointer border border-[var(--line)] px-4 py-2 hover:bg-[var(--line)]">
+                        {previewImage ? 'Change Image' : 'Select Image'}
+                      </label>
+                      {previewImage && <span className="text-xs font-mono text-[var(--accent-lime)]">Image selected. Ready to send.</span>}
+                    </div>
+                  ) : (
+                    <input type="text" className="input-field m-0 flex-grow" placeholder="Enter test sequence..." value={chatInput} onChange={e => setChatInput(e.target.value)} />
+                  )}
+                  <button className="btn btn-solid shrink-0 m-0" type="submit" disabled={isTyping || (currentProject.type === 'vision' && !previewImage)}>Send</button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'dev' && (
+            <div className="max-w-3xl space-y-6">
+               <div className="panel">
+                  <h3 className="input-label mb-4">Infrastructure Key</h3>
+                  <div className="flex gap-4 items-center">
+                    <div className="input-field font-mono text-sm text-[var(--accent-lime)] truncate select-all bg-[var(--surface-2)]">
+                      {currentProject?.api_key || 'Generate key via re-training.'}
+                    </div>
+                  </div>
+               </div>
+               <div className="panel border-[var(--accent-purple)]">
+                  <div className="flex justify-between items-center mb-6">
+                     <h3 className="font-display font-bold text-lg">
+                        {currentProject.type === 'vision' ? 'JavaScript Implementation (Edge ML)' : currentProject.type === 'generative' ? 'OpenAI Python SDK' : 'Python Implementation'}
+                     </h3>
+                  </div>
+                  <div className="bg-[var(--bg)] p-6 border border-[var(--line)] font-mono text-sm text-[var(--text-dim)] overflow-x-auto leading-loose whitespace-pre-wrap">
+                    {currentProject.type === 'vision' ? (
+                      <>
+                         <div className="text-[var(--text-faint)]">{'// Load model weights from your Toddler CDN endpoint'}</div>
+                         <div className="text-white">{'import * as tf from "@tensorflow/tfjs";'}</div>
+                         <div className="text-white">{'import * as knn from "@tensorflow-models/knn-classifier";'}</div>
+                         <div className="text-white mt-4">{'const url = "' + (currentProject.modelUrl || 'https://api.cloudinary.com/v1_1/.../raw') + '";'}</div>
+                         <div className="text-white">{'const res = await fetch(url);'}</div>
+                         <div className="pl-4 text-[var(--accent-purple)]">{'const datasetObj = await res.json();'}</div>
+                         <div className="text-[var(--text-faint)] mt-4">{'// Run edge prediction on a local image'}</div>
+                         <div className="text-white">{'const classifier = knn.create();'}</div>
+                         <div className="text-[var(--accent-lime)]">{'// (See documentation for deserialization logic)'}</div>
+                         <div className="text-white">{'const prediction = await classifier.predictClass(activation);'}</div>
+                      </>
+                    ) : currentProject.type === 'generative' ? (
+                      <div className="whitespace-pre overflow-x-auto">
+                         <div className="text-white">from openai import OpenAI</div>
+                         <div className="text-[var(--text-faint)] mt-4"># Initialize connection to your fine-tuned model</div>
+                         <div className="text-white">client = OpenAI(api_key="your_api_key")</div>
+                         <div className="text-white mt-4">response = client.chat.completions.create(</div>
+                         <div className="pl-4 text-[var(--accent-purple)]">model="ft:gpt-4o:toddler:{currentProject.id}",</div>
+                         <div className="pl-4 text-white">messages=[</div>
+                         <div className="pl-8 text-[var(--accent-lime)]">{`{"role": "system", "content": "${currentProject.dataset?.systemPrompt || 'You are a helpful assistant.'}"},`}</div>
+                         <div className="pl-8 text-white">{"{\"role\": \"user\", \"content\": \"Your prompt here\"}"}</div>
+                         <div className="pl-4 text-white">]</div>
+                         <div className="text-white">)</div>
+                         <div className="text-[var(--text-faint)] mt-4">print(response.choices[0].message.content)</div>
+                      </div>
+                    ) : (
+                      <>
+                         <div className="text-white">import pickle</div>
+                         <div className="text-[var(--text-faint)]"># Load serialized artifact</div>
+                         <div className="text-white">with open('toddler_v1_model.pkl', 'rb') as f:</div>
+                         <div className="pl-4 text-[var(--accent-purple)]">pipeline = pickle.load(f)</div>
+                         <div className="text-white mt-4"># Execute prediction</div>
+                         <div className="text-white">result = pipeline.predict(["Specific test string"])</div>
+                         <div className="text-[var(--accent-lime)]">print(f"Decision: {'{result[0]}'}")</div>
+                      </>
+                    )}
+                  </div>
+               </div>
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );

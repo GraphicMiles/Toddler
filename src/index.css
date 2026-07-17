@@ -1,24 +1,32 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap');
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap');
 
 @theme {
-  /* Colors - Neon Dark Theme */
-  --color-bg-base: #0B0C10;
-  --color-bg-surface: #161B22;
-  --color-bg-card: #0F1210;
+  /* Dark webapp base — violet-black depth */
+  --color-bg-base: #0A0812;
+  --color-bg-surface: #141020;
+  --color-bg-surface-2: #1B1529;
+  --color-bg-dark: #050308;
   
-  --color-text-primary: #FFFFFF;
-  --color-text-muted: #8B949E;
-  --color-text-inverse: #0B0C10;
+  --color-text-primary: #F3F1F7;
+  --color-text-muted: #8D87A0;
+  --color-text-muted-inverse: #7A7690;
+  --color-text-inverse: #0A0812;
   
-  --color-accent-green: #C6FF33;
-  --color-accent-purple: #7D39EB;
-  --color-accent-purple-glow: rgba(125, 57, 235, 0.3);
+  --color-accent-violet: #7D39EB;
+  --color-accent-violet-soft: #B393F5;
+  --color-accent-violet-deep: #4B1F94;
+  --color-accent-lime: #C6FF33;
+  --color-accent-lime-fg: #0A0812;
   
   --color-border-subtle: rgba(255, 255, 255, 0.08);
-  --color-border-accent: #7D39EB;
+  --color-border-hairlight: rgba(255, 255, 255, 0.14);
 
-  /* Spacing Scale - Strict Layout Discipline */
+  /* Typography */
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+
+  /* Spacing Scale - Layout Discipline */
   --spacing-1: 4px;
   --spacing-2: 8px;
   --spacing-3: 12px;
@@ -29,38 +37,58 @@
   --spacing-8: 64px;
   --spacing-9: 96px;
 
-  /* Radius Tokens */
+  /* Radius */
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 16px;
-  --radius-xl: 32px;
+  --radius-xl: 18px;
   --radius-pill: 9999px;
-
-  /* Typography */
-  --font-sans: "Inter", system-ui, sans-serif;
-  --font-display: "Space Grotesk", sans-serif;
 }
 
 :root {
   background-color: var(--color-bg-base);
   color: var(--color-text-primary);
-  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-standard: cubic-bezier(0.16, 0.8, 0.24, 1);
 }
 
 body {
   margin: 0;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
   background-color: var(--color-bg-base);
+  background-image: radial-gradient(ellipse 900px 500px at 50% -10%, rgba(125, 57, 235, 0.16), transparent 60%);
+  position: relative;
+}
+
+/* Film-grain overlay */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: var(--font-display);
+  margin: 0;
 }
 
 @layer utilities {
-  .text-glow-green {
-    text-shadow: 0 0 20px rgba(198, 255, 51, 0.4);
+  .max-w-prose-head {
+    max-width: 20ch;
+  }
+  
+  .glow-violet {
+    box-shadow: 0 0 0 1px rgba(125,57,235,.28), 0 8px 32px -8px rgba(125,57,235,.5);
   }
 
-  .glow-purple {
-    box-shadow: 0 0 40px var(--color-accent-purple-glow);
+  .glow-lime {
+    box-shadow: 0 0 0 1px rgba(198,255,51,.32), 0 8px 32px -8px rgba(198,255,51,.38);
   }
 
   .fade-in-up {
@@ -68,7 +96,24 @@ body {
   }
   
   @keyframes fade-in-up {
-    from { opacity: 0; transform: translateY(24px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
+
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(90px);
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.55;
+  }
+  .orb-violet { background: radial-gradient(circle, var(--color-accent-violet) 0%, transparent 70%); }
+  .orb-lime { background: radial-gradient(circle, var(--color-accent-lime) 0%, transparent 70%); }
 }

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase';
-import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
+import { Shield, Play } from 'lucide-react';
 import Onboarding from './Onboarding';
 
 const Dashboard = () => {

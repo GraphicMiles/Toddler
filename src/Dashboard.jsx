@@ -50,10 +50,9 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, [predicting, isTyping, batching]);
 
-  const currentProject = projects[0];
-
   const handlePredict = async () => {
-    if (!predictText) return;
+    const currentProject = projects[0];
+    if (!predictText || !currentProject) return;
     setPredicting(true);
     setPrediction(null);
     try {
@@ -76,7 +75,8 @@ const Dashboard = () => {
 
   const handleBatchPredict = async (e) => {
     e.preventDefault();
-    if (!batchFile || !batchTextCol) return;
+    const currentProject = projects[0];
+    if (!batchFile || !batchTextCol || !currentProject) return;
     setBatching(true);
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
@@ -93,7 +93,7 @@ const Dashboard = () => {
       a.download = `batch_results.csv`;
       document.body.appendChild(a);
       a.click();
-      toast.success('Batch discombobulated successfully.');
+      toast.success('Batch processing complete.');
     } catch (e) {
       toast.error('Batch failed.');
     } finally {
@@ -102,6 +102,7 @@ const Dashboard = () => {
   };
 
   const handleRename = async () => {
+    const currentProject = projects[0];
     if (!newName || newName === currentProject.name) {
       setIsEditingName(false);
       return;
@@ -118,7 +119,8 @@ const Dashboard = () => {
 
   const handleChatSend = async (e) => {
     e.preventDefault();
-    if (!chatInput.trim()) return;
+    const currentProject = projects[0];
+    if (!chatInput.trim() || !currentProject) return;
 
     const userMsg = { role: 'user', text: chatInput };
     setChatMessages(prev => [...prev, userMsg]);
@@ -134,7 +136,7 @@ const Dashboard = () => {
       const response = await fetch(`${apiUrl}/predict`, { method: 'POST', body: formData });
       const data = await response.json();
       
-      const botResponse = responses[data.prediction] || `Intelligent guess: "${data.prediction}". (Response not set)`;
+      const botResponse = responses[data.prediction] || `Decision: "${data.prediction}". (No custom response)`;
       
       setTimeout(() => {
         setChatMessages(prev => [...prev, { role: 'bot', text: botResponse, intent: data.prediction, confidence: data.confidence }]);
@@ -146,6 +148,7 @@ const Dashboard = () => {
   };
 
   const saveResponse = async (label, text) => {
+    const currentProject = projects[0];
     const newResponses = { ...responses, [label]: text };
     setResponses(newResponses);
     try {
@@ -157,6 +160,7 @@ const Dashboard = () => {
   };
 
   const handleDownload = async () => {
+    const currentProject = projects[0];
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
       const response = await fetch(`${apiUrl}/projects/${currentProject.id}/download`);
@@ -175,6 +179,7 @@ const Dashboard = () => {
   };
 
   const handleDelete = async () => {
+    const currentProject = projects[0];
     if (!window.confirm("Delete project permanently?")) return;
     try {
       await deleteDoc(doc(db, "projects", currentProject.id));
@@ -227,6 +232,8 @@ const Dashboard = () => {
   );
 
   if (projects.length === 0) return <Onboarding onComplete={(p) => setProjects([p])} />;
+
+  const currentProject = projects[0];
 
   return (
     <div className="min-h-screen bg-[#FAFAF8] flex font-sans relative overflow-hidden">
@@ -287,6 +294,7 @@ const Dashboard = () => {
                   className="font-display text-4xl md:text-5xl font-bold tracking-tighter leading-none bg-transparent border-none border-b-4 border-[#1B4332] outline-none"
                   value={newName} onChange={(e) => setNewName(e.target.value)}
                   autoFocus onBlur={handleRename}
+                  onKeyDown={(e) => e.key === 'Enter' && handleRename()}
                 />
               </div>
             ) : (
@@ -377,7 +385,7 @@ const Dashboard = () => {
               />
               <button 
                 onClick={handlePredict} disabled={predicting}
-                className="w-full h-16 bg-[#111111] text-white rounded-full font-bold uppercase tracking-widest text-xs hover:bg-transparent hover:text-black border-2 border-black transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                className="w-full h-16 bg-[#111111] text-white rounded-full font-bold uppercase tracking-widest text-xs hover:bg-transparent hover:text-black border-2 border-black transition-all disabled:opacity-50 flex items-center justify-center gap-3 cursor-pointer"
               >
                 {predicting ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> {loadingMessage}</> : 'Run Prediction'}
               </button>
@@ -464,9 +472,9 @@ const Dashboard = () => {
                    </div>
                    <input 
                     type="text" placeholder="Text column name..." value={batchTextCol} onChange={e => setBatchTextCol(e.target.value)}
-                    className="w-full h-14 px-6 bg-[#FAFAF8] border border-[#E5E4E0] rounded-xl outline-none focus:border-black transition-all"
+                    className="w-full h-14 px-6 bg-[#FAFAF8] border border-[#E5E4E0] rounded-xl outline-none focus:border-black transition-all font-bold"
                    />
-                   <button disabled={!batchFile || !batchTextCol || batching} className="w-full h-16 bg-black text-white rounded-full font-bold uppercase tracking-widest text-xs flex items-center justify-center gap-3">
+                   <button disabled={!batchFile || !batchTextCol || batching} className="w-full h-16 bg-black text-white rounded-full font-bold uppercase tracking-widest text-xs flex items-center justify-center gap-3 cursor-pointer">
                      {batching ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> {loadingMessage}</> : 'Run Batch Job'}
                    </button>
                 </form>
@@ -482,7 +490,7 @@ const Dashboard = () => {
                   {currentProject.labels?.map(label => (
                     <div key={label} className="space-y-2">
                        <label className="text-[10px] font-bold uppercase tracking-widest text-[#1B4332]">{label}</label>
-                       <textarea className="w-full p-4 bg-[#FAFAF8] border border-[#E5E4E0] rounded-xl text-sm outline-none focus:border-black resize-none" value={responses[label] || ''} onChange={e => setResponses({...responses, [label]: e.target.value})} onBlur={e => saveResponse(label, e.target.value)} />
+                       <textarea className="w-full p-4 bg-[#FAFAF8] border border-[#E5E4E0] rounded-xl text-sm outline-none focus:border-black resize-none font-bold" value={responses[label] || ''} onChange={e => setResponses({...responses, [label]: e.target.value})} onBlur={e => saveResponse(label, e.target.value)} />
                     </div>
                   ))}
                </div>
@@ -502,7 +510,7 @@ const Dashboard = () => {
                   {isTyping && <div className="bg-[#1B4332]/50 text-white self-start p-4 rounded-2xl animate-pulse text-xs">...</div>}
                </div>
                <form onSubmit={handleChatSend} className="p-6 bg-white/5 border-t border-white/5">
-                  <div className="relative"><input type="text" className="w-full h-14 bg-white/10 border border-white/10 rounded-full pl-6 pr-16 text-white outline-none focus:border-[#1B4332]" placeholder="Ask the chatbot..." value={chatInput} onChange={e => setChatInput(e.target.value)} /><button className="absolute right-2 top-2 w-10 h-10 bg-[#1B4332] text-white rounded-full flex items-center justify-center cursor-pointer border-none"><Send size={18} /></button></div>
+                  <div className="relative"><input type="text" className="w-full h-14 bg-white/10 border border-white/10 rounded-full pl-6 pr-16 text-white outline-none focus:border-[#1B4332] font-bold" placeholder="Ask the chatbot..." value={chatInput} onChange={e => setChatInput(e.target.value)} /><button className="absolute right-2 top-2 w-10 h-10 bg-[#1B4332] text-white rounded-full flex items-center justify-center cursor-pointer border-none"><Send size={18} /></button></div>
                </form>
             </div>
           </div>

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Toddler</string>
+    <string name="title_activity_main">Toddler</string>
+    <string name="package_name">ai.toddler.app</string>
+    <string name="custom_url_scheme">ai.toddler.app</string>
+</resources>

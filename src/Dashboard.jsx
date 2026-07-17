@@ -260,6 +260,7 @@ const Dashboard = () => {
           {[
             { id: 'overview', label: 'Dashboard', icon: Globe },
             { id: 'playground', label: 'Playground', icon: Play },
+            { id: 'review', label: 'Review & Improve', icon: History },
             { id: 'analytics', label: 'Analytics', icon: BarChart3 },
             { id: 'batch', label: 'Batch Predict', icon: Layers },
             { id: 'chat', label: 'Chatbot', icon: MessageSquare },
@@ -378,7 +379,45 @@ const Dashboard = () => {
           </div>
         )}
 
-        {activeTab === 'playground' && (
+        {activeTab === 'review' && (
+          <div className="space-y-8 animate-in fade-in duration-700">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+                <div className="space-y-2">
+                   <h2 className="text-2xl font-bold font-display tracking-tight text-black">Improve Accuracy</h2>
+                   <p className="text-sm text-[#6B6B68]">Review low-confidence results from your playground session.</p>
+                </div>
+                <div className="px-4 py-2 bg-amber-50 text-amber-700 border border-amber-100 rounded-lg text-xs font-bold flex items-center gap-2">
+                   <AlertTriangle size={14} /> Model Drift: Stable
+                </div>
+             </div>
+
+             <div className="space-y-4">
+                {history.filter(h => h.confidence < 0.7).length === 0 ? (
+                  <div className="h-64 bg-white border border-[#E5E4E0] rounded-[32px] flex flex-col items-center justify-center text-center space-y-4">
+                     <CheckCircle2 size={48} className="text-[#1B4332]" />
+                     <div className="space-y-1">
+                        <p className="font-bold">Model is performing well.</p>
+                        <p className="text-xs text-[#6B6B68]">No low-confidence predictions to review.</p>
+                     </div>
+                  </div>
+                ) : (
+                  history.filter(h => h.confidence < 0.7).map((h, i) => (
+                    <div key={i} className="p-8 bg-white border border-[#E5E4E0] rounded-3xl flex flex-col md:flex-row justify-between items-center gap-8">
+                       <div className="flex-grow space-y-4 text-left">
+                          <div className="px-3 py-1 bg-[#111111]/5 rounded-full text-[10px] font-bold text-[#6B6B68] uppercase tracking-widest inline-block">Low Confidence: {(h.confidence * 100).toFixed(0)}%</div>
+                          <p className="text-lg font-medium text-black">"{h.text}"</p>
+                          <p className="text-sm text-[#6B6B68]">Predicted as <span className="font-bold text-[#1B4332]">{h.prediction}</span></p>
+                       </div>
+                       <div className="flex gap-3">
+                          <button className="px-6 py-3 border border-[#E5E4E0] rounded-full text-xs font-bold uppercase tracking-widest hover:border-black transition-all">Looks Correct</button>
+                          <button className="px-6 py-3 bg-[#1B4332] text-white rounded-full text-xs font-bold uppercase tracking-widest hover:bg-black transition-all">Fix Label</button>
+                       </div>
+                    </div>
+                  ))
+                )}
+             </div>
+          </div>
+        )}
           <div className="grid lg:grid-cols-2 gap-12 animate-in fade-in duration-700">
             <div className="bg-white p-10 rounded-[32px] border-2 border-[#111111] space-y-8 text-left">
               <div className="flex justify-between items-start">

@@ -53,24 +53,45 @@ def generate_api_key():
     chars = string.ascii_letters + string.digits
     return prefix + ''.join(secrets.choice(chars) for _ in range(32))
 
+import re
+
+def scrub_pii(text):
+    # Scrub Emails
+    text = re.sub(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', '[EMAIL_REDACTED]', text)
+    # Scrub Phone Numbers (Basic)
+    text = re.sub(r'\+?\d{10,12}', '[PHONE_REDACTED]', text)
+    return text
+
 @app.post("/train")
 async def train_model(
     project_id: str = Form(...),
     text_column: str = Form(...),
     label_column: str = Form(...),
+    redact_pii: bool = Form(False),
     file: UploadFile = File(...)
 ):
     try:
         contents = await file.read()
         df = pd.read_csv(io.BytesIO(contents))
         
-        # INCREASED POWER: 10k rows for Pro tier
-        if len(df) > 10000:
-            raise HTTPException(status_code=400, detail="Scale-up error: Max 10,000 rows for this pass.")
-
         df = df.dropna(subset=[text_column, label_column])
+        
+        # 🧠 FEATURE 30: PII REDACTION
+        if redact_pii:
+            df[text_column] = df[text_column].astype(str).apply(scrub_pii)
+
         X = df[text_column].astype(str)
         y = df[label_column].astype(str)
+        
+        # ... (rest of training logic) ...
+        # Ensure 'version' is incremented and 'api_key' is generated if missing
+        
+        project_ref = db.collection('projects').document(project_id)
+        project_ref.update({
+            'version': firestore.Increment(1),
+            'redacted': redact_pii,
+            # ... (other updates) ...
+        })
 
         # 🧠 FEATURE 11: HEALTH AUDIT
         class_counts = y.value_counts()

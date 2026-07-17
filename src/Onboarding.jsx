@@ -63,6 +63,8 @@ const Onboarding = ({ onComplete }) => {
     });
   };
 
+  const [redactPii, setRedactPii] = useState(false);
+
   const handleComplete = async () => {
     if (!selection.text || !selection.label) {
       setError('Please select both text and label columns.');
@@ -79,6 +81,7 @@ const Onboarding = ({ onComplete }) => {
         name: projectName,
         createdAt: new Date(),
         status: 'training',
+        redactPii,
         dataset: { textColumn: selection.text, labelColumn: selection.label, rowCount: csvData ? csvData.length : 0 }
       };
       const docRef = await addDoc(collection(db, "projects"), projectData);
@@ -89,6 +92,7 @@ const Onboarding = ({ onComplete }) => {
       formData.append('project_id', docRef.id);
       formData.append('text_column', selection.text);
       formData.append('label_column', selection.label);
+      formData.append('redact_pii', redactPii);
 
       const apiUrl = import.meta.env.VITE_API_URL;
       if (!apiUrl) throw new Error('Backend URL (VITE_API_URL) is not configured in Vercel settings');
@@ -164,6 +168,22 @@ const Onboarding = ({ onComplete }) => {
                       <p className="text-xl font-bold">Drop your CSV here</p>
                       <p className="text-xs font-bold uppercase tracking-widest text-[#6B6B68]">or click to browse local files</p>
                    </div>
+                </div>
+              </div>
+
+              {/* 🧠 FEATURE 30: PII REDACTION TOGGLE */}
+              <div className="p-6 bg-[#FAFAF8] rounded-2xl border border-[#E5E4E0] flex items-center justify-between group cursor-pointer" onClick={() => setRedactPii(!redactPii)}>
+                <div className="flex items-center gap-4">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${redactPii ? 'bg-[#1B4332] text-white' : 'bg-white text-[#6B6B68]'}`}>
+                    <Shield size={20} />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-sm font-bold">PII Redaction</div>
+                    <div className="text-[10px] font-bold text-[#6B6B68] uppercase tracking-widest">Auto-scrub emails & phones</div>
+                  </div>
+                </div>
+                <div className={`w-12 h-6 rounded-full relative transition-all ${redactPii ? 'bg-[#1B4332]' : 'bg-[#E5E4E0]'}`}>
+                   <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${redactPii ? 'left-7' : 'left-1'}`} />
                 </div>
               </div>
               {error && <div className="p-4 bg-red-50 text-red-600 text-sm font-bold rounded-xl flex items-center gap-3"><AlertCircle size={18} /> {error}</div>}

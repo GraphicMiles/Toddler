@@ -15,7 +15,6 @@
     "@capacitor/core": "^7.0.0",
     "@capacitor/haptics": "^7.0.0",
     "@capacitor/status-bar": "^7.0.0",
-    "@hugocid/capacitor-navigation-bar": "^4.0.0",
     "chart.js": "^4.4.0",
     "firebase": "^11.0.0",
     "framer-motion": "^11.0.0",

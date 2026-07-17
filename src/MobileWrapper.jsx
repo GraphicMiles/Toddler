@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
-import { NavigationBar } from '@hugocid/capacitor-navigation-bar';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
 const MobileWrapper = ({ children }) => {
@@ -11,9 +10,6 @@ const MobileWrapper = ({ children }) => {
       StatusBar.setStyle({ style: Style.Dark });
       StatusBar.setBackgroundColor({ color: '#0A0812' });
       
-      // Hide Navigation Bar for immersive feel
-      NavigationBar.setLabel({ label: '' });
-      NavigationBar.setColor({ color: '#0A0812' });
     }
   }, []);
 

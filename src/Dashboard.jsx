@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Play, Menu, X } from 'lucide-react';
+import { Shield, Play, Menu, X, Download } from 'lucide-react';
 import Onboarding from './Onboarding';
 
 const Dashboard = () => {
@@ -17,6 +17,7 @@ const Dashboard = () => {
   const handlePredict = async () => {
     if (!predictText) return;
     setPredicting(true);
+    setPrediction(null);
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
       if (!apiUrl) throw new Error('API URL missing');
@@ -35,6 +36,23 @@ const Dashboard = () => {
       console.error(e);
     } finally {
       setPredicting(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL;
+      const response = await fetch(`${apiUrl}/projects/${projects[0].id}/download`);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `toddler_model_${projects[0].name.toLowerCase().replace(/\s+/g, '_')}.pkl`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Download failed:", e);
     }
   };
 
@@ -128,7 +146,15 @@ const Dashboard = () => {
             <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tighter leading-none">{project.name}</h1>
             <p className="text-text-muted font-medium uppercase tracking-[0.1em] text-[10px] md:text-xs">V1 Model Engine · Active</p>
           </div>
-          <div className="px-4 py-2 bg-accent text-accent-fg rounded-full text-[9px] md:text-[10px] font-bold uppercase tracking-widest">System Operational</div>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={handleDownload}
+              className="px-4 py-2 border border-border-subtle hover:border-text-primary transition-all rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 cursor-pointer bg-white"
+            >
+              <Download size={14} /> Download (.pkl)
+            </button>
+            <div className="px-4 py-2 bg-accent text-accent-fg rounded-full text-[9px] md:text-[10px] font-bold uppercase tracking-widest">System Operational</div>
+          </div>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
@@ -186,11 +212,38 @@ const Dashboard = () => {
                 
                 {prediction && (
                   <div className="p-4 md:p-6 bg-accent/5 border border-accent/10 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-300">
-                    <div className="flex justify-between items-center mb-2">
-                       <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-accent">Result</span>
+                    <div className="flex justify-between items-center mb-4">
+                       <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-accent">Prediction Result</span>
                        <span className="text-[9px] md:text-[10px] font-bold text-accent">{(prediction.confidence * 100).toFixed(1)}% Confidence</span>
                     </div>
-                    <div className="text-xl md:text-2xl font-display font-bold text-accent truncate">{prediction.prediction}</div>
+                    
+                    <div className="text-2xl font-display font-bold text-accent mb-4 leading-none">{prediction.prediction}</div>
+                    
+                    {/* Explainability / Word Highlights */}
+                    <div className="pt-4 border-t border-accent/10">
+                      <div className="text-[9px] font-bold uppercase tracking-widest text-accent/40 mb-3">Key contributors:</div>
+                      <div className="flex flex-wrap gap-2">
+                        {predictText.split(/\s+/).map((word, i) => {
+                          const cleanWord = word.toLowerCase().replace(/[.,!?;]/g, '');
+                          const weight = prediction.weights[cleanWord];
+                          // Map weight to opacity (0.1 to 0.4 range)
+                          const intensity = weight ? Math.min(Math.max(Math.abs(weight) * 2, 0.1), 0.4) : 0;
+                          
+                          return (
+                            <span 
+                              key={i} 
+                              className="px-2 py-0.5 rounded text-xs md:text-sm font-medium transition-all duration-500"
+                              style={{ 
+                                backgroundColor: intensity > 0 ? `rgba(27, 67, 50, ${intensity})` : 'transparent',
+                                border: intensity > 0 ? `1px solid rgba(27, 67, 50, 0.1)` : '1px solid transparent'
+                              }}
+                            >
+                              {word}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

@@ -4,6 +4,7 @@ import base64
 import pickle
 import pandas as pd
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.responses import Response, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -123,9 +124,51 @@ async def predict(project_id: str = Form(...), text: str = Form(...)):
         probabilities = pipeline.predict_proba([text])[0]
         confidence = float(max(probabilities))
 
+        # 4. Explainability (Feature Importance)
+        tfidf = pipeline.named_steps['tfidf']
+        clf = pipeline.named_steps['clf']
+        feature_names = tfidf.get_feature_names_out()
+        
+        # Get the index of the predicted class
+        class_idx = list(clf.classes_).index(prediction)
+        
+        # Calculate weights for this specific text
+        transformed_text = tfidf.transform([text])
+        weights = {}
+        
+        # Get word indices from the TF-IDF vector
+        word_indices = transformed_text.indices
+        for idx in word_indices:
+            word = feature_names[idx]
+            # weight = coef * tfidf_value
+            weight = clf.coef_[class_idx][idx] * transformed_text[0, idx]
+            weights[word] = float(weight)
+
         return {
             "prediction": str(prediction),
-            "confidence": confidence
+            "confidence": confidence,
+            "weights": weights
         }
+    except Exception as e:
+        print(f"Prediction Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/projects/{project_id}/download")
+async def download_model(project_id: str):
+    try:
+        project_ref = db.collection('projects').document(project_id)
+        doc = project_ref.get()
+        if not doc.exists:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        data = doc.to_dict()
+        model_b64 = data.get('model_artifact')
+        model_bytes = base64.b64decode(model_b64)
+        
+        return Response(
+            content=model_bytes,
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f"attachment; filename=toddler_model_{project_id}.pkl"}
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

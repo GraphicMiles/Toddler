@@ -10,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/cli": "^7.6.8",
+    "@capacitor/core": "^8.4.2",
     "chart.js": "^4.5.1",
     "firebase": "^12.16.0",
     "framer-motion": "^12.42.2",

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase';
-import { collection, query, where, getDocs, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, deleteDoc, updateDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
   Shield, Play, Menu, X, Download, Trash2, Edit3, 
@@ -32,8 +32,62 @@ const Dashboard = () => {
   const [batchFile, setBatchFile] = useState(null);
   const [batchTextCol, setBatchTextCol] = useState('');
   const [batching, setBatching] = useState(false);
+  const [logs, setLogs] = useState([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [trainingJob, setTrainingJob] = useState(null);
+  const [catalog, setCatalog] = useState([
+    { id: 'sent-001', name: 'Sentiment Engine V2', type: 'Text Classification', description: 'General purpose sentiment analysis (Positive/Negative/Neutral).', rows: '450k', accuracy: 0.92, tags: ['NLP', 'Base'] },
+    { id: 'spam-001', name: 'Guardian Spam Shield', type: 'Binary Filter', description: 'Highly optimized filter for marketing spam and phishing detection.', rows: '1.2M', accuracy: 0.98, tags: ['Security', 'Production'] },
+    { id: 'intent-001', name: 'Support Intent Hub', type: 'Multi-class', description: 'Categorize customer support tickets into 12 distinct intents.', rows: '85k', accuracy: 0.89, tags: ['SaaS', 'Support'] }
+  ]);
 
   const navigate = useNavigate();
+
+  const handleImportModel = async (model) => {
+    toast.loading(`Importing ${model.name}...`);
+    try {
+      // 1. Create a new project based on the catalog model
+      const projectRef = doc(collection(db, "projects"));
+      const newProject = {
+        name: `${model.name} (Fork)`,
+        ownerUid: auth.currentUser.uid,
+        status: 'ready_to_tune',
+        base_model_id: model.id,
+        accuracy: model.accuracy,
+        health: 'Baseline',
+        version: 1,
+        createdAt: new Date(),
+        // In a real app, we'd fetch the base artifact from a 'catalog' collection
+        // For now, we'll mark it for the agent to fetch
+      };
+      
+      await setDoc(projectRef, newProject);
+      setProjects([newProject, ...projects]);
+      
+      toast.dismiss();
+      toast.success(`${model.name} imported. Ready for fine-tuning.`);
+      setActiveTab('overview');
+    } catch (e) {
+      toast.error("Import failed.");
+    }
+  };
+
+  useEffect(() => {
+    if (currentProject?.current_job_id) {
+        // Listen to the specific job progress
+        const unsub = onSnapshot(doc(db, "training_jobs", currentProject.current_job_id), (doc) => {
+            if (doc.exists()) {
+                const data = doc.data();
+                setTrainingJob(data);
+                if (data.status === 'completed') {
+                    toast.success("Local training complete! Engine synchronized.");
+                    window.location.reload(); // Refresh to get new metrics
+                }
+            }
+        });
+        return () => unsub();
+    }
+  }, [currentProject]);
 
   const messages = [
     "Caramelizing onions...",
@@ -200,6 +254,63 @@ const Dashboard = () => {
     }
   };
 
+  const fetchLogs = async () => {
+    if (!currentProject) return;
+    setLogsLoading(true);
+    try {
+      const q = query(
+        collection(db, "projects", currentProject.id, "logs"), 
+        where("reviewed", "==", false)
+      );
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setLogs(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'review') {
+      fetchLogs();
+    }
+  }, [activeTab]);
+
+  const handleReview = async (logId, correctLabel) => {
+    try {
+      await updateDoc(doc(db, "projects", currentProject.id, "logs", logId), {
+        reviewed: true,
+        finalLabel: correctLabel,
+        reviewedAt: new Date()
+      });
+      setLogs(prev => prev.filter(l => l.id !== logId));
+      toast.success('Wisdom recorded.');
+    } catch (e) {
+      toast.error('Review failed.');
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL;
+      const response = await fetch(`${apiUrl}/projects/${currentProject.id}/export`);
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `toddler_bundle_${currentProject.id}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success('Integration Bundle ready.');
+    } catch (e) {
+      toast.error('Export failed');
+    }
+  };
+
   const handleDownload = async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
@@ -281,6 +392,8 @@ const Dashboard = () => {
           {[
             { id: 'overview', label: 'Dashboard', icon: Activity },
             { id: 'playground', label: 'Playground', icon: Play },
+            { id: 'review', label: 'Review', icon: ShieldCheck },
+            { id: 'library', label: 'Model Zoo', icon: Globe },
             { id: 'analytics', label: 'Analytics', icon: BarChart3 },
             { id: 'batch', label: 'Batch Jobs', icon: Layers },
             { id: 'chat', label: 'Chatbot', icon: MessageSquare },
@@ -457,6 +570,117 @@ const Dashboard = () => {
           </div>
         )}
 
+        {activeTab === 'review' && (
+          <div className="space-y-[var(--spacing-8)] fade-in-up text-left">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h2 className="text-2xl font-bold font-display text-white">Review & Improve</h2>
+                <p className="text-sm text-white/40">Calibrate the engine by verifying low-confidence predictions.</p>
+              </div>
+              <Button onClick={fetchLogs} variant="outline" size="sm" icon={Zap} disabled={logsLoading}>
+                Refresh Logs
+              </Button>
+            </div>
+
+            <div className="grid gap-[var(--spacing-4)]">
+              {logsLoading ? (
+                [1,2,3].map(i => <Skeleton key={i} className="h-24 w-full rounded-2xl" />)
+              ) : logs.length > 0 ? (
+                logs.map((log) => (
+                  <Card key={log.id} className="!bg-[#0D0F14] !border-white/5 flex flex-col md:flex-row justify-between items-center gap-[var(--spacing-6)] group">
+                    <div className="flex-grow space-y-[var(--spacing-2)] w-full text-left">
+                      <div className="text-sm font-medium text-white/90 leading-relaxed bg-white/5 p-4 rounded-xl border border-white/5">{log.text}</div>
+                      <div className="flex items-center gap-4 mt-2">
+                        <Badge variant={log.confidence > 0.8 ? 'green' : 'purple'}>
+                          Inferred: {log.prediction}
+                        </Badge>
+                        <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">
+                          {(log.confidence * 100).toFixed(1)}% Confidence
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-[var(--spacing-3)] w-full md:w-auto">
+                      <Button 
+                        size="sm" 
+                        variant="primary" 
+                        className="flex-1 md:flex-none !bg-[var(--color-accent-green)] !text-black"
+                        onClick={() => handleReview(log.id, log.prediction)}
+                      >
+                        Verify
+                      </Button>
+                      <div className="relative group/menu flex-1 md:flex-none">
+                        <Button size="sm" variant="outline" className="w-full">Correct</Button>
+                        <div className="absolute right-0 bottom-full mb-2 w-48 bg-[#0D0F14] border border-white/10 rounded-xl shadow-2xl opacity-0 group-hover/menu:opacity-100 pointer-events-none group-hover/menu:pointer-events-auto transition-all z-10 p-2">
+                          {currentProject?.labels?.filter(l => l !== log.prediction).map(label => (
+                            <button 
+                              key={label}
+                              onClick={() => handleReview(log.id, label)}
+                              className="w-full text-left px-4 py-2 text-xs font-bold text-white/60 hover:text-[var(--color-accent-green)] hover:bg-white/5 rounded-lg transition-colors border-none bg-transparent cursor-pointer"
+                            >
+                              Mark as {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                ))
+              ) : (
+                <div className="p-20 border-2 border-dashed border-white/5 rounded-[var(--radius-xl)] text-center">
+                  <Activity size={48} className="mx-auto mb-4 opacity-10" />
+                  <div className="text-sm text-white/20 italic">The engine is currently stable. No new logs to review.</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'library' && (
+          <div className="space-y-[var(--spacing-8)] fade-in-up text-left">
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold font-display text-white">Model Zoo</h2>
+              <p className="text-sm text-white/40">Download pre-trained foundations to skip cold-start training.</p>
+            </div>
+            
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {catalog.map((m) => (
+                <Card key={m.id} className="!bg-[#0D0F14] !border-white/5 flex flex-col justify-between h-full group hover:border-[var(--color-accent-green)]/30 transition-all">
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-start">
+                      <div className="p-3 bg-white/5 rounded-xl group-hover:bg-[var(--color-accent-green)]/10 transition-colors">
+                        <Zap size={20} className="text-[var(--color-accent-green)]" />
+                      </div>
+                      <Badge variant="neutral">{m.accuracy * 100}% Acc</Badge>
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="font-bold text-white text-lg">{m.name}</h4>
+                      <p className="text-xs text-white/40 leading-relaxed">{m.description}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {m.tags.map(t => <span key={t} className="text-[9px] font-black uppercase tracking-widest text-white/20 border border-white/5 px-2 py-0.5 rounded-full">{t}</span>)}
+                    </div>
+                  </div>
+                  <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between">
+                    <div className="text-[10px] font-bold text-white/20 uppercase tracking-widest">
+                      {m.rows} Base Rows
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => handleImportModel(m)}>Import & Tune</Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            <Card className="!bg-[var(--color-accent-purple)]/5 border-dashed border-[var(--color-accent-purple)]/20 p-12 text-center space-y-4">
+               <Globe size={40} className="mx-auto text-[var(--color-accent-purple)] opacity-40" />
+               <div className="space-y-1">
+                 <h3 className="font-bold text-white">Community Catalog Coming Soon</h3>
+                 <p className="text-sm text-white/40">Soon you'll be able to publish your own .pkl artifacts to the Toddler ecosystem.</p>
+               </div>
+               <Button variant="outline" size="sm" className="!border-[var(--color-accent-purple)]/40 !text-[var(--color-accent-purple)]">Request Early Access</Button>
+            </Card>
+          </div>
+        )}
+
         {activeTab === 'analytics' && (
           <div className="grid lg:grid-cols-2 gap-[var(--spacing-8)] md:gap-[var(--spacing-10)] fade-in-up">
              <Card className="text-left !bg-[#0D0F14] !border-white/5">
@@ -609,7 +833,22 @@ const Dashboard = () => {
                    <div className="text-white">result = pipeline.predict(["Specific test string"])</div>
                    <div className="text-[var(--color-accent-green)]">print(f"Engine Decision: {'{result[0]}'}")</div>
                 </div>
-                <Button variant="secondary" className="w-full !h-16" size="lg">Generate Integration Zip</Button>
+                <Button variant="secondary" className="w-full !h-16" size="lg" onClick={handleExport}>Generate Integration Zip</Button>
+             </Card>
+
+             <Card className="space-y-[var(--spacing-8)] !bg-[#0D0F14] !border-white/5">
+                <div className="flex justify-between items-center">
+                   <span className="text-[11px] font-bold uppercase tracking-[0.3em] opacity-40">Web Integration: Embeddable Widget</span>
+                   <Globe className="text-[var(--color-accent-green)]" size={18} />
+                </div>
+                <p className="text-xs text-white/40">Copy and paste this snippet before the &lt;/body&gt; tag of your website.</p>
+                <div className="bg-white/5 p-6 rounded-2xl border border-white/5 font-mono text-[11px] text-[var(--color-accent-green)] overflow-x-auto">
+                   {`<script \n  src="${window.location.origin}/widget.js" \n  data-project-id="${currentProject.id}">\n</script>`}
+                </div>
+                <Button variant="outline" size="sm" onClick={() => {
+                  navigator.clipboard.writeText(`<script src="${window.location.origin}/widget.js" data-project-id="${currentProject.id}"></script>`);
+                  toast.success('Snippet copied.');
+                }}>Copy Snippet</Button>
              </Card>
           </div>
         )}

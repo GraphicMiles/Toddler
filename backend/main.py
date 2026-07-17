@@ -8,12 +8,14 @@ import string
 import re
 import numpy as np
 import pandas as pd
+import zipfile
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import accuracy_score, confusion_matrix
 import firebase_admin
@@ -65,75 +67,37 @@ async def train_model(
     file: UploadFile = File(...)
 ):
     try:
+        # Instead of training here, we queue it for the BYOC Agent
         contents = await file.read()
-        df = pd.read_csv(io.BytesIO(contents))
         
-        if len(df) > 10000:
-            raise HTTPException(status_code=400, detail="File too large. Max 10,000 rows.")
+        # Save CSV data to a 'pending_data' field (or Firebase Storage if available, 
+        # but for Spark plan we'll use a string/blob in Firestore for small files)
+        csv_b64 = base64.b64encode(contents).decode('utf-8')
 
-        df = df.dropna(subset=[text_column, label_column])
+        job_ref = db.collection('training_jobs').document()
+        job_id = job_ref.id
         
-        if redact_pii:
-            df[text_column] = df[text_column].astype(str).apply(scrub_pii)
-
-        X = df[text_column].astype(str)
-        y = df[label_column].astype(str)
-
-        # Health Audit
-        class_counts = y.value_counts()
-        imbalanced = False
-        if len(class_counts) > 1:
-            imbalanced = (class_counts.max() / class_counts.min()) > 4
-        health_status = "Warning: Imbalanced Data" if imbalanced else "Optimal"
-
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        
-        pipeline = Pipeline([
-            ('tfidf', TfidfVectorizer(max_features=5000, stop_words='english', ngram_range=(1,2))),
-            ('clf', LogisticRegression(max_iter=2000, multi_class='auto'))
-        ])
-        
-        pipeline.fit(X_train, y_train)
-        
-        y_pred = pipeline.predict(X_test)
-        acc = accuracy_score(y_test, y_pred)
-        cm = confusion_matrix(y_test, y_pred)
-        classes = list(pipeline.named_steps['clf'].classes_)
-        
-        # Feature Importance
-        tfidf = pipeline.named_steps['tfidf']
-        clf = pipeline.named_steps['clf']
-        feature_names = tfidf.get_feature_names_out()
-        importance = {}
-        
-        if len(classes) == 2:
-            coefs = clf.coef_[0]
-            for i in np.argsort(np.abs(coefs))[-50:]:
-                importance[feature_names[i]] = float(coefs[i])
-        else:
-            coefs = np.mean(np.abs(clf.coef_), axis=0)
-            for i in np.argsort(coefs)[-50:]:
-                importance[feature_names[i]] = float(coefs[i])
-
-        model_bytes = pickle.dumps(pipeline)
-        model_b64 = base64.b64encode(model_bytes).decode('utf-8')
-
-        project_ref = db.collection('projects').document(project_id)
-        project_ref.update({
-            'status': 'trained',
-            'accuracy': float(acc),
-            'model_artifact': model_b64,
-            'labels': classes,
-            'distribution': y.value_counts().to_dict(),
-            'confusion_matrix': cm.tolist(),
-            'top_features': importance,
-            'health': health_status,
-            'api_key': generate_api_key(),
-            'version': firestore.Increment(1),
-            'trainedAt': firestore.SERVER_TIMESTAMP
+        job_ref.set({
+            'project_id': project_id,
+            'text_column': text_column,
+            'label_column': label_column,
+            'redact_pii': redact_pii,
+            'csv_data': csv_b64,
+            'status': 'queued',
+            'progress': 0,
+            'createdAt': firestore.SERVER_TIMESTAMP
         })
 
-        return {"status": "success", "accuracy": float(acc)}
+        # Update project status
+        db.collection('projects').document(project_id).update({
+            'status': 'queued',
+            'current_job_id': job_id
+        })
+
+        return {"status": "queued", "job_id": job_id}
+    except Exception as e:
+        print(f"Queue Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         print(f"Training Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -174,6 +138,15 @@ async def predict(project_id: str = Form(...), text: str = Form(...)):
                 weight = clf.coef_[class_idx][idx]
             weights[f_names[idx]] = float(weight * transformed[0, idx])
 
+        # Active Learning Log
+        db.collection('projects').document(project_id).collection('logs').add({
+            'text': text,
+            'prediction': str(prediction),
+            'confidence': confidence,
+            'timestamp': firestore.SERVER_TIMESTAMP,
+            'reviewed': False
+        })
+
         return {
             "prediction": str(prediction), 
             "confidence": confidence, 
@@ -200,6 +173,54 @@ async def batch_predict(project_id: str = Form(...), text_column: str = Form(...
             content=stream.getvalue(), 
             media_type="text/csv", 
             headers={"Content-Disposition": "attachment; filename=results.csv"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/projects/{project_id}/export")
+async def export_project(project_id: str):
+    try:
+        doc = db.collection('projects').document(project_id).get()
+        data = doc.to_dict()
+        model_bytes = base64.b64decode(data['model_artifact'])
+        
+        # Create a zip in memory
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+            zip_file.writestr("model.pkl", model_bytes)
+            
+            # Simple python script
+            script = f"""import pickle
+import sys
+
+# Toddler AI - Integration Script
+# Project ID: {project_id}
+
+def load_and_predict(text):
+    with open('model.pkl', 'rb') as f:
+        model = pickle.load(f)
+    return model.predict([text])[0]
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        print(load_and_predict(sys.argv[1]))
+    else:
+        print("Usage: python toddler_run.py 'your text here'")
+"""
+            zip_file.writestr("toddler_run.py", script)
+            
+            readme = f"""# Toddler AI Project: {data.get('name')}
+            
+To run your model locally:
+1. Install requirements: `pip install scikit-learn pandas`
+2. Run the script: `python toddler_run.py "your sample text"`
+"""
+            zip_file.writestr("README.md", readme)
+
+        return Response(
+            content=zip_buffer.getvalue(),
+            media_type="application/x-zip-compressed",
+            headers={"Content-Disposition": f"attachment; filename=toddler_export_{project_id}.zip"}
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

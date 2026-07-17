@@ -1,0 +1,9 @@
+{
+  "appId": "ai.toddler.app",
+  "appName": "Toddler",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}

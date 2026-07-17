@@ -7,6 +7,8 @@ import { auth } from './firebase'
 import { onAuthStateChanged } from 'firebase/auth'
 import { Toaster } from 'react-hot-toast'
 
+import MobileWrapper from './MobileWrapper'
+
 function App() {
   const [user, setUser] = React.useState(null)
   const [loading, setLoading] = React.useState(true)
@@ -30,7 +32,7 @@ function App() {
   )
 
   return (
-    <>
+    <MobileWrapper>
       <Toaster 
         position="bottom-right"
         toastOptions={{
@@ -45,7 +47,7 @@ function App() {
           <Route path="/dashboard/*" element={user ? <Dashboard /> : <Navigate to="/login" />} />
         </Routes>
       </BrowserRouter>
-    </>
+    </MobileWrapper>
   )
 }
 

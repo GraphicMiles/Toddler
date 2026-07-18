@@ -1,6 +1,7 @@
 import React from 'react'
 import { Download, Cpu, HardDrive, MemoryStick, CheckCircle2, Play, FlaskConical, Code2, ChevronRight, Smartphone, Zap } from 'lucide-react'
 import { auth } from './firebase'
+import { signOut } from 'firebase/auth'
 import localforage from 'localforage'
 
 const fallbackModels = [
@@ -23,6 +24,7 @@ export default function MobileDashboard() {
   const [datasets, setDatasets] = React.useState([])
   const [uploading, setUploading] = React.useState(false)
   const [message, setMessage] = React.useState('')
+  const [drawerOpen, setDrawerOpen] = React.useState(false)
   const [testText, setTestText] = React.useState('')
   const [testResult, setTestResult] = React.useState(null)
 
@@ -101,7 +103,8 @@ export default function MobileDashboard() {
   }
 
   return <div className="mobile-app">
-    <header className="mobile-header"><div className="mobile-brand"><span className="mobile-mark" /> TODDLER</div><div className="device-pill"><span className="online-dot" /> DEVICE READY</div></header>
+    <header className="mobile-header"><div className="mobile-brand"><span className="mobile-mark" /> TODDLER</div><div className="mobile-header-actions"><div className="device-pill"><span className="online-dot" /> DEVICE READY</div><button className="profile-button" onClick={() => setDrawerOpen(true)} aria-label="Open profile menu">{(auth.currentUser?.displayName || auth.currentUser?.email || 'U').charAt(0).toUpperCase()}</button></div></header>
+    {drawerOpen && <><div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} /><aside className="profile-drawer"><button className="drawer-close" onClick={() => setDrawerOpen(false)}>×</button><div className="profile-avatar">{(auth.currentUser?.displayName || auth.currentUser?.email || 'U').charAt(0).toUpperCase()}</div><h2>{auth.currentUser?.displayName || 'Toddler user'}</h2><p>{auth.currentUser?.email || 'Signed-in account'}</p><div className="drawer-section"><span>PROJECT</span><b>Toddler workspace</b><button className="drawer-link">Project settings <ChevronRight size={14}/></button></div><div className="drawer-section"><span>ACCOUNT</span><button className="drawer-link">Profile settings <ChevronRight size={14}/></button><button className="drawer-link">Developer settings <ChevronRight size={14}/></button></div><div className="drawer-danger"><span>DANGER ZONE</span><button onClick={() => window.confirm('Delete this project? This cannot be undone.') && setMessage('Project deletion requires confirmation in the web dashboard.')}>Delete project</button><button onClick={() => window.confirm('Delete your account? This cannot be undone.') && setMessage('Account deletion requires verification in the web dashboard.')}>Delete account</button></div><button className="drawer-logout" onClick={() => signOut(auth)}>Log out</button></aside></>}
     <main className="mobile-main">
       <section className="mobile-welcome"><div><p className="mobile-kicker">LOCAL AI WORKSPACE</p><h1>Train on your device.</h1><p className="mobile-muted">Small models, private data, no cloud required.</p></div><div className="device-card"><Smartphone size={18}/><strong>{ram || '—'} GB RAM</strong><span>Android device</span></div></section>
       <section className="device-stats"><div><MemoryStick size={15}/><span>RAM</span><b>{ram || '—'} GB</b></div><div><HardDrive size={15}/><span>STORAGE</span><b>{storage ? `${Math.round((storage.quota - storage.usage) / 1e9)} GB free` : 'Checking'}</b></div><div><Cpu size={15}/><span>MODE</span><b>{ram && ram <= 2 ? 'Low memory' : 'Mobile'}</b></div></section>

@@ -88,6 +88,21 @@
   margin-top: 14px;
 }
 
+/* ---------- Pro upsell banner ---------- */
+.pro-upsell {
+  border: 1px solid #7f5a1f;
+  background: #2a1f10;
+  color: #ffd89a;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+.pro-upsell b { color: #ffe7b3; font-size: 13px; display: block; font-family: 'Space Grotesk', Inter, sans-serif; }
+.pro-upsell small { color: #c7a068; font-size: 11px; line-height: 1.4; display: block; margin-top: 4px; font-family: 'IBM Plex Mono', monospace; }
+
 /* ---------- Sticky header ---------- */
 .mobile-header {
   height: calc(clamp(58px, 8vh, 72px) + max(var(--mobile-safe-top), 20px));

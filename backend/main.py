@@ -637,28 +637,72 @@ async def download_model(project_id: str, x_api_key: str | None = Header(default
 # Public catalog for the Android Model Zoo. Files are published only after
 # their license and mobile memory profile have been reviewed.
 MODEL_CATALOG = [
+    # --- TEXT ---
     {
         "id": "sentiment-lite", "name": "Sentiment Lite", "type": "Text classification",
         "description": "Fast positive, negative and neutral predictions.", "format": "onnx",
         "sizeMb": 42, "parameterCount": 1000000, "minimumRamGb": 2,
         "trainingRamMb": 700, "inferenceRamMb": 250, "supportsTraining": True,
-        "supportsTesting": True, "license": "Apache-2.0", "status": "published", "downloadUrl": "https://huggingface.co/Xenova/distilbert-base-uncased-finetuned-sst-2-english/resolve/main/onnx/model_quantized.onnx"
-    },
-    {
-        "id": "mobile-vision-v1", "name": "Vision Lite", "type": "Image classification",
-        "description": "Compact quantized MobileNet image classifier for low-memory devices.", "format": "tflite",
-        "sizeMb": 4.3, "parameterCount": 4200000, "minimumRamGb": 2,
-        "trainingRamMb": 620, "inferenceRamMb": 180, "supportsTraining": True,
         "supportsTesting": True, "license": "Apache-2.0", "status": "published",
-        "downloadUrl": "https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v1_1.0_224_quant.tflite"
+        "downloadUrl": "https://huggingface.co/Xenova/distilbert-base-uncased-finetuned-sst-2-english/resolve/main/onnx/model_quantized.onnx"
     },
     {
         "id": "embed-mini", "name": "Embed Mini", "type": "Text embeddings",
         "description": "Generate sentence vectors locally.", "format": "onnx",
         "sizeMb": 86, "parameterCount": 8000000, "minimumRamGb": 4,
         "trainingRamMb": 1100, "inferenceRamMb": 360, "supportsTraining": False,
-        "supportsTesting": True, "license": "Apache-2.0", "status": "published", "downloadUrl": "https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model_quantized.onnx"
-    }
+        "supportsTesting": True, "license": "Apache-2.0", "status": "published",
+        "downloadUrl": "https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model_quantized.onnx"
+    },
+    # --- VISION ---
+    {
+        "id": "mobile-vision-v1", "name": "Vision Lite", "type": "Image classification",
+        "description": "Compact quantized MobileNet — 1000 ImageNet classes.", "format": "tflite",
+        "sizeMb": 4.3, "parameterCount": 4200000, "minimumRamGb": 2,
+        "trainingRamMb": 620, "inferenceRamMb": 180, "supportsTraining": True,
+        "supportsTesting": True, "license": "Apache-2.0", "status": "published",
+        "downloadUrl": "https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v1_1.0_224_quant.tflite"
+    },
+    {
+        "id": "mobilenet-v2-1.0", "name": "MobileNet V2", "type": "Image classification",
+        "description": "MobileNet V2 quantized — better accuracy, 1000 ImageNet classes.", "format": "tflite",
+        "sizeMb": 14, "parameterCount": 3500000, "minimumRamGb": 2,
+        "trainingRamMb": 900, "inferenceRamMb": 280, "supportsTraining": True,
+        "supportsTesting": True, "license": "Apache-2.0", "status": "published",
+        "downloadUrl": "https://storage.googleapis.com/download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224_quant.tgz"
+    },
+    {
+        "id": "cocossd-mobilenet", "name": "Object Detector", "type": "Object detection",
+        "description": "Detect 80 COCO classes — people, cars, animals, and more.", "format": "tfjs",
+        "sizeMb": 27, "parameterCount": 5000000, "minimumRamGb": 3,
+        "trainingRamMb": 1200, "inferenceRamMb": 420, "supportsTraining": False,
+        "supportsTesting": True, "license": "Apache-2.0", "status": "published",
+        "downloadUrl": "https://storage.googleapis.com/tfjs-models/savedmodel/coco-ssd-mobilenet_v2/model.json"
+    },
+    {
+        "id": "face-blaze", "name": "Face Detector", "type": "Face detection",
+        "description": "Lightweight short-range face detector (BlazeFace).", "format": "tfjs",
+        "sizeMb": 22, "parameterCount": 1800000, "minimumRamGb": 2,
+        "trainingRamMb": 800, "inferenceRamMb": 280, "supportsTraining": False,
+        "supportsTesting": True, "license": "Apache-2.0", "status": "published",
+        "downloadUrl": "https://tfhub.dev/mediapipe/tfjs-model/blazeface/1/default/1/model.json"
+    },
+    {
+        "id": "mobilenet-v3-small", "name": "MobileNet V3", "type": "Image classification",
+        "description": "MobileNet V3 Small — faster, higher accuracy than V1.", "format": "tflite",
+        "sizeMb": 11, "parameterCount": 2500000, "minimumRamGb": 2,
+        "trainingRamMb": 700, "inferenceRamMb": 220, "supportsTraining": True,
+        "supportsTesting": True, "license": "Apache-2.0", "status": "published",
+        "downloadUrl": "https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v3_small_100_224_quant.tgz"
+    },
+    {
+        "id": "pose-movenet-lightning", "name": "Pose Lightning", "type": "Pose estimation",
+        "description": "Real-time single-person 17-keypoint pose detection.", "format": "tflite",
+        "sizeMb": 9, "parameterCount": 3200000, "minimumRamGb": 2,
+        "trainingRamMb": 800, "inferenceRamMb": 300, "supportsTraining": False,
+        "supportsTesting": True, "license": "Apache-2.0", "status": "published",
+        "downloadUrl": "https://tfhub.dev/google/lite-model/movenet/singlepose/lightning/tflite/float16/4?lite-format=tflite"
+    },
 ]
 
 @app.get("/models")

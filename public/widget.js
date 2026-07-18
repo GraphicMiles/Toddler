@@ -216,7 +216,7 @@
       formData.append('project_id', projectId);
       formData.append('text', text);
 
-      const response = await fetch(\`\${apiUrl}/predict\`, {
+      const response = await fetch(`${apiUrl}/predict`, {
         method: 'POST',
         body: formData
       });
@@ -228,7 +228,7 @@
       // or a custom response if configured. 
       // For now, let's just show the prediction.
       addMessage(data.prediction, 'bot');
-    } catch (err) {
+    } catch {
       messages.removeChild(typing);
       addMessage('Error connecting to engine.', 'bot');
     }

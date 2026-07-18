@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
-import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
 const MobileWrapper = ({ children }) => {
   useEffect(() => {
@@ -13,12 +12,6 @@ const MobileWrapper = ({ children }) => {
     }
   }, []);
 
-  // Global trigger for haptics on important actions
-  const triggerHaptic = async () => {
-    if (Capacitor.isNativePlatform()) {
-      await Haptics.impact({ style: ImpactStyle.Medium });
-    }
-  };
 
   return (
     <div className={`mobile-wrapper ${Capacitor.isNativePlatform() ? 'is-native' : ''}`}>

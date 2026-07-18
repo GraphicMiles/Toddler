@@ -154,6 +154,18 @@ const Onboarding = ({ onComplete }) => {
           throw new Error('Backend did not return a job ID.');
         }
 
+        // Nudge the training worker immediately. On free-tier hosting (Render,
+        // Railway hobby) the background worker may be asleep / throttled, so
+        // we kick it over HTTP and re-nudge once a few seconds later.
+        const nudgeAgent = () => {
+          fetch(`${apiUrl}/_agent/run`, { method: 'POST', keepalive: true })
+            .then(r => r.json().catch(() => null))
+            .then(d => d && console.log('[toddler] agent kicked:', d))
+            .catch(() => {});
+        };
+        nudgeAgent();
+        setTimeout(nudgeAgent, 15000);
+
         // Poll /jobs/{job_id} until the BYOC agent completes training.
         // Use a ref-held interval so it gets cleaned up if the component unmounts.
         const accuracy = await new Promise((resolve, reject) => {

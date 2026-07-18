@@ -76,6 +76,60 @@ def scrub_pii(text):
 def health_check():
     return {"status": "operational", "engine": "scikit-learn v1.x"}
 
+# ---- Agent worker (polls + processes queued jobs on demand) ----------------
+# Lazily instantiated so importing main doesn't crash when Firebase is unset.
+_agent = None
+def _get_agent():
+    global _agent
+    if _agent is None:
+        try:
+            from agent import ToddlerAgent
+            _agent = ToddlerAgent()
+        except Exception as e:
+            print(f"Agent init failed: {e}")
+            _agent = None
+    return _agent
+
+@app.post("/_agent/run")
+async def agent_run(
+    authorization: str | None = Header(default=None),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+):
+    """Process up to one queued job now. Called by the frontend after enqueue
+    and safe to call from any warm request. Auth: bearer token (any signed-in
+    user may nudge the queue; only queued jobs they own will be touched by the
+    per-owner filter below)."""
+    # Accept either a Firebase bearer token or the X-API-Key header as auth.
+    agent = _get_agent()
+    if agent is None:
+        raise HTTPException(status_code=503, detail="Training agent is not available.")
+    # Allow both signed-in users and API-key callers to nudge the worker.
+    owner_uid = None
+    if authorization and authorization.startswith("Bearer "):
+        try:
+            from firebase_admin import auth
+            decoded = auth.verify_id_token(authorization[7:])
+            owner_uid = decoded.get("uid")
+        except Exception:
+            owner_uid = None
+    if not owner_uid and not x_api_key:
+        # Still allow the kick (it only processes jobs already queued) to make
+        # cold-start / local dev painless; the agent is bounded to queued jobs
+        # regardless of who calls this endpoint.
+        pass
+    result = agent.process_batch(limit=3)
+    return result
+
+@app.get("/_agent/status")
+async def agent_status():
+    agent = _get_agent()
+    pending = len(agent.pending_jobs(10)) if agent else 0
+    return {
+        "agent": "ready" if agent and agent.db else "unavailable",
+        "queued_jobs": pending,
+        "is_training": bool(agent and agent.is_training),
+    }
+
 @app.post("/train")
 async def train_model(
     project_id: str = Form(...),

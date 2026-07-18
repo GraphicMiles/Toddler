@@ -41,7 +41,7 @@ function App() {
       />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={Capacitor.isNativePlatform() ? (user ? <Navigate to="/dashboard" replace /> : <Auth mode="login" />) : <LandingPage />} />
           <Route path="/login" element={<Auth mode="login" />} />
           <Route path="/signup" element={<Auth mode="signup" />} />
           <Route path="/dashboard/*" element={user ? (Capacitor.isNativePlatform() ? <MobileDashboard /> : <Dashboard />) : <Navigate to="/login" />} />

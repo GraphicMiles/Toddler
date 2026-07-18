@@ -114,6 +114,7 @@ const Auth = ({ mode = 'login' }) => {
               <label className="input-label">Email Address</label>
               <input 
                 type="email" required placeholder="you@company.com"
+                autoComplete="email" inputMode="email"
                 className="input-field"
                 value={email} onChange={(e) => setEmail(e.target.value)}
               />
@@ -122,6 +123,7 @@ const Auth = ({ mode = 'login' }) => {
               <label className="input-label">Password</label>
               <input 
                 type="password" required placeholder="••••••••"
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 className="input-field"
                 value={password} onChange={(e) => setPassword(e.target.value)}
               />

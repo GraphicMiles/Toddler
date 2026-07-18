@@ -16,6 +16,7 @@
     "@capacitor/core": "^7.0.0",
     "@capacitor/haptics": "^7.0.0",
     "@capacitor/status-bar": "^7.0.0",
+    "@huggingface/transformers": "^4.2.0",
     "@tensorflow-models/knn-classifier": "^1.2.6",
     "@tensorflow-models/mobilenet": "^2.1.1",
     "@tensorflow/tfjs": "^4.22.0",

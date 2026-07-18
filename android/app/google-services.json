@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "528260574872",
+    "project_id": "toddler-4299a",
+    "storage_bucket": "toddler-4299a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:528260574872:android:991f0389f9c69461d2eaed",
+        "android_client_info": {
+          "package_name": "ai.toddler.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "528260574872-7bfrbgu0j2ospaqonrqq8muk4nkfk5qp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCmUhMyT23NbGiMao3LAJ2ps_iaQ0KbXiU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "528260574872-7bfrbgu0j2ospaqonrqq8muk4nkfk5qp.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

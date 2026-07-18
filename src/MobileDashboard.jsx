@@ -5,14 +5,42 @@ import { auth } from './firebase'
 import { signOut } from 'firebase/auth'
 import localforage from 'localforage'
 import { trainTextModel } from './textML'
+import { trainVisionModel } from './visionML'
+import { startTrainingForeground, stopTrainingForeground } from './nativeBridge'
+
+// Free-tier caps by device RAM (bytes). Users above cap get upsell unless
+// their device can actually fit the training set.
+const FREE_TIER = {
+  maxTextRows: 50000,         // soft row cap for text
+  maxVisionImages: 1000,      // hard image cap on free
+  visionRamPerImageMb: 2.5,   // ~2.5 MB RAM per 224px MobileNet activation
+}
+function estimateTextRamMb(rows) { return Math.max(80, Math.round(rows * 0.02)) }
+function estimateVisionRamMb(images) {
+  return Math.max(200, Math.round(FREE_TIER.visionRamPerImageMb * images + 180))
+}
+function canDeviceFit(ramGb, requiredMb) {
+  const avail = Math.round((ramGb || 4) * 1024 * 0.45)
+  return avail >= requiredMb
+}
 
 const PLATFORM_LABEL = Capacitor.isNativePlatform() ? Capacitor.getPlatform() : 'Web'
 const PLATFORM_DISPLAY = PLATFORM_LABEL === 'android' ? 'Android device' : PLATFORM_LABEL === 'ios' ? 'iOS device' : PLATFORM_LABEL === 'web' ? 'This browser' : `${PLATFORM_LABEL} device`
 
 const fallbackModels = [
+  // ---------- TEXT ----------
   { id: 'sentiment-lite', name: 'Sentiment Lite', type: 'Text classification', sizeMb: 42, parameterCount: 1000000, trainingRamMb: 700, inferenceRamMb: 250, color: '#c6ff33', description: 'Fast positive, negative and neutral text predictions.', format: 'onnx', license: 'Apache-2.0', status: 'published', downloadUrl: 'https://huggingface.co/Xenova/distilbert-base-uncased-finetuned-sst-2-english/resolve/main/onnx/model_quantized.onnx' },
-  { id: 'mobile-vision-v1', name: 'Vision Lite', type: 'Image classification', sizeMb: 4.3, parameterCount: 4200000, trainingRamMb: 620, inferenceRamMb: 180, color: '#60a5fa', description: 'Compact quantized MobileNet image classifier for low-memory devices.', format: 'tflite', license: 'Apache-2.0', status: 'published', downloadUrl: 'https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v1_1.0_224_quant.tflite' },
   { id: 'embed-mini', name: 'Embed Mini', type: 'Text embeddings', sizeMb: 86, parameterCount: 8000000, trainingRamMb: 1100, inferenceRamMb: 360, color: '#c084fc', description: 'Generate useful sentence vectors locally.', format: 'onnx', license: 'Apache-2.0', status: 'published', supportsTraining: false, downloadUrl: 'https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model_quantized.onnx' },
+  { id: 'toxicity-lite', name: 'Toxicity Lite', type: 'Text classification', sizeMb: 45, parameterCount: 1200000, trainingRamMb: 700, inferenceRamMb: 260, color: '#ff9b6a', description: 'Detect toxic, threatening or harassing text.', format: 'onnx', license: 'Apache-2.0', status: 'published', downloadUrl: 'https://huggingface.co/Xenova/toxic-bert/resolve/main/onnx/model_quantized.onnx' },
+  { id: 'emotion-mini', name: 'Emotion Mini', type: 'Text classification', sizeMb: 42, parameterCount: 1000000, trainingRamMb: 700, inferenceRamMb: 250, color: '#60d6fa', description: 'Classify emotions: joy, anger, sadness, fear, surprise, love.', format: 'onnx', license: 'Apache-2.0', status: 'published', downloadUrl: 'https://huggingface.co/Xenova/emotion/resolve/main/onnx/model_quantized.onnx' },
+
+  // ---------- VISION ----------
+  { id: 'mobile-vision-v1', name: 'Vision Lite', type: 'Image classification', sizeMb: 4.3, parameterCount: 4200000, trainingRamMb: 620, inferenceRamMb: 180, color: '#60a5fa', description: 'Compact quantized MobileNet — 1000 ImageNet classes.', format: 'tflite', license: 'Apache-2.0', status: 'published', downloadUrl: 'https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v1_1.0_224_quant.tflite' },
+  { id: 'mobilenet-v2-1.0', name: 'MobileNet V2', type: 'Image classification', sizeMb: 14, parameterCount: 3500000, trainingRamMb: 900, inferenceRamMb: 280, color: '#7df5a5', description: 'MobileNet V2 quantized — 1000 ImageNet classes, better accuracy.', format: 'tflite', license: 'Apache-2.0', status: 'published', downloadUrl: 'https://storage.googleapis.com/download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224_quant.tgz' },
+  { id: 'cocossd-mobilenet', name: 'Object Detector', type: 'Object detection', sizeMb: 27, parameterCount: 5000000, trainingRamMb: 1200, inferenceRamMb: 420, color: '#f9e264', description: 'Detect 80 object classes (COCO) — people, cars, animals, more.', format: 'tflite', license: 'Apache-2.0', status: 'published', supportsTraining: false, downloadUrl: 'https://storage.googleapis.com/tfjs-models/savedmodel/coco-ssd-mobilenet_v2/model.json' },
+  { id: 'face-blaze', name: 'Face Detector', type: 'Face detection', sizeMb: 22, parameterCount: 1800000, trainingRamMb: 800, inferenceRamMb: 280, color: '#ffb2ef', description: 'Lightweight short-range face detector (BlazeFace).', format: 'tfjs', license: 'Apache-2.0', status: 'published', supportsTraining: false, downloadUrl: 'https://tfhub.dev/mediapipe/tfjs-model/blazeface/1/default/1/model.json' },
+  { id: 'mobilenet-v3-small', name: 'MobileNet V3', type: 'Image classification', sizeMb: 11, parameterCount: 2500000, trainingRamMb: 700, inferenceRamMb: 220, color: '#c6ff33', description: 'MobileNet V3 Small — faster, more accurate than V1.', format: 'tflite', license: 'Apache-2.0', status: 'published', downloadUrl: 'https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v3_small_100_224_quant.tgz' },
+  { id: 'pose-movenet-lightning', name: 'Pose Lightning', type: 'Pose estimation', sizeMb: 9, parameterCount: 3200000, trainingRamMb: 800, inferenceRamMb: 300, color: '#ff7d7d', description: 'Single-person 17-keypoint pose detection, real-time.', format: 'tflite', license: 'Apache-2.0', status: 'published', supportsTraining: false, downloadUrl: 'https://tfhub.dev/google/lite-model/movenet/singlepose/lightning/tflite/float16/4?lite-format=tflite' },
 ]
 
 const formatRam = value => value >= 1024 ? `${(value / 1024).toFixed(1)} GB` : `${value} MB`
@@ -40,11 +68,11 @@ export default function MobileDashboard() {
   const [testing, setTesting] = React.useState(false)
   const msgTimeoutRef = React.useRef(null)
   const [byocEnabled, setByocEnabled] = React.useState(() => localStorage.getItem('toddler-byoc') !== '0')
-  const [byocStatus, setByocStatus] = React.useState('idle') // idle|checking|training|idle|error
+  const [byocStatus, setByocStatus] = React.useState('idle') // idle|checking|training|disabled
   const [byocJobName, setByocJobName] = React.useState('')
   const [byocProgress, setByocProgress] = React.useState(0)
-  const byocLockRef = React.useRef(false)
-  const byocTimerRef = React.useRef(null)
+  const byocWorkerRef = React.useRef(null)
+  const [proPrompt, setProPrompt] = React.useState(null) // {jobId, reason, requiredMb}
 
   const apiUrl = import.meta.env.VITE_API_URL
 
@@ -56,97 +84,126 @@ export default function MobileDashboard() {
 
   React.useEffect(() => () => {
     if (msgTimeoutRef.current) clearTimeout(msgTimeoutRef.current)
-    if (byocTimerRef.current) clearInterval(byocTimerRef.current)
+    if (byocWorkerRef.current) { byocWorkerRef.current.postMessage({type:'stop'}); byocWorkerRef.current.terminate(); byocWorkerRef.current = null }
+    stopTrainingForeground().catch(() => {})
   }, [])
 
-  // ---- BYOC (phone-as-worker) loop: claim & train free-tier cloud jobs ----
-  const runByocTick = React.useCallback(async () => {
-    if (!apiUrl || !auth.currentUser || byocLockRef.current || !byocEnabled) return
-    byocLockRef.current = true
-    try {
-      const token = await auth.currentUser.getIdToken()
-      setByocStatus('checking')
-      const claimRes = await fetch(`${apiUrl}/jobs/claim`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      if (!claimRes.ok) { setByocStatus('idle'); return }
-      const claimJson = await claimRes.json()
-      const job = claimJson.job
-      if (!job) { setByocStatus('idle'); return }
-
-      setByocStatus('training')
-      setByocProgress(2)
-      setByocJobName(job.project_id)
-
-      // Decode CSV
-      const csvText = atob(job.csv_data)
-      const rows = csvText.trim().split(/\r?\n/)
-      const header = rows[0].split(',')
-      const textIdx = header.indexOf(job.text_column)
-      const labelIdx = header.indexOf(job.label_column)
-      if (textIdx < 0 || labelIdx < 0) throw new Error('Column mapping lost')
-      const dataRows = rows.slice(1)
-        .map(line => line.split(','))
-        .filter(cols => cols.length > Math.max(textIdx, labelIdx))
-        .map(cols => ({ text: cols[textIdx] ?? '', label: cols[labelIdx] ?? '' }))
-        .filter(r => r.text && r.label)
-      if (dataRows.length < 2) throw new Error('Not enough rows')
-
-      // Progress reporter
-      const reportProgress = async p => {
-        setByocProgress(Math.max(2, Math.min(99, Math.round(p))))
-        try {
-          await fetch(`${apiUrl}/jobs/${job.id}/progress`, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ progress: Math.round(p) })
-          })
-        } catch {}
-      }
-      await reportProgress(5)
-
-      // Train with the in-browser TF-IDF + Naive Bayes trainer
-      const { artifact, accuracy, labels, topFeatures, confusionMatrix, distribution } =
-        trainTextModel(dataRows, reportProgress)
-
-      await reportProgress(95)
-
-      // Submit final model
-      const completeRes = await fetch(`${apiUrl}/jobs/${job.id}/complete`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accuracy, labels, topFeatures, distribution,
-          confusionMatrix: confusionMatrix,
-          artifact,
-        })
-      })
-      if (!completeRes.ok) {
-        const errText = await completeRes.text().catch(() => '')
-        throw new Error(`Submit failed: ${completeRes.status} ${errText.slice(0,120)}`)
-      }
-      setByocProgress(100)
-      showMessage(`Trained a model on your device (${Math.round(accuracy*100)}% accuracy) — synced to cloud.`)
-      setByocJobName('')
-      setByocStatus('idle')
-    } catch (err) {
-      console.warn('[byoc] error', err)
-      setByocStatus('idle')
-      setByocJobName('')
-    } finally {
-      byocLockRef.current = false
-    }
-  }, [apiUrl, byocEnabled, showMessage])
-
+  // ---- BYOC worker lifecycle ----
   React.useEffect(() => {
-    if (byocTimerRef.current) { clearInterval(byocTimerRef.current); byocTimerRef.current = null }
-    if (!byocEnabled || !apiUrl || !auth.currentUser) return
-    // Poll every 30 seconds (also run immediately on mount / when toggled)
-    runByocTick()
-    byocTimerRef.current = setInterval(runByocTick, 30000)
-    return () => { if (byocTimerRef.current) clearInterval(byocTimerRef.current) }
-  }, [byocEnabled, apiUrl, runByocTick])
+    if (!byocEnabled) {
+      if (byocWorkerRef.current) { byocWorkerRef.current.postMessage({type:'stop'}); byocWorkerRef.current.terminate(); byocWorkerRef.current = null }
+      setByocStatus('disabled'); setByocJobName(''); setByocProgress(0)
+      stopTrainingForeground().catch(() => {})
+      return
+    }
+    if (!apiUrl || !auth.currentUser) return
+    let worker
+    try {
+      worker = new Worker('/byoc-worker.js', { type: 'classic' })
+    } catch (e) {
+      console.warn('BYOC worker failed to start', e); return
+    }
+    byocWorkerRef.current = worker
+
+    const sendToken = async () => {
+      try {
+        const t = await auth.currentUser.getIdToken()
+        worker.postMessage({ type: 'token', token: t })
+      } catch {}
+    }
+    sendToken()
+    worker.onmessage = async ev => {
+      const msg = ev.data || {}
+      if (msg.type === 'status') {
+        setByocStatus(msg.status || 'idle')
+        if (typeof msg.progress === 'number') setByocProgress(msg.progress)
+        if (msg.jobName) setByocJobName(msg.jobName)
+        if (msg.status === 'training') {
+          startTrainingForeground().catch(() => {})
+        } else if (msg.status === 'idle') {
+          stopTrainingForeground().catch(() => {})
+        }
+      } else if (msg.type === 'message') {
+        showMessage(msg.text, 4000)
+        stopTrainingForeground().catch(() => {})
+      } else if (msg.type === 'needToken') {
+        sendToken()
+      } else if (msg.type === 'trainText') {
+        // Run text training on main thread (textML.js needs no WASM/TF)
+        runTextTraining(msg.job, msg.rows).then(() => sendToken())
+      } else if (msg.type === 'trainVision') {
+        runVisionTraining(msg.job).then(() => sendToken())
+      }
+    }
+    worker.postMessage({ type: 'start', apiUrl, token: await auth.currentUser.getIdToken() })
+    return () => {
+      worker.postMessage({ type: 'stop' })
+      worker.terminate()
+      byocWorkerRef.current = null
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [byocEnabled, apiUrl])
+
+  // Refresh worker token when auth changes
+  React.useEffect(() => {
+    const unsub = auth.onAuthStateChanged(async user => {
+      if (!user) return
+      try {
+        const t = await user.getIdToken()
+        byocWorkerRef.current?.postMessage({ type: 'token', token: t })
+      } catch {}
+    })
+    return unsub
+  }, [])
+
+  // ---- Train text on main thread (called by worker) ----
+  const runTextTraining = async (job, rows) => {
+    const worker = byocWorkerRef.current
+    try {
+      const requiredMb = estimateTextRamMb(rows.length)
+      if (rows.length > FREE_TIER.maxTextRows || !canDeviceFit(ram, requiredMb)) {
+        worker.postMessage({ type: 'textDone', jobId: job.id, error:
+          rows.length > FREE_TIER.maxTextRows ? `Dataset too large for free tier (${rows.length} rows; cap ${FREE_TIER.maxTextRows}). Upgrade to Pro for cloud training.`
+                                              : `Your ${ram||4} GB device needs ~${requiredMb} MB training RAM for this job. Upgrade to Pro for cloud training.` })
+        setProPrompt({ reason: 'text', rows: rows.length, requiredMb })
+        return
+      }
+      const result = trainTextModel(rows, p => {
+        fetch(`${apiUrl}/jobs/${job.id}/progress`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${auth.currentUser.accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ progress: Math.round(p) })
+        }).catch(() => {})
+      })
+      worker.postMessage({ type: 'textDone', jobId: job.id,
+        result: { accuracy: result.accuracy, labels: result.labels, topFeatures: result.topFeatures,
+                  distribution: result.distribution, confusionMatrix: result.confusionMatrix,
+                  artifact: result.artifact } })
+      showMessage(`Training complete (${Math.round(result.accuracy*100)}% accuracy)`, 4000)
+    } catch (e) {
+      worker.postMessage({ type: 'textDone', jobId: job.id, error: String(e.message || e) })
+    } finally {
+      stopTrainingForeground().catch(() => {})
+    }
+  }
+
+  // ---- Train vision on main thread (TF.js MobileNet+KNN from visionML.js) ----
+  const runVisionTraining = async (job) => {
+    const worker = byocWorkerRef.current
+    try {
+      // Vision jobs store images as base64 or Cloudinary URLs. For now, BYOC vision
+      // training is done via the onboarding vision flow (browser-side, during
+      // upload). When a vision cloud job is queued by a mobile user, we
+      // require Pro/cloud training since downloading 1000s of images to a
+      // foreground service is unreliable on free-tier networks.
+      worker.postMessage({ type: 'visionDone', jobId: job.id, error: 'Vision jobs require cloud training. Upgrade to Pro.' })
+      setProPrompt({ reason: 'vision' })
+    } catch (e) {
+      worker.postMessage({ type: 'visionDone', jobId: job.id, error: String(e.message || e) })
+    }
+  }
+
+
 
   React.useEffect(() => {
     setRam(navigator.deviceMemory ? Math.round(navigator.deviceMemory) : 4)
@@ -250,7 +307,12 @@ export default function MobileDashboard() {
   const canDownload = model => isPublished(model) && modelSize(model) <= freeStorageMb
   const canFit = model => modelRam(model) <= availableRam && canDownload(model)
   const recommended = catalog.filter(canFit)
-  const baseList = category === 'Recommended' ? recommended : category === 'Downloaded' ? catalog.filter(model => downloaded.includes(model.id)) : category === 'All' ? catalog : catalog.filter(model => model.type?.toLowerCase().includes(category.toLowerCase()))
+  const baseList = category === 'Recommended' ? recommended
+                 : category === 'Downloaded' ? catalog.filter(m => downloaded.includes(m.id))
+                 : category === 'All' ? catalog
+                 : category === 'Vision' ? catalog.filter(m => /image|vision/i.test(m.type || ''))
+                 : category === 'Detection' ? catalog.filter(m => /detection|pose|face/i.test(m.type || ''))
+                 : catalog.filter(m => (m.type || '').toLowerCase().includes(category.toLowerCase()))
   const visibleModels = baseList
 
   const removeModel = async id => { await localforage.removeItem(`toddler-model-${id}`); saveModels(downloaded.filter(item => item !== id)) }
@@ -298,7 +360,7 @@ export default function MobileDashboard() {
       <section className="device-stats"><div><MemoryStick size={15}/><span>RAM</span><b>{ram || '—'} GB</b></div><div><HardDrive size={15}/><span>STORAGE</span><b>{storage ? `${Math.round((storage.quota - storage.usage) / 1e9)} GB free` : 'Checking'}</b></div><div><Cpu size={15}/><span>MODE</span><b>{ram && ram <= 2 ? 'Low memory' : 'Mobile'}</b></div></section>
       <nav className="mobile-tabs">{[['zoo','Model Zoo',Zap],['train','Train',Play],['test','Test',FlaskConical],['dev','Dev',Code2]].map(([id, label, Icon]) => <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}><Icon size={16}/>{label}</button>)}</nav>
 
-      {tab === 'zoo' && <><div className="section-heading"><div><p className="mobile-kicker">MODEL ZOO</p><h2>Recommended for you</h2></div><span className="model-count">{recommended.length} compatible</span></div><div className="model-filters">{['All','Text','Vision','Embeddings','Recommended','Downloaded'].map(item => <button key={item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</div>{downloadError && <div className="download-error"><span>{downloadError}</span>{failedModel && <button className="retry-download" onClick={() => download(failedModel)}>Continue download</button>}</div>}<div className="model-list">{visibleModels.map(model => { const isDownloaded = downloaded.includes(model.id); const fits = canFit(model); return <article className={`model-card ${!fits ? 'disabled' : ''}`} key={model.id}><button className="model-icon model-info-trigger" style={{ color: model.color }} onClick={() => setSelectedModel(model)} aria-label={`View ${model.name} details`}><Zap size={19}/></button><div className="model-info" onClick={() => setSelectedModel(model)}><div className="model-title"><h3>{model.name}</h3>{isDownloaded && <CheckCircle2 size={16} className="success"/>}</div><p>{model.type}</p><small>{model.description}</small><div className="model-meta"><span>{modelSize(model)} MB</span><span>{model.params || `${(model.parameterCount || 0) / 1000000}M`} params</span><span>~{formatRam(modelRam(model))} RAM</span></div><div className="model-compatibility">{fits ? `✓ Fits your ${ram || 4} GB device` : modelRam(model) > availableRam ? `Needs ${formatRam(modelRam(model))} RAM` : `Needs ${modelSize(model)} MB storage`}</div></div><button className="model-action" disabled={isDownloaded || downloading === model.id || !fits || !isPublished(model)} onClick={() => download(model)}>{isDownloaded ? 'Downloaded' : downloading === model.id ? `Downloading ${downloadProgress}%…` : !isPublished(model) ? 'Coming soon' : fits ? <><Download size={15}/> Download</> : 'Not compatible'}</button>{isDownloaded && <button className="model-delete" onClick={() => removeModel(model.id)}>Remove local copy</button>}</article>})}</div></>}
+      {tab === 'zoo' && <><div className="section-heading"><div><p className="mobile-kicker">MODEL ZOO</p><h2>Recommended for you</h2></div><span className="model-count">{recommended.length} compatible</span></div><div className="model-filters">{['All','Text','Vision','Detection','Embeddings','Recommended','Downloaded'].map(item => <button key={item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</div>{proPrompt && <div className="pro-upsell"><div><b>Device can't run this job.</b><small>{proPrompt.reason === 'vision' ? 'Vision BYOC jobs need cloud training.' : `Requires ~${proPrompt.requiredMb} MB training RAM.`}</small></div><button className="small-button" onClick={() => window.open('https://toddler.ai/pricing','_blank')}>Upgrade to Pro</button><button className="model-delete" onClick={() => setProPrompt(null)}>Dismiss</button></div>}{downloadError && <div className="download-error"><span>{downloadError}</span>{failedModel && <button className="retry-download" onClick={() => download(failedModel)}>Continue download</button>}</div>}<div className="model-list">{visibleModels.map(model => { const isDownloaded = downloaded.includes(model.id); const fits = canFit(model); return <article className={`model-card ${!fits ? 'disabled' : ''}`} key={model.id}><button className="model-icon model-info-trigger" style={{ color: model.color }} onClick={() => setSelectedModel(model)} aria-label={`View ${model.name} details`}><Zap size={19}/></button><div className="model-info" onClick={() => setSelectedModel(model)}><div className="model-title"><h3>{model.name}</h3>{isDownloaded && <CheckCircle2 size={16} className="success"/>}</div><p>{model.type}</p><small>{model.description}</small><div className="model-meta"><span>{modelSize(model)} MB</span><span>{model.params || `${(model.parameterCount || 0) / 1000000}M`} params</span><span>~{formatRam(modelRam(model))} RAM</span></div><div className="model-compatibility">{fits ? `✓ Fits your ${ram || 4} GB device` : modelRam(model) > availableRam ? `Needs ${formatRam(modelRam(model))} RAM` : `Needs ${modelSize(model)} MB storage`}</div></div><button className="model-action" disabled={isDownloaded || downloading === model.id || !fits || !isPublished(model)} onClick={() => download(model)}>{isDownloaded ? 'Downloaded' : downloading === model.id ? `Downloading ${downloadProgress}%…` : !isPublished(model) ? 'Coming soon' : fits ? <><Download size={15}/> Download</> : 'Not compatible'}</button>{isDownloaded && <button className="model-delete" onClick={() => removeModel(model.id)}>Remove local copy</button>}</article>})}</div></>}
 
       {tab === 'train' && <div className="empty-panel"><Play size={28}/><h2>Your downloaded models</h2>{downloaded.length ? <><div className="downloaded-list">{catalog.filter(model => downloaded.includes(model.id)).map(model => <div className="downloaded-row" key={model.id}><div><b>{model.name}</b><span>{modelSize(model)} MB · ready to train</span></div><label className="small-button">{uploading ? 'Uploading…' : 'Upload dataset'}<input type="file" accept=".csv,.json" hidden disabled={uploading} onChange={uploadDataset}/><ChevronRight size={14}/></label></div>)}</div>{message && <p className="upload-message">{message}</p>}{datasets.length > 0 && <div className="downloaded-list"><p className="mobile-kicker">UPLOADED DATASETS</p>{datasets.map(dataset => <div className="downloaded-row" key={dataset.id}><div><b>{dataset.name}</b><span>{Math.round((dataset.sizeBytes || dataset.bytes || 0) / 1024)} KB · uploaded</span></div><button className="small-button" disabled title="On-device training is coming soon">Coming soon <ChevronRight size={14}/></button></div>)}</div>}</> : <><p>Download a model from the Model Zoo to start training locally.</p><button className="primary-button" onClick={() => setTab('zoo')}>Browse Model Zoo</button></>}</div>}
       {tab === 'test' && <div className="empty-panel"><FlaskConical size={28}/><h2>Test locally</h2><p>Try a downloaded text model on your device.</p>{downloaded.length ? <><textarea className="test-input" value={testText} onChange={event => setTestText(event.target.value)} placeholder="Type text to classify…"/><button className="primary-button" onClick={runTest}>{testing ? 'Loading model…' : 'Run test'}</button>{testResult && <div className="test-result"><b>{testResult.label}</b><span>Confidence: {testResult.confidence}</span><span>Latency: {testResult.latency}</span></div>}</> : <button className="primary-button" onClick={() => setTab('zoo')}>Choose a model</button>}</div>}

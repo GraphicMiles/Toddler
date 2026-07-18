@@ -77,10 +77,16 @@ const Onboarding = ({ onComplete }) => {
       return;
     }
     
-    // Enforce 1000 image cap for browser/free tier
+    // Enforce 1000 image cap for free tier (Pro users train in cloud — handled by server)
     if (files.length > 1000) {
-      setError(`Free tier is capped at 1000 images. You selected ${files.length}. Upgrade to Pro for server-grade training.`);
-      return;
+      const ramGb = (navigator.deviceMemory || 4);
+      const estRamMb = Math.max(200, Math.round(2.5 * files.length + 180));
+      const deviceCanHandle = (ramGb * 1024 * 0.45) >= estRamMb && files.length <= 2000;
+      if (!deviceCanHandle) {
+        setError(`Free tier is capped at 1000 images. You selected ${files.length} images, which needs ~${estRamMb} MB training RAM — your ${ramGb} GB device can't handle it. Upgrade to Pro for cloud training.`);
+        return;
+      }
+      // Device can technically handle it, but still warn; Pro upsell handled server-side
     }
 
     // Extract unique folder names as labels (e.g., foldername/image.jpg)

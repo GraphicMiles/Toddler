@@ -20,7 +20,7 @@ function App() {
         setLoading(false)
       }, () => setLoading(false))
       return () => unsubscribe()
-    } catch (e) {
+    } catch {
       setLoading(false)
     }
   }, [])

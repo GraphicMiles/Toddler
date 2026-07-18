@@ -117,7 +117,7 @@ const Onboarding = ({ onComplete }) => {
         let response;
         try {
           response = await fetch(`${apiUrl}/train`, { method: 'POST', body: formData });
-        } catch (e) {
+        } catch {
           throw new Error('Network Error: Could not connect to the backend (check CORS or URL).');
         }
 
@@ -126,7 +126,7 @@ const Onboarding = ({ onComplete }) => {
           try {
             const errData = await response.json();
             errText = errData.detail || errData.message || errText;
-          } catch (e) {
+          } catch {
             // Keep default status text
           }
           throw new Error(errText);

@@ -73,7 +73,7 @@ export const trainVisionModel = async (imageFiles, onProgress) => {
       classifier.addExample(activation, label);
       
       activation.dispose(); // Manually dispose the activation after adding it to KNN
-    } catch (e) {
+    } catch {
       console.warn('Skipping unreadable image', file.name);
     }
   }

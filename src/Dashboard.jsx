@@ -16,7 +16,6 @@ const Dashboard = () => {
   const [prediction, setPrediction] = useState(null);
   const [predicting, setPredicting] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [history, setHistory] = useState([]);
   const [activeTab, setActiveTab] = useState('overview'); 
   const [responses, setResponses] = useState({});
   const [chatMessages, setChatMessages] = useState([]);
@@ -53,7 +52,7 @@ const Dashboard = () => {
         const data = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         setProjects(data);
         if (data[0]?.responses) setResponses(data[0].responses);
-      } catch (e) {
+      } catch {
         console.error(e);
       } finally {
         setTimeout(() => setLoading(false), 800);
@@ -77,7 +76,7 @@ const Dashboard = () => {
       let response;
       try {
         response = await fetch(`${apiUrl}/predict`, { method: 'POST', body: formData });
-      } catch (e) {
+      } catch {
         throw new Error('Network Error: Check backend CORS or URL.');
       }
 
@@ -86,7 +85,7 @@ const Dashboard = () => {
         try {
           const errData = await response.json();
           errText = errData.detail || errData.message || errText;
-        } catch (e) {}
+        } catch {}
         throw new Error(errText);
       }
       
@@ -95,7 +94,7 @@ const Dashboard = () => {
       setPrediction(processedData);
       setHistory(prev => [{ text: predictText, ...processedData }, ...prev].slice(0, 10));
       toast.success('Wisdom found.');
-    } catch (e) { toast.error(e.message || 'Prediction failed.'); } finally { setPredicting(false); }
+    } catch { toast.error(e.message || 'Prediction failed.'); } finally { setPredicting(false); }
   };
 
   const handleBatchPredict = async (e) => {
@@ -113,7 +112,7 @@ const Dashboard = () => {
       let response;
       try {
         response = await fetch(`${apiUrl}/batch`, { method: 'POST', body: formData });
-      } catch(e) {
+      } catch {
         throw new Error('Network Error: Check backend CORS or URL.');
       }
       
@@ -122,7 +121,7 @@ const Dashboard = () => {
         try {
           const errData = await response.json();
           errText = errData.detail || errData.message || errText;
-        } catch (e) {}
+        } catch {}
         throw new Error(errText);
       }
       
@@ -131,7 +130,7 @@ const Dashboard = () => {
       const a = document.createElement('a'); a.href = url; a.download = `results_${currentProject.id}.csv`;
       document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url);
       toast.success('Batch processing complete.');
-    } catch (e) { toast.error(e.message || 'Batch failed.'); } finally { setBatching(false); }
+    } catch { toast.error(e.message || 'Batch failed.'); } finally { setBatching(false); }
   };
 
   const handleRename = async () => {
@@ -140,7 +139,7 @@ const Dashboard = () => {
       await updateDoc(doc(db, "projects", currentProject.id), { name: newName });
       setProjects(prev => [{ ...prev[0], name: newName }]);
       setIsEditingName(false); toast.success('Identity updated.');
-    } catch (e) { toast.error('Rename failed'); }
+    } catch { toast.error('Rename failed'); }
   };
 
   const handleChatSend = async (e) => {
@@ -173,7 +172,7 @@ const Dashboard = () => {
         const botResponse = responses[result.prediction] || `Decision: "${result.prediction}". (No custom response set)`;
         
         setChatMessages(prev => [...prev, { role: 'bot', text: botResponse, intent: result.prediction, confidence: result.confidence || 0, originImage: userMsg.imageSrc }]);
-      } catch(e) {
+      } catch {
         toast.error(e.message || "Vision prediction failed");
       } finally {
         setIsTyping(false);
@@ -223,7 +222,7 @@ const Dashboard = () => {
       let response;
       try {
         response = await fetch(`${apiUrl}/predict`, { method: 'POST', body: formData });
-      } catch(e) {
+      } catch {
         throw new Error('Network Error: Check backend CORS or URL.');
       }
       
@@ -232,7 +231,7 @@ const Dashboard = () => {
         try {
           const errData = await response.json();
           errText = errData.detail || errData.message || errText;
-        } catch (e) {}
+        } catch {}
         throw new Error(errText);
       }
       
@@ -243,7 +242,7 @@ const Dashboard = () => {
         setChatMessages(prev => [...prev, { role: 'bot', text: botResponse, intent: predictionLabel, confidence: data.confidence || 0 }]);
         setIsTyping(false);
       }, 800);
-    } catch (e) { setIsTyping(false); toast.error(e.message || 'Chat failed'); }
+    } catch { setIsTyping(false); toast.error(e.message || 'Chat failed'); }
   };
 
   const handleRetrainVision = async (imageSrc, correctLabel) => {
@@ -274,7 +273,7 @@ const Dashboard = () => {
         await lf.setItem(`model_${currentProject.id}`, newWeightsJson);
       }
       toast.success("Model successfully fine-tuned!", { id: loadingToast });
-    } catch (e) {
+    } catch {
       toast.error(e.message || "Fine-tuning failed", { id: loadingToast });
     }
   };
@@ -285,7 +284,7 @@ const Dashboard = () => {
     try {
       await updateDoc(doc(db, "projects", currentProject.id), { responses: newResponses });
       toast.success('Response memorized.');
-    } catch (e) { toast.error('Save failed'); }
+    } catch { toast.error('Save failed'); }
   };
 
   const handleDownload = async () => {
@@ -299,7 +298,7 @@ const Dashboard = () => {
       const a = document.createElement('a'); a.href = url; a.download = `model_${currentProject.id}.pkl`;
       document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url);
       toast.success('Model exported.');
-    } catch (e) { toast.error('Export failed'); }
+    } catch { toast.error('Export failed'); }
   };
 
   const handleDelete = async () => {
@@ -307,7 +306,7 @@ const Dashboard = () => {
     try {
       await deleteDoc(doc(db, "projects", currentProject.id));
       setProjects([]); toast.success('Erased from existence.');
-    } catch (e) { toast.error('Deletion failed'); }
+    } catch { toast.error('Deletion failed'); }
   };
 
   if (loading) return (
@@ -425,7 +424,7 @@ const Dashboard = () => {
                               const { predictVisionImage } = await import('./visionML');
                               const result = await predictVisionImage(previewImage, datasetJson);
                               setPrediction({ prediction: result.prediction, confidence: result.confidence, weights: {} });
-                            } catch(e) {
+                            } catch {
                               toast.error(e.message || "Vision prediction failed");
                             } finally {
                               setPredicting(false);

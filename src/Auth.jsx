@@ -72,14 +72,14 @@ const Auth = ({ mode = 'login' }) => {
         </div>
       </div>
 
-      <div className="w-full md:w-1/2 flex flex-col justify-center p-8 md:p-16 lg:p-24 bg-[var(--bg)] min-h-screen relative">
-        <div className="md:hidden absolute top-6 left-6">
+      <div className="w-full md:w-1/2 flex flex-col justify-center p-8 md:p-16 lg:p-24 bg-[var(--bg)] min-h-screen relative auth-mobile-shell">
+        <div className="md:hidden auth-mobile-logo">
           <Link to="/" className="logo cursor-pointer inline-flex items-center gap-2 font-bold no-underline text-white">
             <span className="logo-mark"></span>TODDLER
           </Link>
         </div>
 
-        <div className="max-w-[400px] w-full mx-auto mt-12 md:mt-0">
+        <div className="max-w-[400px] w-full mx-auto auth-mobile-form">
           <h1 className="text-3xl font-display font-bold mb-2 text-white">
             {mode === 'login' ? 'Sign in to Toddler' : 'Create your workspace'}
           </h1>

@@ -61,7 +61,6 @@ def _require_db():
     if db is None:
         raise HTTPException(status_code=503, detail="Firestore is not configured")
     return db
-    db = None
 
 def generate_api_key():
     prefix = "tdlr_live_"
@@ -86,7 +85,7 @@ async def train_model(
     file: UploadFile = File(...)
 ):
     try:
-        _require_db()
+        db = _require_db()
         # Enforce a 5 MB ceiling on CSV uploads (Firestore doc limit is 1 MB;
         # we base64-encode so real cap is ~750 KB raw). For larger files this
         # should be switched to a signed Cloud Storage upload.
@@ -171,7 +170,7 @@ async def predict(
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
 ):
     try:
-        _require_db()
+        db = _require_db()
         project_ref, doc = _resolve_project(project_id, x_api_key)
         data = doc.to_dict()
         model_b64 = data.get('model_artifact')
@@ -333,7 +332,7 @@ async def download_model(project_id: str, x_api_key: str | None = Header(default
 # their license and mobile memory profile have been reviewed.
 MODEL_CATALOG = [
     {
-        "id": "tiny-sentiment-v1", "name": "Tiny Sentiment", "type": "Text classification",
+        "id": "sentiment-lite", "name": "Sentiment Lite", "type": "Text classification",
         "description": "Fast positive, negative and neutral predictions.", "format": "onnx",
         "sizeMb": 42, "parameterCount": 1000000, "minimumRamGb": 2,
         "trainingRamMb": 700, "inferenceRamMb": 250, "supportsTraining": True,
@@ -341,13 +340,14 @@ MODEL_CATALOG = [
     },
     {
         "id": "mobile-vision-v1", "name": "Vision Lite", "type": "Image classification",
-        "description": "Compact image classification for low-memory devices.", "format": "tflite",
-        "sizeMb": 28, "parameterCount": 2000000, "minimumRamGb": 2,
+        "description": "Compact quantized MobileNet image classifier for low-memory devices.", "format": "tflite",
+        "sizeMb": 4.3, "parameterCount": 4200000, "minimumRamGb": 2,
         "trainingRamMb": 620, "inferenceRamMb": 180, "supportsTraining": True,
-        "supportsTesting": True, "license": "Apache-2.0", "status": "published"
+        "supportsTesting": True, "license": "Apache-2.0", "status": "published",
+        "downloadUrl": "https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v1_1.0_224_quant.tflite"
     },
     {
-        "id": "mini-embed-v1", "name": "Embed Mini", "type": "Text embeddings",
+        "id": "embed-mini", "name": "Embed Mini", "type": "Text embeddings",
         "description": "Generate sentence vectors locally.", "format": "onnx",
         "sizeMb": 86, "parameterCount": 8000000, "minimumRamGb": 4,
         "trainingRamMb": 1100, "inferenceRamMb": 360, "supportsTraining": False,
@@ -379,8 +379,7 @@ def verify_bearer_token(authorization: str | None):
 @app.post("/datasets")
 async def create_dataset(payload: dict, authorization: str | None = Header(default=None)):
     user = verify_bearer_token(authorization)
-    if "db" not in globals():
-        raise HTTPException(status_code=503, detail="Firestore is not configured")
+    db = _require_db()
     required = ("name", "publicId", "secureUrl", "bytes", "format")
     if any(not payload.get(key) for key in required):
         raise HTTPException(status_code=400, detail="Dataset metadata is incomplete")
@@ -397,8 +396,7 @@ async def create_dataset(payload: dict, authorization: str | None = Header(defau
 @app.get("/datasets")
 def list_datasets(authorization: str | None = Header(default=None)):
     user = verify_bearer_token(authorization)
-    if "db" not in globals():
-        raise HTTPException(status_code=503, detail="Firestore is not configured")
+    db = _require_db()
     rows = []
     for doc in db.collection("users").document(user["uid"]).collection("datasets").stream():
         item = doc.to_dict(); item["id"] = doc.id; rows.append(item)
@@ -421,8 +419,7 @@ def sign_cloudinary_upload(resource_type: str = "raw", authorization: str | None
 @app.delete("/projects/{project_id}")
 def delete_project(project_id: str, authorization: str | None = Header(default=None)):
     user = verify_bearer_token(authorization)
-    if "db" not in globals():
-        raise HTTPException(status_code=503, detail="Firestore is not configured")
+    db = _require_db()
     ref = db.collection("projects").document(project_id)
     doc = ref.get()
     if not doc.exists or doc.to_dict().get("ownerUid", doc.to_dict().get("owner_uid")) != user["uid"]:

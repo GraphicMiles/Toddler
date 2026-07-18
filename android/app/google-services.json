@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "528260574872-uapb0a9enmhr39j5bssfulm94316gd6e.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "ai.toddler.app",
+            "certificate_hash": "e88bc26d0d19bb65d7858c44b77842804a4279cf"
+          }
+        },
+        {
           "client_id": "528260574872-7bfrbgu0j2ospaqonrqq8muk4nkfk5qp.apps.googleusercontent.com",
           "client_type": 3
         }

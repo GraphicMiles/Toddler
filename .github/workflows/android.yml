@@ -43,6 +43,14 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
+      - name: Make Gradle executable
+        working-directory: android
+        run: chmod +x gradlew
+
+      - name: Show Android signing fingerprints
+        working-directory: android
+        run: ./gradlew signingReport --no-daemon
+
       - name: Build web application
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
@@ -60,10 +68,6 @@ jobs:
 
       - name: Sync web app into Capacitor Android
         run: npx cap sync android
-
-      - name: Make Gradle executable
-        working-directory: android
-        run: chmod +x gradlew
 
       - name: Build debug APK
         working-directory: android

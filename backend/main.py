@@ -72,6 +72,102 @@ def scrub_pii(text):
     text = re.sub(r'\+?\d{10,12}', '[PHONE_REDACTED]', text)
     return text
 
+# ---- Inference helpers (support both server pickle and phone-trained JSON) ----
+import math as _math
+
+_PY_STOPWORDS = frozenset([
+    'the','a','an','and','or','but','if','then','of','at','by','for','with',
+    'about','against','between','into','through','during','before','after',
+    'above','below','to','from','up','down','in','out','on','off','over','under',
+    'again','further','is','am','are','was','were','be','been','being','have',
+    'has','had','having','do','does','did','doing','i','me','my','myself','we',
+    'our','ours','ourselves','you','your','yours','yourself','yourselves','he',
+    'him','his','himself','she','her','hers','herself','it','its','itself','they',
+    'them','their','theirs','themselves','what','which','who','whom','this',
+    'that','these','those','as','so','than','too','very','can','will','just',
+    'don','should','now'
+])
+
+def _py_tokenize(text):
+    t = re.sub(r"[^a-z0-9\s']+", ' ', str(text).lower())
+    return [w for w in t.split() if len(w) > 1 and w not in _PY_STOPWORDS]
+
+def _predict_json_model(artifact, text):
+    toks = _py_tokenize(text)
+    vocab = artifact['vocab']
+    idf = artifact['idf']
+    index = {w:i for i,w in enumerate(vocab)}
+    # tf
+    tf = {}
+    for w in toks:
+        i = index.get(w)
+        if i is None: continue
+        tf[i] = tf.get(i,0) + 1
+    vec = {}
+    norm = 0.0
+    for i,c in tf.items():
+        v = c * idf[i]
+        vec[i] = v
+        norm += v*v
+    norm = _math.sqrt(norm) or 1.0
+    for i in vec: vec[i] /= norm
+    # NB argmax
+    classes = artifact['classes']
+    logPrior = artifact['logPrior']
+    logProb = artifact['logProb']
+    best, bestScore = None, -1e300
+    scores = {}
+    for c in range(len(classes)):
+        s = logPrior[c]
+        for i,v in vec.items():
+            s += logProb[c][i] * v
+        scores[classes[c]] = s
+        if s > bestScore:
+            bestScore = s; best = classes[c]
+    # softmax
+    denom = 0.0
+    confs = {}
+    for k,s in scores.items():
+        e = _math.exp(s - bestScore)
+        confs[k] = e; denom += e
+    # weights = simple token-level signed log-odds for predicted class
+    weights = {}
+    cidx = classes.index(best)
+    for w in set(toks):
+        i = index.get(w)
+        if i is None: continue
+        weights[w] = float(logProb[cidx][i])
+    return str(best), float(confs[best]/denom), weights
+
+def _run_prediction(data, text):
+    """Return (prediction, confidence, weights) regardless of model format."""
+    # Prefer JSON phone-trained model if present
+    json_b64 = data.get('model_artifact_json')
+    if json_b64:
+        artifact = json.loads(base64.b64decode(json_b64).decode('utf-8'))
+        return _predict_json_model(artifact, text)
+    model_b64 = data.get('model_artifact')
+    if not model_b64:
+        raise HTTPException(status_code=400, detail="Model artifact missing — the model may still be training.")
+    pipeline = pickle.loads(base64.b64decode(model_b64))
+    prediction = pipeline.predict([text])[0]
+    probs = pipeline.predict_proba([text])[0]
+    confidence = float(max(probs))
+    tfidf = pipeline.named_steps['tfidf']
+    clf = pipeline.named_steps['clf']
+    f_names = tfidf.get_feature_names_out()
+    classes = list(clf.classes_)
+    class_idx = classes.index(prediction)
+    transformed = tfidf.transform([text])
+    weights = {}
+    for idx in transformed.indices:
+        if len(classes) == 2:
+            weight = clf.coef_[0][idx] if class_idx == 1 else -clf.coef_[0][idx]
+        else:
+            weight = clf.coef_[class_idx][idx]
+        weights[str(f_names[idx])] = float(weight * transformed[0, idx])
+    return str(prediction), confidence, weights
+
 @app.get("/")
 def health_check():
     return {"status": "operational", "engine": "scikit-learn v1.x"}
@@ -200,6 +296,171 @@ async def get_job(job_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ---- BYOC (phone-as-worker) endpoints --------------------------------------
+# These allow a signed-in user's Android device to claim a queued job they own,
+# train on-device, and submit the finished model artifact back.
+
+def _verify_user(authorization):
+    """Shared auth: returns Firebase decoded token, raises HTTPException."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Firebase bearer token required")
+    if not firebase_admin._apps:
+        raise HTTPException(status_code=503, detail="Firebase Admin is not configured")
+    try:
+        from firebase_admin import auth as fbauth
+        return fbauth.verify_id_token(authorization[7:])
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid Firebase token")
+
+@app.post("/jobs/claim")
+async def claim_job(authorization: str | None = Header(default=None)):
+    """Claim the oldest queued job owned by the calling user. Used by the
+    Android app as a BYOC worker. Returns job data including the CSV so the
+    device can train locally. The job is atomically marked 'device_training'
+    to prevent duplicate claims."""
+    user = _verify_user(authorization)
+    db = _require_db()
+    uid = user["uid"]
+    # Find this user's oldest queued project
+    projects_q = (db.collection("projects")
+                    .where("ownerUid", "==", uid)
+                    .where("status", "in", ["queued", "awaiting_device"])
+                    .order_by("createdAt")
+                    .limit(1))
+    project_docs = list(projects_q.stream())
+    if not project_docs:
+        return {"job": None}
+    proj = project_docs[0]
+    proj_data = proj.to_dict()
+    job_id = proj_data.get("current_job_id")
+    if not job_id:
+        return {"job": None}
+    job_ref = db.collection("training_jobs").document(job_id)
+    job_doc = job_ref.get()
+    if not job_doc.exists:
+        return {"job": None}
+    job_data = job_doc.to_dict()
+    if job_data.get("status") not in ("queued", "awaiting_device"):
+        return {"job": None}
+    # Atomically transition to device_training (transaction)
+    @firestore.transactional
+    def txn_claim(t, ref):
+        snap = t.get(ref)
+        if not snap.exists:
+            return None
+        s = snap.to_dict()
+        if s.get("status") not in ("queued", "awaiting_device"):
+            return None
+        t.update(ref, {"status": "device_training", "progress": 1, "device": uid, "claimedAt": firestore.SERVER_TIMESTAMP})
+        return s
+    from firebase_admin import firestore as fs
+    txn = db.transaction()
+    claimed = txn_claim(txn, job_ref)
+    if claimed is None:
+        return {"job": None}
+    # Also mark project as training
+    proj.reference.update({"status": "device_training"})
+    out = dict(job_data)
+    out["id"] = job_id
+    out["status"] = "device_training"
+    return {"job": out}
+
+@app.post("/jobs/{job_id}/progress")
+async def report_job_progress(
+    job_id: str,
+    payload: dict,
+    authorization: str | None = Header(default=None),
+):
+    user = _verify_user(authorization)
+    db = _require_db()
+    job_ref = db.collection("training_jobs").document(job_id)
+    job = job_ref.get()
+    if not job.exists:
+        raise HTTPException(404, "Job not found")
+    j = job.to_dict()
+    # Verify ownership
+    proj = db.collection("projects").document(j["project_id"]).get()
+    if not proj.exists or proj.to_dict().get("ownerUid") != user["uid"]:
+        raise HTTPException(403, "Not your job")
+    progress = max(0, min(99, int(payload.get("progress", 0))))
+    msg = payload.get("message")
+    upd = {"progress": progress}
+    if msg:
+        upd["message"] = msg
+    job_ref.update(upd)
+    return {"ok": True, "progress": progress}
+
+@app.post("/jobs/{job_id}/complete")
+async def complete_job(
+    job_id: str,
+    payload: dict,
+    authorization: str | None = Header(default=None),
+):
+    """Phone submits the finished model artifact.
+    payload = {
+      accuracy, labels[], topFeatures, distribution, confusionMatrix,
+      artifact: { kind:'toddler-bayes-v1', vocab, idf, classes, logPrior, logProb }
+    }
+    Artifact is base64-encoded JSON and stored in model_artifact_b64_json so the
+    legacy pickle field stays untouched and predictions detect which format to use.
+    """
+    user = _verify_user(authorization)
+    db = _require_db()
+    job_ref = db.collection("training_jobs").document(job_id)
+    job = job_ref.get()
+    if not job.exists:
+        raise HTTPException(404, "Job not found")
+    jd = job.to_dict()
+    proj_ref = db.collection("projects").document(jd["project_id"])
+    proj = proj_ref.get()
+    if not proj.exists or proj.to_dict().get("ownerUid") != user["uid"]:
+        raise HTTPException(403, "Not your job")
+    artifact_json = payload.get("artifact")
+    if not artifact_json:
+        raise HTTPException(400, "Missing artifact")
+    # Serialize to base64 JSON (safe for Firestore, max ~1MB but it's tiny NB model)
+    model_b64_json = base64.b64encode(
+        json.dumps(artifact_json).encode("utf-8")
+    ).decode("ascii")
+
+    proj_existing = proj.to_dict() or {}
+    update_payload = {
+        "status": "trained",
+        "accuracy": float(payload.get("accuracy", 0)),
+        "model_artifact_json": model_b64_json,
+        "model_format": artifact_json.get("kind", "toddler-bayes-v1"),
+        "labels": list(payload.get("labels") or []),
+        "distribution": payload.get("distribution") or {},
+        "confusion_matrix": payload.get("confusionMatrix") or [],
+        "top_features": payload.get("topFeatures") or {},
+        "health": "On-device trained",
+        "trainedAt": firestore.SERVER_TIMESTAMP,
+    }
+    if not proj_existing.get("api_key"):
+        update_payload["api_key"] = generate_api_key()
+    # version increment
+    update_payload["version"] = firestore.Increment(1)
+    proj_ref.update(update_payload)
+    job_ref.update({"status": "completed", "progress": 100, "completedAt": firestore.SERVER_TIMESTAMP})
+    return {"ok": True}
+
+@app.post("/jobs/{job_id}/fail")
+async def fail_job(job_id: str, payload: dict, authorization: str | None = Header(default=None)):
+    user = _verify_user(authorization)
+    db = _require_db()
+    job_ref = db.collection("training_jobs").document(job_id)
+    job = job_ref.get()
+    if not job.exists:
+        raise HTTPException(404, "Job not found")
+    jd = job.to_dict()
+    proj = db.collection("projects").document(jd["project_id"]).get()
+    if not proj.exists or proj.to_dict().get("ownerUid") != user["uid"]:
+        raise HTTPException(403, "Not your job")
+    err = str(payload.get("error", "Unknown device error"))[:500]
+    job_ref.update({"status": "failed", "error": err})
+    proj.reference.update({"status": "failed", "error": err})
+    return {"ok": True}
+
 def _resolve_project(project_id: str | None, x_api_key: str | None):
     """Resolve a project doc ref by id OR by api_key."""
     db = _require_db()
@@ -227,31 +488,9 @@ async def predict(
         db = _require_db()
         project_ref, doc = _resolve_project(project_id, x_api_key)
         data = doc.to_dict()
-        model_b64 = data.get('model_artifact')
-        if not model_b64:
-            raise HTTPException(status_code=400, detail="Model artifact missing — the model may still be training.")
 
-        pipeline = pickle.loads(base64.b64decode(model_b64))
-
-        prediction = pipeline.predict([text])[0]
-        probs = pipeline.predict_proba([text])[0]
-        confidence = float(max(probs))
-
-        # Explainability
-        tfidf = pipeline.named_steps['tfidf']
-        clf = pipeline.named_steps['clf']
-        f_names = tfidf.get_feature_names_out()
-        classes = list(clf.classes_)
-        class_idx = classes.index(prediction)
-
-        transformed = tfidf.transform([text])
-        weights = {}
-        for idx in transformed.indices:
-            if len(classes) == 2:
-                weight = clf.coef_[0][idx] if class_idx == 1 else -clf.coef_[0][idx]
-            else:
-                weight = clf.coef_[class_idx][idx]
-            weights[f_names[idx]] = float(weight * transformed[0, idx])
+        # Detect model format: JSON (phone-trained) or pickle (server-trained)
+        prediction, confidence, weights = _run_prediction(data, text)
 
         # Fire-and-forget active learning log
         try:
@@ -286,15 +525,28 @@ async def batch_predict(
     try:
         project_ref, doc = _resolve_project(project_id, x_api_key)
         data = doc.to_dict()
-        model_b64 = data.get('model_artifact')
-        if not model_b64:
-            raise HTTPException(status_code=400, detail="Model artifact missing — the model may still be training.")
-        pipeline = pickle.loads(base64.b64decode(model_b64))
-
-        df = pd.read_csv(io.BytesIO(await file.read()))
-        if text_column not in df.columns:
-            raise HTTPException(status_code=400, detail=f"Column '{text_column}' not found in uploaded CSV.")
-        df['prediction'] = pipeline.predict(df[text_column].astype(str))
+        json_b64 = data.get('model_artifact_json')
+        if json_b64:
+            artifact = json.loads(base64.b64decode(json_b64).decode('utf-8'))
+            df = pd.read_csv(io.BytesIO(await file.read()))
+            if text_column not in df.columns:
+                raise HTTPException(status_code=400, detail=f"Column '{text_column}' not found in uploaded CSV.")
+            preds, confs = [], []
+            for txt in df[text_column].astype(str):
+                p, c, _ = _predict_json_model(artifact, txt)
+                preds.append(p); confs.append(c)
+            df['prediction'] = preds
+            df['confidence'] = confs
+        else:
+            model_b64 = data.get('model_artifact')
+            if not model_b64:
+                raise HTTPException(status_code=400, detail="Model artifact missing — the model may still be training.")
+            pipeline = pickle.loads(base64.b64decode(model_b64))
+            df = pd.read_csv(io.BytesIO(await file.read()))
+            if text_column not in df.columns:
+                raise HTTPException(status_code=400, detail=f"Column '{text_column}' not found in uploaded CSV.")
+            df['prediction'] = pipeline.predict(df[text_column].astype(str))
+            df['confidence'] = [float(max(p)) for p in pipeline.predict_proba(df[text_column].astype(str))]
 
         stream = io.StringIO()
         df.to_csv(stream, index=False)

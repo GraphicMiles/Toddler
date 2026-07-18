@@ -1,9 +1,10 @@
 import React from 'react'
-import { Download, Cpu, HardDrive, MemoryStick, CheckCircle2, Play, FlaskConical, Code2, ChevronRight, Smartphone, Zap } from 'lucide-react'
+import { Download, Cpu, HardDrive, MemoryStick, CheckCircle2, Play, FlaskConical, Code2, ChevronRight, Smartphone, Zap, Loader2 } from 'lucide-react'
 import { Capacitor } from '@capacitor/core'
 import { auth } from './firebase'
 import { signOut } from 'firebase/auth'
 import localforage from 'localforage'
+import { trainTextModel } from './textML'
 
 const PLATFORM_LABEL = Capacitor.isNativePlatform() ? Capacitor.getPlatform() : 'Web'
 const PLATFORM_DISPLAY = PLATFORM_LABEL === 'android' ? 'Android device' : PLATFORM_LABEL === 'ios' ? 'iOS device' : PLATFORM_LABEL === 'web' ? 'This browser' : `${PLATFORM_LABEL} device`
@@ -38,6 +39,12 @@ export default function MobileDashboard() {
   const [testResult, setTestResult] = React.useState(null)
   const [testing, setTesting] = React.useState(false)
   const msgTimeoutRef = React.useRef(null)
+  const [byocEnabled, setByocEnabled] = React.useState(() => localStorage.getItem('toddler-byoc') !== '0')
+  const [byocStatus, setByocStatus] = React.useState('idle') // idle|checking|training|idle|error
+  const [byocJobName, setByocJobName] = React.useState('')
+  const [byocProgress, setByocProgress] = React.useState(0)
+  const byocLockRef = React.useRef(false)
+  const byocTimerRef = React.useRef(null)
 
   const apiUrl = import.meta.env.VITE_API_URL
 
@@ -47,7 +54,99 @@ export default function MobileDashboard() {
     if (ms > 0) msgTimeoutRef.current = setTimeout(() => setMessage(''), ms)
   }, [])
 
-  React.useEffect(() => () => { if (msgTimeoutRef.current) clearTimeout(msgTimeoutRef.current) }, [])
+  React.useEffect(() => () => {
+    if (msgTimeoutRef.current) clearTimeout(msgTimeoutRef.current)
+    if (byocTimerRef.current) clearInterval(byocTimerRef.current)
+  }, [])
+
+  // ---- BYOC (phone-as-worker) loop: claim & train free-tier cloud jobs ----
+  const runByocTick = React.useCallback(async () => {
+    if (!apiUrl || !auth.currentUser || byocLockRef.current || !byocEnabled) return
+    byocLockRef.current = true
+    try {
+      const token = await auth.currentUser.getIdToken()
+      setByocStatus('checking')
+      const claimRes = await fetch(`${apiUrl}/jobs/claim`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!claimRes.ok) { setByocStatus('idle'); return }
+      const claimJson = await claimRes.json()
+      const job = claimJson.job
+      if (!job) { setByocStatus('idle'); return }
+
+      setByocStatus('training')
+      setByocProgress(2)
+      setByocJobName(job.project_id)
+
+      // Decode CSV
+      const csvText = atob(job.csv_data)
+      const rows = csvText.trim().split(/\r?\n/)
+      const header = rows[0].split(',')
+      const textIdx = header.indexOf(job.text_column)
+      const labelIdx = header.indexOf(job.label_column)
+      if (textIdx < 0 || labelIdx < 0) throw new Error('Column mapping lost')
+      const dataRows = rows.slice(1)
+        .map(line => line.split(','))
+        .filter(cols => cols.length > Math.max(textIdx, labelIdx))
+        .map(cols => ({ text: cols[textIdx] ?? '', label: cols[labelIdx] ?? '' }))
+        .filter(r => r.text && r.label)
+      if (dataRows.length < 2) throw new Error('Not enough rows')
+
+      // Progress reporter
+      const reportProgress = async p => {
+        setByocProgress(Math.max(2, Math.min(99, Math.round(p))))
+        try {
+          await fetch(`${apiUrl}/jobs/${job.id}/progress`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ progress: Math.round(p) })
+          })
+        } catch {}
+      }
+      await reportProgress(5)
+
+      // Train with the in-browser TF-IDF + Naive Bayes trainer
+      const { artifact, accuracy, labels, topFeatures, confusionMatrix, distribution } =
+        trainTextModel(dataRows, reportProgress)
+
+      await reportProgress(95)
+
+      // Submit final model
+      const completeRes = await fetch(`${apiUrl}/jobs/${job.id}/complete`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accuracy, labels, topFeatures, distribution,
+          confusionMatrix: confusionMatrix,
+          artifact,
+        })
+      })
+      if (!completeRes.ok) {
+        const errText = await completeRes.text().catch(() => '')
+        throw new Error(`Submit failed: ${completeRes.status} ${errText.slice(0,120)}`)
+      }
+      setByocProgress(100)
+      showMessage(`Trained a model on your device (${Math.round(accuracy*100)}% accuracy) — synced to cloud.`)
+      setByocJobName('')
+      setByocStatus('idle')
+    } catch (err) {
+      console.warn('[byoc] error', err)
+      setByocStatus('idle')
+      setByocJobName('')
+    } finally {
+      byocLockRef.current = false
+    }
+  }, [apiUrl, byocEnabled, showMessage])
+
+  React.useEffect(() => {
+    if (byocTimerRef.current) { clearInterval(byocTimerRef.current); byocTimerRef.current = null }
+    if (!byocEnabled || !apiUrl || !auth.currentUser) return
+    // Poll every 30 seconds (also run immediately on mount / when toggled)
+    runByocTick()
+    byocTimerRef.current = setInterval(runByocTick, 30000)
+    return () => { if (byocTimerRef.current) clearInterval(byocTimerRef.current) }
+  }, [byocEnabled, apiUrl, runByocTick])
 
   React.useEffect(() => {
     setRam(navigator.deviceMemory ? Math.round(navigator.deviceMemory) : 4)
@@ -183,7 +282,14 @@ export default function MobileDashboard() {
   }
 
   return <div className="mobile-app">
-    <header className="mobile-header"><div className="mobile-brand"><span className="mobile-mark" /> TODDLER</div><div className="mobile-header-actions"><div className="device-pill"><span className="online-dot" /> DEVICE READY</div><button className="profile-button" onClick={() => setDrawerOpen(true)} aria-label="Open profile menu">{(auth.currentUser?.displayName || auth.currentUser?.email || 'U').charAt(0).toUpperCase()}</button></div></header>
+    <header className="mobile-header"><div className="mobile-brand"><span className="mobile-mark" /> TODDLER</div><div className="mobile-header-actions">
+      <label className="byoc-pill" title={byocEnabled ? 'Your device is helping train free-tier models' : 'Tap to let your device train free-tier models'}>
+        <input type="checkbox" checked={byocEnabled} onChange={e => { const on = e.target.checked; localStorage.setItem('toddler-byoc', on ? '1' : '0'); setByocEnabled(on); if (on) { showMessage('Device training enabled — will pick up jobs when idle.'); setTimeout(runByocTick, 500) } }} style={{display:'none'}} />
+        {byocStatus === 'training' ? <Loader2 size={12} className="spin" /> : <span className="online-dot" style={{background: byocEnabled ? '#c6ff33' : '#6f786c'}} />}
+        {byocStatus === 'training' ? `TRAINING ${byocProgress}%` : byocEnabled ? 'DEVICE READY' : 'DEVICE IDLE'}
+      </label>
+      <button className="profile-button" onClick={() => setDrawerOpen(true)} aria-label="Open profile menu">{(auth.currentUser?.displayName || auth.currentUser?.email || 'U').charAt(0).toUpperCase()}</button>
+    </div></header>
     {drawerOpen && <><div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} /><aside className="profile-drawer"><button className="drawer-close" onClick={() => setDrawerOpen(false)}>×</button><div className="profile-avatar">{(auth.currentUser?.displayName || auth.currentUser?.email || 'U').charAt(0).toUpperCase()}</div><h2>{auth.currentUser?.displayName || 'Toddler user'}</h2><p>{auth.currentUser?.email || 'Signed-in account'}</p><div className="drawer-section"><span>PROJECT</span><b>Toddler workspace</b><button className="drawer-link" onClick={() => setDrawerPage('project')}>Project settings <ChevronRight size={14}/></button></div><div className="drawer-section"><span>ACCOUNT</span><button className="drawer-link" onClick={() => setDrawerPage('profile')}>Profile settings <ChevronRight size={14}/></button><button className="drawer-link" onClick={() => setDrawerPage('developer')}>Developer settings <ChevronRight size={14}/></button></div>{drawerPage !== 'home' && <div className="drawer-page"><button className="drawer-back" onClick={() => setDrawerPage('home')}>← Back to account</button>{drawerPage === 'project' && <><h3>Project settings</h3><label className="drawer-field">Project name<input defaultValue="Toddler workspace" /></label><button className="drawer-save" onClick={() => showMessage('Project settings saved locally.')}>Save changes</button></>}{drawerPage === 'profile' && <><h3>Profile settings</h3><label className="drawer-field">Display name<input defaultValue={auth.currentUser?.displayName || ''} /></label><button className="drawer-save" onClick={() => showMessage('Profile settings saved locally.')}>Save changes</button></>}{drawerPage === 'developer' && <><h3>Developer settings</h3><p className="drawer-note">Local API access is disabled by default. Enable it from the Dev tab when the local server is available.</p><button className="drawer-save" onClick={() => setTab('dev')}>Open Dev tab</button></>}</div>}
           <div className="drawer-danger"><span>DANGER ZONE</span><button onClick={() => showMessage('Use the web dashboard to manage projects.')}>Delete project</button><button onClick={deleteAccount}>Delete account</button></div><button className="drawer-logout" onClick={() => signOut(auth)}>Log out</button></aside></>}
     {selectedModel && <div className="model-modal-backdrop" onClick={() => setSelectedModel(null)}><section className="model-modal" onClick={event => event.stopPropagation()}><button className="drawer-close" onClick={() => setSelectedModel(null)}>×</button><p className="mobile-kicker">MODEL DETAILS</p><h2>{selectedModel.name}</h2><p className="mobile-muted">{selectedModel.description}</p><div className="detail-grid"><span>Task<b>{selectedModel.type}</b></span><span>Format<b>{selectedModel.format || 'ONNX'}</b></span><span>Size<b>{modelSize(selectedModel)} MB</b></span><span>Parameters<b>{selectedModel.params || `${(selectedModel.parameterCount || 0) / 1000000}M`}</b></span><span>Training RAM<b>{formatRam(modelRam(selectedModel))}</b></span><span>License<b>{selectedModel.license || 'Apache-2.0'}</b></span></div><button className="primary-button" disabled={downloaded.includes(selectedModel.id) || !canFit(selectedModel) || !isPublished(selectedModel)} onClick={() => { setSelectedModel(null); download(selectedModel) }}>{downloaded.includes(selectedModel.id) ? 'Downloaded' : !isPublished(selectedModel) ? 'Coming soon' : canFit(selectedModel) ? 'Download model' : 'Not compatible'}</button></section></div>}

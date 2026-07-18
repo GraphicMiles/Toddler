@@ -30,6 +30,64 @@
   -webkit-text-size-adjust: 100%;
 }
 
+/* ---------- BYOC pill (header) ---------- */
+.byoc-pill {
+  font: 10px/1 'IBM Plex Mono', ui-monospace, monospace;
+  color: #c6ff33;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid #303529;
+  background: #171914;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.byoc-pill input { display: none; }
+.byoc-pill .spin { animation: byoc-spin 1s linear infinite; }
+@keyframes byoc-spin { to { transform: rotate(360deg); } }
+
+/* ---------- BYOC job card in Train tab ---------- */
+.byoc-job {
+  border: 1px solid #303529;
+  background: #171914;
+  padding: 14px;
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+.byoc-job-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font: 10px/1 'IBM Plex Mono', ui-monospace, monospace;
+  color: #88917b;
+}
+.byoc-job b { color: #f2efe6; font-size: 13px; font-family: 'Space Grotesk', Inter, sans-serif; }
+.byoc-progress {
+  height: 3px;
+  background: #252b1d;
+  position: relative;
+  overflow: hidden;
+}
+.byoc-progress span {
+  position: absolute; inset: 0;
+  background: #c6ff33;
+  transform-origin: left;
+  transition: transform .3s ease;
+}
+.byoc-toggle {
+  display: flex; align-items: center; gap: 10px;
+  font: 10px/1.4 'IBM Plex Mono', ui-monospace, monospace;
+  color: #929b8b;
+  padding: 12px 0;
+  border-top: 1px solid #303529;
+  margin-top: 14px;
+}
+
 /* ---------- Sticky header ---------- */
 .mobile-header {
   height: calc(clamp(58px, 8vh, 72px) + max(var(--mobile-safe-top), 20px));

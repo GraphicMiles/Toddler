@@ -37,7 +37,7 @@ const Auth = ({ mode = 'login' }) => {
     setLoading(true);
     try {
       if (Capacitor.isNativePlatform()) {
-        const result = await FirebaseAuthentication.signInWithGoogle();
+        const result = await FirebaseAuthentication.signInWithGoogle({ useCredentialManager: false });
         const idToken = result.credential?.idToken;
         if (!idToken) throw new Error('Google did not return an ID token. Check Android Firebase configuration.');
         await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));

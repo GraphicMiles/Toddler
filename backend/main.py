@@ -327,3 +327,25 @@ def sign_cloudinary_upload(resource_type: str = "raw", authorization: str | None
     if preset:
         params["upload_preset"] = preset
     return {"timestamp": timestamp, "signature": cloudinary.utils.api_sign_request(params, os.environ["CLOUDINARY_API_SECRET"]), "apiKey": os.environ["CLOUDINARY_API_KEY"], "cloudName": os.environ["CLOUDINARY_CLOUD_NAME"], "folder": folder, "uploadPreset": preset}
+
+@app.delete("/projects/{project_id}")
+def delete_project(project_id: str, authorization: str | None = Header(default=None)):
+    user = verify_bearer_token(authorization)
+    if "db" not in globals():
+        raise HTTPException(status_code=503, detail="Firestore is not configured")
+    ref = db.collection("projects").document(project_id)
+    doc = ref.get()
+    if not doc.exists or doc.to_dict().get("ownerUid", doc.to_dict().get("owner_uid")) != user["uid"]:
+        raise HTTPException(status_code=404, detail="Project not found")
+    ref.delete()
+    return {"status": "deleted", "project_id": project_id}
+
+@app.delete("/account")
+def delete_account(authorization: str | None = Header(default=None)):
+    user = verify_bearer_token(authorization)
+    try:
+        from firebase_admin import auth
+        auth.delete_user(user["uid"])
+        return {"status": "deleted"}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Account deletion failed: {exc}")

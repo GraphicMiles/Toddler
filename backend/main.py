@@ -261,7 +261,7 @@ MODEL_CATALOG = [
         "description": "Generate sentence vectors locally.", "format": "onnx",
         "sizeMb": 86, "parameterCount": 8000000, "minimumRamGb": 4,
         "trainingRamMb": 1100, "inferenceRamMb": 360, "supportsTraining": False,
-        "supportsTesting": True, "license": "Apache-2.0", "status": "published"
+        "supportsTesting": True, "license": "Apache-2.0", "status": "published", "downloadUrl": "https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model_quantized.onnx"
     }
 ]
 

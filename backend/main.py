@@ -247,7 +247,7 @@ MODEL_CATALOG = [
         "description": "Fast positive, negative and neutral predictions.", "format": "onnx",
         "sizeMb": 42, "parameterCount": 1000000, "minimumRamGb": 2,
         "trainingRamMb": 700, "inferenceRamMb": 250, "supportsTraining": True,
-        "supportsTesting": True, "license": "Apache-2.0", "status": "published"
+        "supportsTesting": True, "license": "Apache-2.0", "status": "published", "downloadUrl": "https://huggingface.co/Xenova/distilbert-base-uncased-finetuned-sst-2-english/resolve/main/onnx/model_quantized.onnx"
     },
     {
         "id": "mobile-vision-v1", "name": "Vision Lite", "type": "Image classification",

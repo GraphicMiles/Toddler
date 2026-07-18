@@ -4,6 +4,7 @@ import LandingPage from './LandingPage'
 import Auth from './Auth'
 import Dashboard from './Dashboard'
 import MobileDashboard from './MobileDashboard'
+import MobileWrapper from './MobileWrapper'
 import { Capacitor } from '@capacitor/core'
 import { auth } from './firebase'
 import { onAuthStateChanged } from 'firebase/auth'
@@ -32,9 +33,9 @@ function App() {
   )
 
   return (
-    <>
+    <MobileWrapper>
       <Toaster 
-        position="bottom-right"
+        position={Capacitor.isNativePlatform() ? "top-center" : "bottom-right"}
         toastOptions={{
           style: { background: '#1D1B16', color: '#F2EFE6', border: '1px solid #38352B', borderRadius: '0', fontFamily: '"IBM Plex Mono", monospace', fontSize: '12px' }
         }}
@@ -47,7 +48,7 @@ function App() {
           <Route path="/dashboard/*" element={user ? (Capacitor.isNativePlatform() ? <MobileDashboard /> : <Dashboard />) : <Navigate to="/login" />} />
         </Routes>
       </BrowserRouter>
-    </>
+    </MobileWrapper>
   )
 }
 

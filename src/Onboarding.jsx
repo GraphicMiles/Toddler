@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import Papa from 'papaparse';
+import { Capacitor } from '@capacitor/core';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { auth, db } from './firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+
+const vibrate = (style = ImpactStyle.Medium) => {
+  if (Capacitor.isNativePlatform()) Haptics.impact({ style }).catch(() => {});
+};
 
 const Onboarding = ({ onComplete }) => {
   const [step, setStep] = useState(1);
@@ -37,13 +43,23 @@ const Onboarding = ({ onComplete }) => {
     return () => clearInterval(interval);
   }, [isUploading]);
 
+  // Refs for cleanup
+  const pollIntervalRef = React.useRef(null);
+  const genIntervalRef = React.useRef(null);
+
+  useEffect(() => () => {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    if (genIntervalRef.current) clearInterval(genIntervalRef.current);
+  }, []);
+
   const handleFileUpload = (e) => {
     const selectedFile = e.target.files[0];
     if (!selectedFile) return;
     if (selectedFile.size > 5 * 1024 * 1024) { setError('File size exceeded. Max 5MB.'); return; }
     setFile(selectedFile);
     Papa.parse(selectedFile, {
-      header: true, preview: 10,
+      header: true,
+      skipEmptyLines: true,
       complete: (results) => {
         if (results.data.length > 0) {
           setCsvData(results.data); setColumns(Object.keys(results.data[0]));
@@ -109,15 +125,16 @@ const Onboarding = ({ onComplete }) => {
         formData.append('project_id', docRef.id);
         formData.append('text_column', selection.text);
         formData.append('label_column', selection.label);
-        formData.append('redact_pii', redactPii);
+        formData.append('redact_pii', redactPii ? 'true' : 'false');
 
         const apiUrl = import.meta.env.VITE_API_URL;
-        if (!apiUrl) throw new Error("VITE_API_URL is missing in environment variables.");
+        if (!apiUrl) { await deleteDoc(doc(db, "projects", docRef.id)); throw new Error("VITE_API_URL is missing in environment variables."); }
         
         let response;
         try {
           response = await fetch(`${apiUrl}/train`, { method: 'POST', body: formData });
-        } catch {
+        } catch (e) {
+          await deleteDoc(doc(db, "projects", docRef.id));
           throw new Error('Network Error: Could not connect to the backend (check CORS or URL).');
         }
 
@@ -126,14 +143,49 @@ const Onboarding = ({ onComplete }) => {
           try {
             const errData = await response.json();
             errText = errData.detail || errData.message || errText;
-          } catch {
-            // Keep default status text
-          }
+          } catch {}
+          await deleteDoc(doc(db, "projects", docRef.id));
           throw new Error(errText);
         }
         
         const result = await response.json();
-        onComplete({ id: docRef.id, ...projectData, status: 'trained', accuracy: result.accuracy });
+        if (!result.job_id) {
+          await deleteDoc(doc(db, "projects", docRef.id));
+          throw new Error('Backend did not return a job ID.');
+        }
+
+        // Poll /jobs/{job_id} until the BYOC agent completes training.
+        // Use a ref-held interval so it gets cleaned up if the component unmounts.
+        const accuracy = await new Promise((resolve, reject) => {
+          const maxAttempts = 240; // ~4 minutes at 1s
+          let attempts = 0;
+          pollIntervalRef.current = setInterval(async () => {
+            attempts++;
+            try {
+              const r = await fetch(`${apiUrl}/jobs/${result.job_id}`);
+              if (!r.ok) {
+                if (attempts > maxAttempts) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; reject(new Error('Lost contact with training server')); }
+                return;
+              }
+              const j = await r.json();
+              if (typeof j.progress === 'number') setLoadingMessage(`Training… ${j.progress}%`);
+              if (j.status === 'completed') { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; resolve(typeof j.accuracy === 'number' ? j.accuracy : 0.9); return; }
+              if (j.status === 'failed')    { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; reject(new Error(j.error || 'Training failed')); return; }
+            } catch (e) { if (attempts > maxAttempts) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; reject(e); } }
+          }, 1000);
+        });
+
+        // Fetch final project doc to get labels list (written by the agent)
+        let finalLabels = [];
+        try {
+          const { getDoc } = await import('firebase/firestore');
+          const snap = await getDoc(doc(db, "projects", docRef.id));
+          if (snap.exists()) finalLabels = snap.data().labels || [];
+        } catch {}
+
+        vibrate(ImpactStyle.Heavy);
+        setIsUploading(false);
+        onComplete({ id: docRef.id, ...projectData, status: 'trained', accuracy, labels: finalLabels, responses: {} });
         
       } else if (modelType === 'generative') {
         if (!selection.text || !selection.label) throw new Error('Generative mapping incomplete.');
@@ -148,14 +200,17 @@ const Onboarding = ({ onComplete }) => {
         
         // --- START BROWSER-SIMULATED GENERATIVE FINE-TUNING ---
         let mockProgress = 0;
-        const interval = setInterval(() => {
+        genIntervalRef.current = setInterval(() => {
           mockProgress++;
           if (mockProgress === 1) setLoadingMessage('Validating JSONL conversion...');
           if (mockProgress === 3) setLoadingMessage(`Pushing ${csvData.length} records to Training Cluster...`);
           if (mockProgress === 5) setLoadingMessage('Fine-tuning base LLM (LoRA)...');
           if (mockProgress === 8) {
-            clearInterval(interval);
-            onComplete({ id: docRef.id, ...projectData, status: 'trained', accuracy: null });
+            clearInterval(genIntervalRef.current);
+            genIntervalRef.current = null;
+            setIsUploading(false);
+            vibrate(ImpactStyle.Heavy);
+            onComplete({ id: docRef.id, ...projectData, status: 'trained', accuracy: null, labels: [], responses: {} });
           }
         }, 1500);
         // --- END BROWSER SIMULATION ---
@@ -185,6 +240,8 @@ const Onboarding = ({ onComplete }) => {
                  await lf.setItem(`model_${docRef.id}`, serializedModel);
                }
                
+               setIsUploading(false);
+               vibrate(ImpactStyle.Heavy);
                onComplete({ id: docRef.id, ...projectData, status: 'trained', accuracy: 0.98 });
              } catch (err) {
                setError("Vision Training Error: " + err.message);
@@ -196,10 +253,8 @@ const Onboarding = ({ onComplete }) => {
         // --- END BROWSER ML ---
       }
     } catch (err) { 
-      setError(err.message); 
-      setIsUploading(false); 
-      // If error occurred after docRef creation in text/generative but before completion, we should technically clean it, 
-      // but docRef scope is inside the block. A robust app handles this, but since it throws before or handles it inside, it's mostly safe here.
+      setError(err.message || 'Something went wrong'); 
+      setIsUploading(false);
     }
   };
 
@@ -241,21 +296,21 @@ const Onboarding = ({ onComplete }) => {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <button 
                   className={`p-4 border ${modelType === 'text' ? 'border-[var(--accent-lime)] bg-[var(--accent-lime)]/10 text-[var(--accent-lime)]' : 'border-[var(--line)] bg-[var(--surface-2)] text-[var(--text-dim)]'} text-center transition-colors cursor-pointer flex flex-col items-center justify-center gap-2`}
-                  onClick={() => { setModelType('text'); setError(''); }}
+                  onClick={() => { setModelType('text'); setError(''); setFile(null); setCsvData(null); setColumns([]); setSelection({text:'',label:'',systemPrompt:''}); }}
                 >
                   <span className="font-mono text-sm uppercase">Classification</span>
                   <span className="text-[10px] uppercase text-[var(--text-faint)]">Text Data</span>
                 </button>
                 <button 
                   className={`p-4 border ${modelType === 'generative' ? 'border-[var(--accent-lime)] bg-[var(--accent-lime)]/10 text-[var(--accent-lime)]' : 'border-[var(--line)] bg-[var(--surface-2)] text-[var(--text-dim)]'} text-center transition-colors cursor-pointer flex flex-col items-center justify-center gap-2`}
-                  onClick={() => { setModelType('generative'); setError(''); }}
+                  onClick={() => { setModelType('generative'); setError(''); setFile(null); setCsvData(null); setColumns([]); setSelection({text:'',label:'',systemPrompt:''}); }}
                 >
                   <span className="font-mono text-sm uppercase">Generative</span>
                   <span className="text-[10px] uppercase text-[var(--text-faint)]">Fine-Tune LLM</span>
                 </button>
                 <button 
                   className={`p-4 border ${modelType === 'vision' ? 'border-[var(--accent-lime)] bg-[var(--accent-lime)]/10 text-[var(--accent-lime)]' : 'border-[var(--line)] bg-[var(--surface-2)] text-[var(--text-dim)]'} text-center transition-colors cursor-pointer flex flex-col items-center justify-center gap-2`}
-                  onClick={() => { setModelType('vision'); setError(''); }}
+                  onClick={() => { setModelType('vision'); setError(''); setFile(null); setCsvData(null); setColumns([]); setImageFiles([]); setVisionLabels([]); setSelection({text:'',label:'',systemPrompt:''}); }}
                 >
                   <span className="font-mono text-sm uppercase">Vision</span>
                   <span className="text-[10px] uppercase text-[var(--text-faint)]">Image Data</span>
@@ -369,7 +424,16 @@ const Onboarding = ({ onComplete }) => {
               
               <div className="flex justify-between items-center mt-8">
                 <button onClick={() => setStep(2)} className="btn-ghost !text-xs font-mono">← Backtrack</button>
-                <button className="btn btn-solid" disabled={isUploading || (modelType === 'text' ? (!selection.text || !selection.label) : false)} onClick={handleComplete}>
+                <button
+                  className="btn btn-solid"
+                  disabled={
+                    isUploading ||
+                    (modelType === 'text' && (!selection.text || !selection.label)) ||
+                    (modelType === 'generative' && (!selection.text || !selection.label)) ||
+                    (modelType === 'vision' && visionLabels.length < 2)
+                  }
+                  onClick={handleComplete}
+                >
                   {isUploading ? loadingMessage : 'Initialize Engine'}
                 </button>
               </div>

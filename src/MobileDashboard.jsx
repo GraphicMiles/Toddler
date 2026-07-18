@@ -1,8 +1,12 @@
 import React from 'react'
 import { Download, Cpu, HardDrive, MemoryStick, CheckCircle2, Play, FlaskConical, Code2, ChevronRight, Smartphone, Zap } from 'lucide-react'
+import { Capacitor } from '@capacitor/core'
 import { auth } from './firebase'
 import { signOut } from 'firebase/auth'
 import localforage from 'localforage'
+
+const PLATFORM_LABEL = Capacitor.isNativePlatform() ? Capacitor.getPlatform() : 'Web'
+const PLATFORM_DISPLAY = PLATFORM_LABEL === 'android' ? 'Android device' : PLATFORM_LABEL === 'ios' ? 'iOS device' : PLATFORM_LABEL === 'web' ? 'This browser' : `${PLATFORM_LABEL} device`
 
 const fallbackModels = [
   { id: 'sentiment-lite', name: 'Sentiment Lite', type: 'Text classification', size: 42, params: '1M', ram: 700, color: '#c6ff33', description: 'Fast positive, negative and neutral text predictions.' },
@@ -33,8 +37,17 @@ export default function MobileDashboard() {
   const [testText, setTestText] = React.useState('')
   const [testResult, setTestResult] = React.useState(null)
   const [testing, setTesting] = React.useState(false)
+  const msgTimeoutRef = React.useRef(null)
 
   const apiUrl = import.meta.env.VITE_API_URL
+
+  const showMessage = React.useCallback((text, ms = 2500) => {
+    setMessage(text)
+    if (msgTimeoutRef.current) clearTimeout(msgTimeoutRef.current)
+    if (ms > 0) msgTimeoutRef.current = setTimeout(() => setMessage(''), ms)
+  }, [])
+
+  React.useEffect(() => () => { if (msgTimeoutRef.current) clearTimeout(msgTimeoutRef.current) }, [])
 
   React.useEffect(() => {
     setRam(navigator.deviceMemory ? Math.round(navigator.deviceMemory) : 4)
@@ -42,7 +55,14 @@ export default function MobileDashboard() {
       fetch(`${apiUrl}/models`).then(r => r.ok ? r.json() : null).then(data => data?.models && setCatalog(data.models)).catch(() => {})
     }
     if (navigator.storage?.estimate) navigator.storage.estimate().then(({ quota, usage }) => setStorage({ quota, usage }))
-    if (apiUrl && auth.currentUser) auth.currentUser.getIdToken().then(loadDatasets).catch(() => {})
+    const tryLoadDatasets = async () => {
+      try {
+        if (!apiUrl || !auth.currentUser) return
+        const token = await auth.currentUser.getIdToken()
+        loadDatasets(token)
+      } catch {}
+    }
+    tryLoadDatasets()
   }, [apiUrl])
 
   const saveModels = next => { setDownloaded(next); localStorage.setItem('toddler-models', JSON.stringify(next)) }
@@ -94,8 +114,8 @@ export default function MobileDashboard() {
   const uploadDataset = async event => {
     const file = event.target.files?.[0]
     if (!file) return
-    if (!apiUrl) { setMessage('VITE_API_URL is not configured.'); return }
-    setUploading(true); setMessage('Preparing secure upload…')
+    if (!apiUrl) { showMessage('VITE_API_URL is not configured.'); return }
+    setUploading(true); showMessage('Preparing secure upload…', 0)
     try {
       const token = await auth.currentUser?.getIdToken()
       if (!token) throw new Error('Please sign in again.')
@@ -113,8 +133,8 @@ export default function MobileDashboard() {
       const saved = await savedResponse.json()
       if (!savedResponse.ok) throw new Error(saved.detail || 'Could not save dataset metadata.')
       setDatasets(current => [saved.dataset || { id: saved.id, name: file.name, sizeBytes: file.size }, ...current])
-      setMessage(`${file.name} uploaded and ready.`)
-    } catch (error) { setMessage(error.message) } finally { setUploading(false); event.target.value = '' }
+      showMessage(`${file.name} uploaded and ready.`)
+    } catch (error) { showMessage(error.message, 5000) } finally { setUploading(false); event.target.value = '' }
   }
 
   const availableRam = (ram || 4) * 1024 * .45
@@ -128,12 +148,14 @@ export default function MobileDashboard() {
   const removeModel = async id => { await localforage.removeItem(`toddler-model-${id}`); saveModels(downloaded.filter(item => item !== id)) }
   const deleteAccount = async () => {
     if (!window.confirm('Delete your account permanently? This cannot be undone.')) return
+    if (!apiUrl) { showMessage('Server not configured.'); return }
     try {
       const token = await auth.currentUser?.getIdToken()
+      if (!token) throw new Error('Please sign in again.')
       const response = await fetch(`${apiUrl}/account`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
       if (!response.ok) throw new Error('Account deletion failed.')
       await signOut(auth)
-    } catch (error) { setMessage(error.message) }
+    } catch (error) { showMessage(error.message, 4000) }
   }
 
   const runTest = async () => {
@@ -153,19 +175,23 @@ export default function MobileDashboard() {
 
   return <div className="mobile-app">
     <header className="mobile-header"><div className="mobile-brand"><span className="mobile-mark" /> TODDLER</div><div className="mobile-header-actions"><div className="device-pill"><span className="online-dot" /> DEVICE READY</div><button className="profile-button" onClick={() => setDrawerOpen(true)} aria-label="Open profile menu">{(auth.currentUser?.displayName || auth.currentUser?.email || 'U').charAt(0).toUpperCase()}</button></div></header>
-    {drawerOpen && <><div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} /><aside className="profile-drawer"><button className="drawer-close" onClick={() => setDrawerOpen(false)}>×</button><div className="profile-avatar">{(auth.currentUser?.displayName || auth.currentUser?.email || 'U').charAt(0).toUpperCase()}</div><h2>{auth.currentUser?.displayName || 'Toddler user'}</h2><p>{auth.currentUser?.email || 'Signed-in account'}</p><div className="drawer-section"><span>PROJECT</span><b>Toddler workspace</b><button className="drawer-link" onClick={() => setDrawerPage('project')}>Project settings <ChevronRight size={14}/></button></div><div className="drawer-section"><span>ACCOUNT</span><button className="drawer-link" onClick={() => setDrawerPage('profile')}>Profile settings <ChevronRight size={14}/></button><button className="drawer-link" onClick={() => setDrawerPage('developer')}>Developer settings <ChevronRight size={14}/></button></div>{drawerPage !== 'home' && <div className="drawer-page"><button className="drawer-back" onClick={() => setDrawerPage('home')}>← Back to account</button>{drawerPage === 'project' && <><h3>Project settings</h3><label className="drawer-field">Project name<input defaultValue="Toddler workspace" /></label><button className="drawer-save" onClick={() => setMessage('Project settings saved locally.')}>Save changes</button></>}{drawerPage === 'profile' && <><h3>Profile settings</h3><label className="drawer-field">Display name<input defaultValue={auth.currentUser?.displayName || ''} /></label><button className="drawer-save" onClick={() => setMessage('Profile settings saved locally.')}>Save changes</button></>}{drawerPage === 'developer' && <><h3>Developer settings</h3><p className="drawer-note">Local API access is disabled by default. Enable it from the Dev tab when the local server is available.</p><button className="drawer-save" onClick={() => setTab('dev')}>Open Dev tab</button></>}</div>}
-          <div className="drawer-danger"><span>DANGER ZONE</span><button onClick={async () => { if (!window.confirm('Delete this project? This cannot be undone.')) return; const projectId = localStorage.getItem('toddler-project-id'); if (!projectId) { setMessage('No active project is selected. Open the web dashboard to choose a project.'); return } try { const token = await auth.currentUser?.getIdToken(); const response = await fetch(`${apiUrl}/projects/${projectId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }); if (!response.ok) throw new Error('Project deletion failed.'); setMessage('Project deleted.'); } catch (error) { setMessage(error.message) } }}>Delete project</button><button onClick={deleteAccount}>Delete account</button></div><button className="drawer-logout" onClick={() => signOut(auth)}>Log out</button></aside></>}
+    {drawerOpen && <><div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} /><aside className="profile-drawer"><button className="drawer-close" onClick={() => setDrawerOpen(false)}>×</button><div className="profile-avatar">{(auth.currentUser?.displayName || auth.currentUser?.email || 'U').charAt(0).toUpperCase()}</div><h2>{auth.currentUser?.displayName || 'Toddler user'}</h2><p>{auth.currentUser?.email || 'Signed-in account'}</p><div className="drawer-section"><span>PROJECT</span><b>Toddler workspace</b><button className="drawer-link" onClick={() => setDrawerPage('project')}>Project settings <ChevronRight size={14}/></button></div><div className="drawer-section"><span>ACCOUNT</span><button className="drawer-link" onClick={() => setDrawerPage('profile')}>Profile settings <ChevronRight size={14}/></button><button className="drawer-link" onClick={() => setDrawerPage('developer')}>Developer settings <ChevronRight size={14}/></button></div>{drawerPage !== 'home' && <div className="drawer-page"><button className="drawer-back" onClick={() => setDrawerPage('home')}>← Back to account</button>{drawerPage === 'project' && <><h3>Project settings</h3><label className="drawer-field">Project name<input defaultValue="Toddler workspace" /></label><button className="drawer-save" onClick={() => showMessage('Project settings saved locally.')}>Save changes</button></>}{drawerPage === 'profile' && <><h3>Profile settings</h3><label className="drawer-field">Display name<input defaultValue={auth.currentUser?.displayName || ''} /></label><button className="drawer-save" onClick={() => showMessage('Profile settings saved locally.')}>Save changes</button></>}{drawerPage === 'developer' && <><h3>Developer settings</h3><p className="drawer-note">Local API access is disabled by default. Enable it from the Dev tab when the local server is available.</p><button className="drawer-save" onClick={() => setTab('dev')}>Open Dev tab</button></>}</div>}
+          <div className="drawer-danger"><span>DANGER ZONE</span><button onClick={() => showMessage('Use the web dashboard to manage projects.')}>Delete project</button><button onClick={deleteAccount}>Delete account</button></div><button className="drawer-logout" onClick={() => signOut(auth)}>Log out</button></aside></>}
     {selectedModel && <div className="model-modal-backdrop" onClick={() => setSelectedModel(null)}><section className="model-modal" onClick={event => event.stopPropagation()}><button className="drawer-close" onClick={() => setSelectedModel(null)}>×</button><p className="mobile-kicker">MODEL DETAILS</p><h2>{selectedModel.name}</h2><p className="mobile-muted">{selectedModel.description}</p><div className="detail-grid"><span>Task<b>{selectedModel.type}</b></span><span>Format<b>{selectedModel.format || 'ONNX'}</b></span><span>Size<b>{modelSize(selectedModel)} MB</b></span><span>Parameters<b>{selectedModel.params || `${(selectedModel.parameterCount || 0) / 1000000}M`}</b></span><span>Training RAM<b>{formatRam(modelRam(selectedModel))}</b></span><span>License<b>{selectedModel.license || 'Apache-2.0'}</b></span></div><button className="primary-button" disabled={downloaded.includes(selectedModel.id) || !canFit(selectedModel)} onClick={() => { setSelectedModel(null); download(selectedModel) }}>{downloaded.includes(selectedModel.id) ? 'Downloaded' : canFit(selectedModel) ? 'Download model' : 'Not compatible'}</button></section></div>}
     <main className="mobile-main">
-      <section className="mobile-welcome"><div><p className="mobile-kicker">LOCAL AI WORKSPACE</p><h1>Train on your device.</h1><p className="mobile-muted">Small models, private data, no cloud required.</p></div><div className="device-card"><Smartphone size={18}/><strong>{ram || '—'} GB RAM</strong><span>Android device</span></div></section>
+      <section className="mobile-welcome"><div><p className="mobile-kicker">LOCAL AI WORKSPACE</p><h1>Train on your device.</h1><p className="mobile-muted">Small models, private data, no cloud required.</p></div><div className="device-card"><Smartphone size={18}/><strong>{ram || '—'} GB RAM</strong><span>{PLATFORM_DISPLAY}</span></div></section>
       <section className="device-stats"><div><MemoryStick size={15}/><span>RAM</span><b>{ram || '—'} GB</b></div><div><HardDrive size={15}/><span>STORAGE</span><b>{storage ? `${Math.round((storage.quota - storage.usage) / 1e9)} GB free` : 'Checking'}</b></div><div><Cpu size={15}/><span>MODE</span><b>{ram && ram <= 2 ? 'Low memory' : 'Mobile'}</b></div></section>
       <nav className="mobile-tabs">{[['zoo','Model Zoo',Zap],['train','Train',Play],['test','Test',FlaskConical],['dev','Dev',Code2]].map(([id, label, Icon]) => <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}><Icon size={16}/>{label}</button>)}</nav>
 
       {tab === 'zoo' && <><div className="section-heading"><div><p className="mobile-kicker">MODEL ZOO</p><h2>Recommended for you</h2></div><span className="model-count">{recommended.length} compatible</span></div><div className="model-filters">{['All','Text','Vision','Embeddings','Recommended','Downloaded'].map(item => <button key={item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</div>{downloadError && <div className="download-error"><span>{downloadError}</span>{failedModel && <button className="retry-download" onClick={() => download(failedModel)}>Continue download</button>}</div>}<div className="model-list">{visibleModels.map(model => { const isDownloaded = downloaded.includes(model.id); const fits = canFit(model); return <article className={`model-card ${!fits ? 'disabled' : ''}`} key={model.id}><button className="model-icon model-info-trigger" style={{ color: model.color }} onClick={() => setSelectedModel(model)} aria-label={`View ${model.name} details`}><Zap size={19}/></button><div className="model-info" onClick={() => setSelectedModel(model)}><div className="model-title"><h3>{model.name}</h3>{isDownloaded && <CheckCircle2 size={16} className="success"/>}</div><p>{model.type}</p><small>{model.description}</small><div className="model-meta"><span>{modelSize(model)} MB</span><span>{model.params || `${(model.parameterCount || 0) / 1000000}M`} params</span><span>~{formatRam(modelRam(model))} RAM</span></div><div className="model-compatibility">{fits ? `✓ Fits your ${ram || 4} GB device` : modelRam(model) > availableRam ? `Needs ${formatRam(modelRam(model))} RAM` : `Needs ${modelSize(model)} MB storage`}</div></div><button className="model-action" disabled={!fits || downloading === model.id || isDownloaded} onClick={() => download(model)}>{isDownloaded ? 'Downloaded' : downloading === model.id ? `Downloading ${downloadProgress}%…` : fits ? <><Download size={15}/> Train model</> : 'Not compatible'}</button>{isDownloaded && <button className="model-delete" onClick={() => removeModel(model.id)}>Remove local copy</button>}</article>})}</div></>}
 
-      {tab === 'train' && <div className="empty-panel"><Play size={28}/><h2>Your downloaded models</h2>{downloaded.length ? <><div className="downloaded-list">{catalog.filter(model => downloaded.includes(model.id)).map(model => <div className="downloaded-row" key={model.id}><div><b>{model.name}</b><span>{modelSize(model)} MB · ready to train</span></div><label className="small-button">{uploading ? 'Uploading…' : 'Upload dataset'}<input type="file" accept=".csv,.json" hidden disabled={uploading} onChange={uploadDataset}/><ChevronRight size={14}/></label></div>)}</div>{message && <p className="upload-message">{message}</p>}{datasets.length > 0 && <div className="downloaded-list"><p className="mobile-kicker">UPLOADED DATASETS</p>{datasets.map(dataset => <div className="downloaded-row" key={dataset.id}><div><b>{dataset.name}</b><span>{Math.round((dataset.sizeBytes || dataset.bytes || 0) / 1024)} KB · ready</span></div><button className="small-button">Start training <ChevronRight size={14}/></button></div>)}</div>}</> : <><p>Download a model from the Model Zoo to start training locally.</p><button className="primary-button" onClick={() => setTab('zoo')}>Browse Model Zoo</button></>}</div>}
+      {tab === 'train' && <div className="empty-panel"><Play size={28}/><h2>Your downloaded models</h2>{downloaded.length ? <><div className="downloaded-list">{catalog.filter(model => downloaded.includes(model.id)).map(model => <div className="downloaded-row" key={model.id}><div><b>{model.name}</b><span>{modelSize(model)} MB · ready to train</span></div><label className="small-button">{uploading ? 'Uploading…' : 'Upload dataset'}<input type="file" accept=".csv,.json" hidden disabled={uploading} onChange={uploadDataset}/><ChevronRight size={14}/></label></div>)}</div>{message && <p className="upload-message">{message}</p>}{datasets.length > 0 && <div className="downloaded-list"><p className="mobile-kicker">UPLOADED DATASETS</p>{datasets.map(dataset => <div className="downloaded-row" key={dataset.id}><div><b>{dataset.name}</b><span>{Math.round((dataset.sizeBytes || dataset.bytes || 0) / 1024)} KB · uploaded</span></div><button className="small-button" disabled title="On-device training is coming soon">Coming soon <ChevronRight size={14}/></button></div>)}</div>}</> : <><p>Download a model from the Model Zoo to start training locally.</p><button className="primary-button" onClick={() => setTab('zoo')}>Browse Model Zoo</button></>}</div>}
       {tab === 'test' && <div className="empty-panel"><FlaskConical size={28}/><h2>Test locally</h2><p>Try a downloaded text model on your device.</p>{downloaded.length ? <><textarea className="test-input" value={testText} onChange={event => setTestText(event.target.value)} placeholder="Type text to classify…"/><button className="primary-button" onClick={runTest}>{testing ? 'Loading model…' : 'Run test'}</button>{testResult && <div className="test-result"><b>{testResult.label}</b><span>Confidence: {testResult.confidence}</span><span>Latency: {testResult.latency}</span></div>}</> : <button className="primary-button" onClick={() => setTab('zoo')}>Choose a model</button>}</div>}
-      {tab === 'dev' && <div className="empty-panel dev-panel"><Code2 size={28}/><h2>Build with your models</h2><p>Use the local API to call models running on this device.</p><pre>{`fetch('http://localhost:8787/predict', {\n  method: 'POST',\n  body: JSON.stringify({ text })\n})`}</pre><button className="small-button">Copy snippet</button></div>}
+      {tab === 'dev' && <div className="empty-panel dev-panel"><Code2 size={28}/><h2>Build with your models</h2><p>Use the local API to call models running on this device.</p><pre id="toddler-dev-snippet">{`fetch('http://localhost:8787/predict', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ text })\n}).then(r => r.json()).then(console.log)`}</pre><button className="small-button" onClick={() => {
+        const el = document.getElementById('toddler-dev-snippet');
+        if (el && navigator.clipboard) navigator.clipboard.writeText(el.textContent || '');
+        showMessage('Snippet copied.');
+      }}>Copy snippet</button>{message && <p className="upload-message">{message}</p>}</div>}
     </main>
   </div>
 }

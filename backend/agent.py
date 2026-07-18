@@ -15,6 +15,13 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 import firebase_admin
 from firebase_admin import credentials, firestore
 import hardware_audit
+import secrets
+import string
+
+def generate_api_key():
+    prefix = "tdlr_live_"
+    chars = string.ascii_letters + string.digits
+    return prefix + ''.join(secrets.choice(chars) for _ in range(32))
 
 def scrub_pii(text):
     text = re.sub(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', '[EMAIL_REDACTED]', text)
@@ -22,10 +29,14 @@ def scrub_pii(text):
     return text
 
 class ToddlerAgent:
-    def __init__(self, service_account_path):
+    def __init__(self, service_account_path=None):
         # Seeking wisdom from the credentials...
-        cred = credentials.Certificate(service_account_path)
-        firebase_admin.initialize_app(cred)
+        if not firebase_admin._apps:
+            if service_account_path:
+                cred = credentials.Certificate(service_account_path)
+                firebase_admin.initialize_app(cred)
+            else:
+                firebase_admin.initialize_app()
         self.db = firestore.client()
         self.hardware = hardware_audit.get_hardware_stats()
         self.is_training = False
@@ -137,7 +148,9 @@ class ToddlerAgent:
             # 5. Sync to Cloud
             print("✅ Training Complete. Synchronizing weights...")
             
-            self.db.collection('projects').document(project_id).update({
+            # Generate api_key if the project doesn't already have one
+            existing = self.db.collection('projects').document(project_id).get().to_dict() or {}
+            update_payload = {
                 'status': 'trained',
                 'accuracy': float(best_acc),
                 'model_artifact': model_b64,
@@ -147,8 +160,11 @@ class ToddlerAgent:
                 'top_features': importance,
                 'health': 'Optimal (BYOC Fine-tuned)',
                 'version': firestore.Increment(1),
-                'trainedAt': firestore.SERVER_TIMESTAMP
-            })
+                'trainedAt': firestore.SERVER_TIMESTAMP,
+            }
+            if not existing.get('api_key'):
+                update_payload['api_key'] = generate_api_key()
+            self.db.collection('projects').document(project_id).update(update_payload)
 
             doc.reference.update({'status': 'completed', 'progress': 100})
             print(f"✨ Job {job_id} Finished.")

@@ -1,9 +1,11 @@
 fastapi
-uvicorn
+uvicorn[standard]
 pandas
+numpy
 scikit-learn
 python-multipart
 python-jose[cryptography]
 firebase-admin
 pydantic
 cloudinary
+psutil

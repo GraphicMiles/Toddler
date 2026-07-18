@@ -87,8 +87,8 @@ const LandingPage = () => {
             </div>
             <div className="card">
               <div className="card-id mono">STEP · C</div>
-              <h3>Train, synchronously</h3>
-              <p>Watch accuracy update live as the model trains — no hidden queue, no waiting on a job runner.</p>
+              <h3>Train in the cloud</h3>
+              <p>Watch accuracy update live as the Toddler engine picks the best model for your data — no notebook wrangling required.</p>
             </div>
             <div className="card">
               <div className="card-id mono">STEP · D</div>

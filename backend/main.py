@@ -23,14 +23,21 @@ from firebase_admin import credentials, firestore
 
 app = FastAPI()
 
+# Comma-separated list of allowed origins, e.g.
+#   CORS_ORIGINS=https://toddler.ai,https://app.toddler.ai
+# Defaults to "*" for local development; lock this down in production.
+_cors_env = os.getenv("CORS_ORIGINS", "*")
+_cors_origins = [o.strip() for o in _cors_env.split(",")] if _cors_env != "*" else ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=(_cors_origins != ["*"]),
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+db = None
 try:
     if not firebase_admin._apps:
         cred_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
@@ -39,10 +46,22 @@ try:
             cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(cred)
         else:
-            firebase_admin.initialize_app()
+            # Use default ADC; works on GCP/Cloud Shell. Outside GCP we let
+            # Firestore calls fail gracefully per-endpoint.
+            try:
+                firebase_admin.initialize_app()
+            except Exception:
+                pass
     db = firestore.client()
 except Exception as e:
     print(f"Firebase Admin Warning: {e}")
+    db = None
+
+def _require_db():
+    if db is None:
+        raise HTTPException(status_code=503, detail="Firestore is not configured")
+    return db
+    db = None
 
 def generate_api_key():
     prefix = "tdlr_live_"
@@ -67,16 +86,19 @@ async def train_model(
     file: UploadFile = File(...)
 ):
     try:
-        # Instead of training here, we queue it for the BYOC Agent
+        _require_db()
+        # Enforce a 5 MB ceiling on CSV uploads (Firestore doc limit is 1 MB;
+        # we base64-encode so real cap is ~750 KB raw). For larger files this
+        # should be switched to a signed Cloud Storage upload.
         contents = await file.read()
-        
-        # Save CSV data to a 'pending_data' field (or Firebase Storage if available, 
-        # but for Spark plan we'll use a string/blob in Firestore for small files)
+        if len(contents) > 750 * 1024:
+            raise HTTPException(status_code=413, detail="CSV too large for queue upload (max 750 KB).")
+
         csv_b64 = base64.b64encode(contents).decode('utf-8')
 
         job_ref = db.collection('training_jobs').document()
         job_id = job_ref.id
-        
+
         job_ref.set({
             'project_id': project_id,
             'text_column': text_column,
@@ -88,35 +110,76 @@ async def train_model(
             'createdAt': firestore.SERVER_TIMESTAMP
         })
 
-        # Update project status
         db.collection('projects').document(project_id).update({
             'status': 'queued',
             'current_job_id': job_id
         })
 
         return {"status": "queued", "job_id": job_id}
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Queue Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/jobs/{job_id}")
+async def get_job(job_id: str):
+    try:
+        db = _require_db()
+        doc = db.collection('training_jobs').document(job_id).get()
+        if not doc.exists:
+            raise HTTPException(status_code=404, detail="Job not found")
+        data = doc.to_dict()
+        # Firestore SERVER_TIMESTAMP may be a Sentinel; convert safely
+        serializable = {}
+        for k, v in data.items():
+            try:
+                import datetime
+                if hasattr(v, 'timestamp'):
+                    serializable[k] = v.isoformat() if isinstance(v, datetime.datetime) else v
+                else:
+                    serializable[k] = v
+            except Exception:
+                serializable[k] = str(v)
+        return serializable
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Training Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/predict")
-async def predict(project_id: str = Form(...), text: str = Form(...)):
-    try:
-        project_ref = db.collection('projects').document(project_id)
-        doc = project_ref.get()
+def _resolve_project(project_id: str | None, x_api_key: str | None):
+    """Resolve a project doc ref by id OR by api_key."""
+    db = _require_db()
+    if project_id:
+        ref = db.collection('projects').document(project_id)
+        doc = ref.get()
         if not doc.exists:
             raise HTTPException(status_code=404, detail="Project not found")
-        
+        return ref, doc
+    if x_api_key:
+        docs = list(db.collection('projects').where('api_key', '==', x_api_key).limit(1).stream())
+        if not docs:
+            raise HTTPException(status_code=401, detail="Invalid API key")
+        doc = docs[0]
+        return db.collection('projects').document(doc.id), doc
+    raise HTTPException(status_code=401, detail="project_id or X-API-Key required")
+
+@app.post("/predict")
+async def predict(
+    project_id: str = Form(None),
+    text: str = Form(...),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+):
+    try:
+        _require_db()
+        project_ref, doc = _resolve_project(project_id, x_api_key)
         data = doc.to_dict()
         model_b64 = data.get('model_artifact')
         if not model_b64:
-            raise HTTPException(status_code=400, detail="Model artifact missing")
-            
+            raise HTTPException(status_code=400, detail="Model artifact missing — the model may still be training.")
+
         pipeline = pickle.loads(base64.b64decode(model_b64))
-        
+
         prediction = pipeline.predict([text])[0]
         probs = pipeline.predict_proba([text])[0]
         confidence = float(max(probs))
@@ -127,74 +190,93 @@ async def predict(project_id: str = Form(...), text: str = Form(...)):
         f_names = tfidf.get_feature_names_out()
         classes = list(clf.classes_)
         class_idx = classes.index(prediction)
-        
+
         transformed = tfidf.transform([text])
         weights = {}
         for idx in transformed.indices:
             if len(classes) == 2:
-                # Binary case: coef_[0] refers to classes[1]
                 weight = clf.coef_[0][idx] if class_idx == 1 else -clf.coef_[0][idx]
             else:
                 weight = clf.coef_[class_idx][idx]
             weights[f_names[idx]] = float(weight * transformed[0, idx])
 
-        # Active Learning Log
-        db.collection('projects').document(project_id).collection('logs').add({
-            'text': text,
-            'prediction': str(prediction),
-            'confidence': confidence,
-            'timestamp': firestore.SERVER_TIMESTAMP,
-            'reviewed': False
-        })
+        # Fire-and-forget active learning log
+        try:
+            project_ref.collection('logs').add({
+                'text': text,
+                'prediction': str(prediction),
+                'confidence': confidence,
+                'timestamp': firestore.SERVER_TIMESTAMP,
+                'reviewed': False
+            })
+        except Exception as log_err:
+            print(f"Log write failed: {log_err}")
 
         return {
-            "prediction": str(prediction), 
-            "confidence": confidence, 
+            "prediction": str(prediction),
+            "confidence": confidence,
             "weights": weights
         }
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Prediction Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/batch")
-async def batch_predict(project_id: str = Form(...), text_column: str = Form(...), file: UploadFile = File(...)):
+async def batch_predict(
+    project_id: str = Form(None),
+    text_column: str = Form(...),
+    file: UploadFile = File(...),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+):
     try:
-        project_ref = db.collection('projects').document(project_id)
-        doc = project_ref.get()
+        project_ref, doc = _resolve_project(project_id, x_api_key)
         data = doc.to_dict()
-        pipeline = pickle.loads(base64.b64decode(data['model_artifact']))
-        
+        model_b64 = data.get('model_artifact')
+        if not model_b64:
+            raise HTTPException(status_code=400, detail="Model artifact missing — the model may still be training.")
+        pipeline = pickle.loads(base64.b64decode(model_b64))
+
         df = pd.read_csv(io.BytesIO(await file.read()))
+        if text_column not in df.columns:
+            raise HTTPException(status_code=400, detail=f"Column '{text_column}' not found in uploaded CSV.")
         df['prediction'] = pipeline.predict(df[text_column].astype(str))
-        
+
         stream = io.StringIO()
         df.to_csv(stream, index=False)
         return Response(
-            content=stream.getvalue(), 
-            media_type="text/csv", 
+            content=stream.getvalue(),
+            media_type="text/csv",
             headers={"Content-Disposition": "attachment; filename=results.csv"}
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/projects/{project_id}/export")
-async def export_project(project_id: str):
+async def export_project(project_id: str, x_api_key: str | None = Header(default=None, alias="X-API-Key")):
     try:
-        doc = db.collection('projects').document(project_id).get()
+        # Allow resolving either by path id OR x-api-key
+        _, doc = _resolve_project(project_id, x_api_key)
         data = doc.to_dict()
-        model_bytes = base64.b64decode(data['model_artifact'])
+        resolved_id = doc.id
+        model_b64 = data.get('model_artifact')
+        if not model_b64:
+            raise HTTPException(status_code=400, detail="Model artifact missing.")
+        model_bytes = base64.b64decode(model_b64)
         
         # Create a zip in memory
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
             zip_file.writestr("model.pkl", model_bytes)
-            
-            # Simple python script
-            script = f"""import pickle
+
+            script = f'''import pickle
 import sys
 
 # Toddler AI - Integration Script
-# Project ID: {project_id}
+# Project ID: {resolved_id}
 
 def load_and_predict(text):
     with open('model.pkl', 'rb') as f:
@@ -206,11 +288,11 @@ if __name__ == "__main__":
         print(load_and_predict(sys.argv[1]))
     else:
         print("Usage: python toddler_run.py 'your text here'")
-"""
+'''
             zip_file.writestr("toddler_run.py", script)
-            
+
             readme = f"""# Toddler AI Project: {data.get('name')}
-            
+
 To run your model locally:
 1. Install requirements: `pip install scikit-learn pandas`
 2. Run the script: `python toddler_run.py "your sample text"`
@@ -220,22 +302,30 @@ To run your model locally:
         return Response(
             content=zip_buffer.getvalue(),
             media_type="application/x-zip-compressed",
-            headers={"Content-Disposition": f"attachment; filename=toddler_export_{project_id}.zip"}
+            headers={"Content-Disposition": f"attachment; filename=toddler_export_{resolved_id}.zip"}
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/projects/{project_id}/download")
-async def download_model(project_id: str):
+async def download_model(project_id: str, x_api_key: str | None = Header(default=None, alias="X-API-Key")):
     try:
-        doc = db.collection('projects').document(project_id).get()
+        _, doc = _resolve_project(project_id, x_api_key)
         data = doc.to_dict()
-        model_bytes = base64.b64decode(data['model_artifact'])
+        resolved_id = doc.id
+        model_b64 = data.get('model_artifact')
+        if not model_b64:
+            raise HTTPException(status_code=400, detail="Model artifact missing.")
+        model_bytes = base64.b64decode(model_b64)
         return Response(
-            content=model_bytes, 
-            media_type="application/octet-stream", 
-            headers={"Content-Disposition": f"attachment; filename=model_{project_id}.pkl"}
+            content=model_bytes,
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f"attachment; filename=model_{resolved_id}.pkl"}
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

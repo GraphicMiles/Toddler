@@ -154,22 +154,23 @@ const Onboarding = ({ onComplete }) => {
           throw new Error('Backend did not return a job ID.');
         }
 
-        // Nudge the training worker immediately. On free-tier hosting (Render,
-        // Railway hobby) the background worker may be asleep / throttled, so
-        // we kick it over HTTP and re-nudge once a few seconds later.
-        const nudgeAgent = () => {
+        // Nudge the server training worker immediately (in case it's running
+        // and asleep on free tier).
+        const nudgeServer = () => {
           fetch(`${apiUrl}/_agent/run`, { method: 'POST', keepalive: true })
             .then(r => r.json().catch(() => null))
-            .then(d => d && console.log('[toddler] agent kicked:', d))
+            .then(d => d && console.log('[toddler] server kicked:', d))
             .catch(() => {});
         };
-        nudgeAgent();
-        setTimeout(nudgeAgent, 15000);
+        nudgeServer();
+        setTimeout(nudgeServer, 8000);
 
-        // Poll /jobs/{job_id} until the BYOC agent completes training.
-        // Use a ref-held interval so it gets cleaned up if the component unmounts.
+        // Poll /jobs/{job_id} until training completes. Training may finish in
+        // one of two ways: (1) the server agent picks up the job (Pro/cloud),
+        // or (2) the user's Android BYOC device claims and trains it (free).
+        // Either path ends with status === 'completed' and an accuracy value.
         const accuracy = await new Promise((resolve, reject) => {
-          const maxAttempts = 240; // ~4 minutes at 1s
+          const maxAttempts = 900; // up to ~15 minutes at 1s (BYOC can be slower)
           let attempts = 0;
           pollIntervalRef.current = setInterval(async () => {
             attempts++;
@@ -180,7 +181,15 @@ const Onboarding = ({ onComplete }) => {
                 return;
               }
               const j = await r.json();
-              if (typeof j.progress === 'number') setLoadingMessage(`Training… ${j.progress}%`);
+              if (typeof j.progress === 'number') {
+                setLoadingMessage(
+                  j.status === 'device_training'
+                    ? `Training on your device… ${j.progress}%`
+                    : j.status === 'queued' || j.status === 'awaiting_device'
+                      ? 'Waiting for a trainer… open the Toddler app on your phone to train on-device, or upgrade to Pro.'
+                      : `Training… ${j.progress}%`
+                );
+              }
               if (j.status === 'completed') { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; resolve(typeof j.accuracy === 'number' ? j.accuracy : 0.9); return; }
               if (j.status === 'failed')    { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; reject(new Error(j.error || 'Training failed')); return; }
             } catch (e) { if (attempts > maxAttempts) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; reject(e); } }

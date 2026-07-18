@@ -4,11 +4,9 @@ on:
   push:
     branches:
       - main
-
   pull_request:
     branches:
       - main
-
   workflow_dispatch:
 
 permissions:
@@ -22,31 +20,25 @@ jobs:
   build:
     name: Build Toddler Android APK
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
-
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
           cache: gradle
-
       - name: Install JavaScript dependencies
         run: npm ci
-
       - name: Make Gradle executable
         working-directory: android
         run: chmod +x gradlew
-
       - name: Restore permanent Android keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -55,7 +47,6 @@ jobs:
           mkdir -p android/keystore
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/keystore/toddler-release.keystore
           test -s android/keystore/toddler-release.keystore
-
       - name: Configure permanent Android signing
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -65,13 +56,10 @@ jobs:
           test -n "$ANDROID_KEYSTORE_PASSWORD"
           test -n "$ANDROID_KEY_ALIAS"
           test -n "$ANDROID_KEY_PASSWORD"
-
           python3 - <<'PY'
           from pathlib import Path
-
           path = Path("android/app/build.gradle")
           text = path.read_text()
-
           signing_block = '''
               signingConfigs {
                   toddler {
@@ -82,52 +70,36 @@ jobs:
                   }
               }
           '''
-
           if "signingConfigs {" not in text:
-              text = text.replace(
-                  "    buildTypes {",
-                  signing_block + "\n    buildTypes {",
-                  1
-              )
-
+              text = text.replace("    buildTypes {", signing_block + "\n    buildTypes {", 1)
           text = text.replace(
               "        release {\n            minifyEnabled false",
               "        debug {\n            signingConfig signingConfigs.toddler\n        }\n        release {\n            signingConfig signingConfigs.toddler\n            minifyEnabled false",
-              1
-          )
-
+              1)
           path.write_text(text)
           PY
-
       - name: Show permanent signing fingerprints
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
-          keytool -list -v \
-            -keystore android/keystore/toddler-release.keystore \
-            -storepass "$ANDROID_KEYSTORE_PASSWORD" \
-            -alias "$ANDROID_KEY_ALIAS" \
+          keytool -list -v -keystore android/keystore/toddler-release.keystore \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" \
             | grep -E "Alias name:|SHA1:|SHA256:"
-
       - name: Build web application
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
-
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
           VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
           VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
-
           VITE_CLOUDINARY_CLOUD_NAME: ${{ secrets.VITE_CLOUDINARY_CLOUD_NAME }}
           VITE_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.VITE_CLOUDINARY_UPLOAD_PRESET }}
         run: npm run build
-
       - name: Sync web app into Capacitor Android
         run: npx cap sync android
-
       - name: Build release APK
         working-directory: android
         env:
@@ -135,12 +107,10 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew assembleRelease --no-daemon --stacktrace
-
       - name: Verify APK exists
         run: |
           test -f android/app/build/outputs/apk/release/app-release.apk
           ls -lh android/app/build/outputs/apk/release/app-release.apk
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:

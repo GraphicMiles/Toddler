@@ -72,29 +72,70 @@ jobs:
           path = Path("android/app/build.gradle")
           text = path.read_text()
 
-          signing_block = '''
-              signingConfigs {
-                  toddler {
-                      storeFile file("../keystore/toddler-release.keystore")
-                      storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
-                      keyAlias System.getenv("ANDROID_KEY_ALIAS")
-                      keyPassword System.getenv("ANDROID_KEY_PASSWORD")
-                  }
-              }
-          '''
+          # signingConfigs lives as a sibling of buildTypes inside android {}.
+          # Use 4-space indentation matching the existing buildTypes block.
+          signing_block = (
+              "    signingConfigs {\n"
+              "        toddler {\n"
+              '            storeFile file("../keystore/toddler-release.keystore")\n'
+              '            storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")\n'
+              '            keyAlias System.getenv("ANDROID_KEY_ALIAS")\n'
+              '            keyPassword System.getenv("ANDROID_KEY_PASSWORD")\n'
+              "        }\n"
+              "    }\n"
+          )
 
           if "signingConfigs {" not in text:
-              text = text.replace(
-                  "    buildTypes {",
-                  signing_block + "\n    buildTypes {",
-                  1
-              )
+              text = text.replace("    buildTypes {", signing_block + "\n    buildTypes {", 1)
 
-          text = text.replace(
-              "        release {\n            minifyEnabled false",
-              "        debug {\n            signingConfig signingConfigs.toddler\n        }\n        release {\n            signingConfig signingConfigs.toddler\n            minifyEnabled false",
-              1
+          # Replace the whole buildTypes { ... } block (with proper brace
+          # matching so nested release {} and proguardFiles('{...}') strings
+          # don't break the parse). Idempotent: running twice produces the
+          # same file.
+          new_build_types = (
+              "    buildTypes {\n"
+              "        debug {\n"
+              "            signingConfig signingConfigs.toddler\n"
+              "        }\n"
+              "        release {\n"
+              "            signingConfig signingConfigs.toddler\n"
+              "            minifyEnabled false\n"
+              "            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'\n"
+              "        }\n"
+              "    }"
           )
+          marker = "    buildTypes {"
+          start = text.find(marker)
+          if start < 0:
+              raise SystemExit("Could not find buildTypes block to patch")
+          depth = 0
+          i = start
+          in_str = None
+          while i < len(text):
+              ch = text[i]
+              if in_str:
+                  if ch == "\\":
+                      i += 2; continue
+                  if ch == in_str:
+                      in_str = None
+              else:
+                  if ch in ("'", '"'):
+                      in_str = ch
+                  elif ch == "{":
+                      depth += 1
+                  elif ch == "}":
+                      depth -= 1
+                      if depth == 0:
+                          end = i + 1
+                          break
+              i += 1
+          else:
+              raise SystemExit("Unbalanced braces while patching buildTypes")
+          # Only replace if the existing block differs (idempotent).
+          existing = text[start:end]
+          desired = new_build_types
+          if existing.rstrip() != desired.rstrip():
+              text = text[:start] + desired + text[end:]
 
           path.write_text(text)
           PY

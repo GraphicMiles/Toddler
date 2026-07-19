@@ -3,7 +3,7 @@ import Papa from 'papaparse';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { auth, db } from './firebase';
-import { collection, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, updateDoc } from 'firebase/firestore';
 
 const vibrate = (style = ImpactStyle.Medium) => {
   if (Capacitor.isNativePlatform()) Haptics.impact({ style }).catch(() => {});

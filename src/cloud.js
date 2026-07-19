@@ -1,6 +1,6 @@
 import { auth } from './firebase';
 
-export const uploadDatasetToCloudinary = async (file, onProgress) => {
+export const uploadDatasetToCloudinary = async (file) => {
   const apiUrl = import.meta.env.VITE_API_URL;
   if (!apiUrl) throw new Error("Backend API URL not set");
   

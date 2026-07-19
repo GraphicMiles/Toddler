@@ -295,3 +295,26 @@ input, textarea, select, button { font-family: inherit; }
   /* Ensure the mobile header bar (Toddler Dashboard + Menu button) shows */
   .main-content .md\:hidden { display: flex !important; }
 }
+
+/* Polish specific to the new Empty Dashboard / Control Tower */
+.panel {
+  border-radius: 6px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.panel:hover {
+  border-color: rgba(198, 255, 51, 0.4) !important;
+}
+
+.input-field {
+  border-radius: 4px;
+}
+
+.btn-solid {
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(198, 255, 51, 0.2);
+}
+
+.btn-solid:hover {
+  box-shadow: 0 4px 15px rgba(198, 255, 51, 0.4);
+}

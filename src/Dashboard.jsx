@@ -125,9 +125,9 @@ const Dashboard = () => {
     if (!isModelReady) { toast.error('Model is not trained yet.'); return; }
     setPredicting(true); setPrediction(null);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL;
+      
       if (!apiUrl) throw new Error("VITE_API_URL is missing.");
-      const formData = new FormData();
+      
       formData.append('project_id', currentProject.id);
       formData.append('text', predictText);
 
@@ -135,7 +135,7 @@ const Dashboard = () => {
       try {
         response = await fetch(`${apiUrl}/predict`, { method: 'POST', body: formData });
       } catch (e) {
-        throw new Error('Network Error: Check backend CORS or URL.');
+        throw new Error('Network Error: Check backend CORS or URL. ' + e.message);
       }
 
       if (!response.ok) {
@@ -160,7 +160,7 @@ const Dashboard = () => {
     if (!isModelReady) { toast.error('Model is not trained yet.'); return; }
     setBatching(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL;
+      
       if (!apiUrl) throw new Error("VITE_API_URL is missing.");
       const formData = new FormData();
       formData.append('project_id', currentProject.id);
@@ -171,7 +171,7 @@ const Dashboard = () => {
       try {
         response = await fetch(`${apiUrl}/batch`, { method: 'POST', body: formData });
       } catch (e) {
-        throw new Error('Network Error: Check backend CORS or URL.');
+        throw new Error('Network Error: Check backend CORS or URL. ' + e.message);
       }
 
       if (!response.ok) {
@@ -223,7 +223,7 @@ const Dashboard = () => {
 
     try {
       // Proxy all predictions through the backend, never run locally
-      const apiUrl = import.meta.env.VITE_API_URL;
+      
       const formData = new FormData();
       formData.append('project_id', currentProject.id);
       
@@ -522,7 +522,7 @@ const Dashboard = () => {
                           <button className="btn btn-solid" onClick={async () => {
                             setPredicting(true);
                             try {
-                              const apiUrl = import.meta.env.VITE_API_URL;
+
                               const formData = new FormData();
                               formData.append('project_id', currentProject.id);
                               // TODO: Phase 2 - image blob upload

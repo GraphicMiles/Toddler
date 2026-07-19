@@ -372,20 +372,18 @@ const Dashboard = () => {
                           <button className="btn btn-solid" onClick={async () => {
                             setPredicting(true);
                             try {
-                              let datasetJson;
-                              if (currentProject.modelUrl) {
-                                const { fetchFromCloudinary } = await import('./cloud');
-                                datasetJson = await fetchFromCloudinary(currentProject.modelUrl);
-                              } else {
-                                throw new Error("Local training moved to BYOC/Cloud (Phase 2)");
-                                
-                                datasetJson = await lf.getItem(`model_${currentProject.id}`);
-                              }
-                              if (!datasetJson) throw new Error("Local model weights not found.");
-                              const { predictVisionImage } = await import('./visionML');
-                              const result = await predictVisionImage(previewImage, datasetJson);
+                              const apiUrl = import.meta.env.VITE_API_URL;
+                              const formData = new FormData();
+                              formData.append('project_id', currentProject.id);
+                              // TODO: Phase 2 - image blob upload
+                              throw new Error("Vision backend proxy pending Phase 2");
+                              /*
+                              const response = await fetch(`${apiUrl}/predict`, { method: 'POST', body: formData });
+                              if (!response.ok) throw new Error("Backend inference proxy failed");
+                              const result = await response.json();
                               setPrediction({ prediction: result.prediction, confidence: result.confidence || 0, weights: {} });
                               vibrate(ImpactStyle.Light);
+                              */
                             } catch (e) {
                               toast.error(e.message || "Vision prediction failed");
                             } finally {

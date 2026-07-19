@@ -79,6 +79,30 @@ const Auth = ({ mode = 'login' }) => {
     }
   };
 
+
+  if (Capacitor.isNativePlatform()) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-6 text-[var(--text)] font-sans">
+        <div className="w-full max-w-sm panel bg-[var(--surface-2)] p-8">
+          <div className="text-center mb-8">
+            <div className="w-12 h-12 bg-[var(--surface)] border border-[var(--line)] mx-auto mb-6 flex items-center justify-center rounded-full">
+              <span className="w-4 h-4 bg-[var(--accent-lime)] rounded-full animate-pulse"></span>
+            </div>
+            <h1 className="text-2xl font-display font-bold mb-3">Link this Device</h1>
+            <p className="text-[var(--text-dim)] text-sm leading-relaxed">Enter the 6-digit code shown on your web dashboard to connect this phone's compute power.</p>
+          </div>
+          <div className="flex gap-2 justify-center mb-8">
+            {[0,1,2,3,4,5].map(i => (
+              <input key={i} type="text" maxLength={1} className="w-10 h-12 text-center font-mono text-xl bg-[var(--bg)] border border-[var(--line)] focus:border-[var(--accent-lime)] focus:ring-1 focus:ring-[var(--accent-lime)] text-white rounded-sm outline-none transition-colors" />
+            ))}
+          </div>
+          <button className="btn btn-solid w-full tracking-widest text-xs" onClick={() => toast.error('Backend pairing API pending Phase 3')}>
+            PAIR DEVICE
+          </button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[var(--bg)] font-sans">
       <div className="hidden md:flex md:w-1/2 p-12 lg:p-24 flex-col justify-between border-r border-[var(--line)] relative bg-[var(--surface)]">

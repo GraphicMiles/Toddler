@@ -1,5 +1,5 @@
 import React from 'react'
-import { Download, Cpu, HardDrive, MemoryStick, CheckCircle2, Play, FlaskConical, Code2, ChevronRight, Smartphone, Zap, Loader2 } from 'lucide-react'
+import { Download, Cpu, HardDrive, MemoryStick, CheckCircle2, Play, Send, Code2, ChevronRight, Smartphone, Zap, Loader2 } from 'lucide-react'
 import { Capacitor } from '@capacitor/core'
 import { auth } from './firebase'
 import { signOut } from 'firebase/auth'
@@ -24,21 +24,80 @@ const PLATFORM_DISPLAY = PLATFORM_LABEL === 'android' ? 'Android device' : PLATF
 
 const fallbackModels = [
   // ---------- TEXT ----------
-  { id: 'sentiment-lite', name: 'Sentiment Lite', type: 'Text classification', sizeMb: 42, parameterCount: 1000000, trainingRamMb: 700, inferenceRamMb: 250, color: '#c6ff33', description: 'Fast positive, negative and neutral text predictions.', format: 'onnx', license: 'Apache-2.0', status: 'published', downloadUrl: 'https://huggingface.co/Xenova/distilbert-base-uncased-finetuned-sst-2-english/resolve/main/onnx/model_quantized.onnx' },
-  { id: 'embed-mini', name: 'Embed Mini', type: 'Text embeddings', sizeMb: 86, parameterCount: 8000000, trainingRamMb: 1100, inferenceRamMb: 360, color: '#c084fc', description: 'Generate useful sentence vectors locally.', format: 'onnx', license: 'Apache-2.0', status: 'published', supportsTraining: false, downloadUrl: 'https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model_quantized.onnx' },
-  { id: 'toxicity-lite', name: 'Toxicity Lite', type: 'Text classification', sizeMb: 45, parameterCount: 1200000, trainingRamMb: 700, inferenceRamMb: 260, color: '#ff9b6a', description: 'Detect toxic, threatening or harassing text.', format: 'onnx', license: 'Apache-2.0', status: 'published', downloadUrl: 'https://huggingface.co/Xenova/toxic-bert/resolve/main/onnx/model_quantized.onnx' },
-  { id: 'emotion-mini', name: 'Emotion Mini', type: 'Text classification', sizeMb: 42, parameterCount: 1000000, trainingRamMb: 700, inferenceRamMb: 250, color: '#60d6fa', description: 'Classify emotions: joy, anger, sadness, fear, surprise, love.', format: 'onnx', license: 'Apache-2.0', status: 'published', downloadUrl: 'https://huggingface.co/Xenova/emotion/resolve/main/onnx/model_quantized.onnx' },
+  { id: 'sentiment-lite', hfId: 'Xenova/distilbert-base-uncased-finetuned-sst-2-english', name: 'Sentiment Lite', type: 'Text classification', sizeMb: 42, parameterCount: 1000000, trainingRamMb: 700, inferenceRamMb: 250, color: '#c6ff33', description: 'Fast positive/negative sentiment.', format: 'onnx', license: 'Apache-2.0', status: 'published', task: 'text-classification', downloadUrl: 'https://huggingface.co/Xenova/distilbert-base-uncased-finetuned-sst-2-english/resolve/main/onnx/model_quantized.onnx' },
+  { id: 'embed-mini', name: 'Embed Mini', type: 'Text embeddings', sizeMb: 86, parameterCount: 8000000, trainingRamMb: 1100, inferenceRamMb: 360, color: '#c084fc', description: 'Generate useful sentence vectors locally.', format: 'onnx', license: 'Apache-2.0', status: 'published', supportsTesting: false, supportsTraining: false, downloadUrl: 'https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model_quantized.onnx' },
+  { id: 'toxicity-lite', hfId: 'Xenova/toxic-bert', name: 'Toxicity Lite', type: 'Text classification', sizeMb: 45, parameterCount: 1200000, trainingRamMb: 700, inferenceRamMb: 260, color: '#ff9b6a', description: 'Detect toxic, threatening or harassing text.', format: 'onnx', license: 'Apache-2.0', status: 'published', task: 'text-classification', downloadUrl: 'https://huggingface.co/Xenova/toxic-bert/resolve/main/onnx/model_quantized.onnx' },
+  { id: 'emotion-mini', hfId: 'Xenova/emotion', name: 'Emotion Mini', type: 'Text classification', sizeMb: 42, parameterCount: 1000000, trainingRamMb: 700, inferenceRamMb: 250, color: '#60d6fa', description: 'Classify joy, anger, sadness, fear, surprise, love.', format: 'onnx', license: 'Apache-2.0', status: 'published', task: 'text-classification', downloadUrl: 'https://huggingface.co/Xenova/emotion/resolve/main/onnx/model_quantized.onnx' },
 
   // ---------- VISION ----------
-  { id: 'mobile-vision-v1', name: 'Vision Lite', type: 'Image classification', sizeMb: 4.3, parameterCount: 4200000, trainingRamMb: 620, inferenceRamMb: 180, color: '#60a5fa', description: 'Compact quantized MobileNet — 1000 ImageNet classes.', format: 'tflite', license: 'Apache-2.0', status: 'published', downloadUrl: 'https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v1_1.0_224_quant.tflite' },
-  { id: 'mobilenet-v2-1.0', name: 'MobileNet V2', type: 'Image classification', sizeMb: 14, parameterCount: 3500000, trainingRamMb: 900, inferenceRamMb: 280, color: '#7df5a5', description: 'MobileNet V2 quantized — 1000 ImageNet classes, better accuracy.', format: 'tflite', license: 'Apache-2.0', status: 'published', downloadUrl: 'https://storage.googleapis.com/download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224_quant.tgz' },
-  { id: 'cocossd-mobilenet', name: 'Object Detector', type: 'Object detection', sizeMb: 27, parameterCount: 5000000, trainingRamMb: 1200, inferenceRamMb: 420, color: '#f9e264', description: 'Detect 80 object classes (COCO) — people, cars, animals, more.', format: 'tflite', license: 'Apache-2.0', status: 'published', supportsTraining: false, downloadUrl: 'https://storage.googleapis.com/tfjs-models/savedmodel/coco-ssd-mobilenet_v2/model.json' },
-  { id: 'face-blaze', name: 'Face Detector', type: 'Face detection', sizeMb: 22, parameterCount: 1800000, trainingRamMb: 800, inferenceRamMb: 280, color: '#ffb2ef', description: 'Lightweight short-range face detector (BlazeFace).', format: 'tfjs', license: 'Apache-2.0', status: 'published', supportsTraining: false, downloadUrl: 'https://tfhub.dev/mediapipe/tfjs-model/blazeface/1/default/1/model.json' },
-  { id: 'mobilenet-v3-small', name: 'MobileNet V3', type: 'Image classification', sizeMb: 11, parameterCount: 2500000, trainingRamMb: 700, inferenceRamMb: 220, color: '#c6ff33', description: 'MobileNet V3 Small — faster, more accurate than V1.', format: 'tflite', license: 'Apache-2.0', status: 'published', downloadUrl: 'https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v3_small_100_224_quant.tgz' },
-  { id: 'pose-movenet-lightning', name: 'Pose Lightning', type: 'Pose estimation', sizeMb: 9, parameterCount: 3200000, trainingRamMb: 800, inferenceRamMb: 300, color: '#ff7d7d', description: 'Single-person 17-keypoint pose detection, real-time.', format: 'tflite', license: 'Apache-2.0', status: 'published', supportsTraining: false, downloadUrl: 'https://tfhub.dev/google/lite-model/movenet/singlepose/lightning/tflite/float16/4?lite-format=tflite' },
+  { id: 'mobile-vision-v1', name: 'Vision Lite', type: 'Image classification', sizeMb: 4.3, parameterCount: 4200000, trainingRamMb: 620, inferenceRamMb: 180, color: '#60a5fa', description: 'Compact quantized MobileNet — 1000 ImageNet classes.', format: 'tflite', license: 'Apache-2.0', status: 'published', supportsTesting: false, downloadUrl: 'https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v1_1.0_224_quant.tflite' },
+  { id: 'mobilenet-v2-1.0', name: 'MobileNet V2', type: 'Image classification', sizeMb: 14, parameterCount: 3500000, trainingRamMb: 900, inferenceRamMb: 280, color: '#7df5a5', description: 'MobileNet V2 quantized — 1000 ImageNet classes.', format: 'tflite', license: 'Apache-2.0', status: 'published', supportsTesting: false, downloadUrl: 'https://storage.googleapis.com/download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224_quant.tgz' },
+  { id: 'cocossd-mobilenet', name: 'Object Detector', type: 'Object detection', sizeMb: 27, parameterCount: 5000000, trainingRamMb: 1200, inferenceRamMb: 420, color: '#f9e264', description: 'Detect 80 COCO object classes.', format: 'tfjs', license: 'Apache-2.0', status: 'published', supportsTesting: false, supportsTraining: false, downloadUrl: 'https://storage.googleapis.com/tfjs-models/savedmodel/coco-ssd-mobilenet_v2/model.json' },
+  { id: 'face-blaze', name: 'Face Detector', type: 'Face detection', sizeMb: 22, parameterCount: 1800000, trainingRamMb: 800, inferenceRamMb: 280, color: '#ffb2ef', description: 'Lightweight short-range face detector (BlazeFace).', format: 'tfjs', license: 'Apache-2.0', status: 'published', supportsTesting: false, supportsTraining: false, downloadUrl: 'https://tfhub.dev/mediapipe/tfjs-model/blazeface/1/default/1/model.json' },
+  { id: 'mobilenet-v3-small', name: 'MobileNet V3', type: 'Image classification', sizeMb: 11, parameterCount: 2500000, trainingRamMb: 700, inferenceRamMb: 220, color: '#c6ff33', description: 'MobileNet V3 Small — faster than V1.', format: 'tflite', license: 'Apache-2.0', status: 'published', supportsTesting: false, downloadUrl: 'https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v3_small_100_224_quant.tgz' },
+  { id: 'pose-movenet-lightning', name: 'Pose Lightning', type: 'Pose estimation', sizeMb: 9, parameterCount: 3200000, trainingRamMb: 800, inferenceRamMb: 300, color: '#ff7d7d', description: 'Single-person 17-keypoint pose detection.', format: 'tflite', license: 'Apache-2.0', status: 'published', supportsTesting: false, supportsTraining: false, downloadUrl: 'https://tfhub.dev/google/lite-model/movenet/singlepose/lightning/tflite/float16/4?lite-format=tflite' },
 ]
 
+// Which downloaded models are actually runnable in the chat tab today.
+const chatableIds = new Set(fallbackModels.filter(m => m.task === 'text-classification' && m.hfId).map(m => m.id))
+const hfIdFor = model => model.hfId || ({
+  'sentiment-lite': 'Xenova/distilbert-base-uncased-finetuned-sst-2-english',
+  'toxicity-lite': 'Xenova/toxic-bert',
+  'emotion-mini': 'Xenova/emotion',
+}[model.id])
+
 const formatRam = value => value >= 1024 ? `${(value / 1024).toFixed(1)} GB` : `${value} MB`
+
+function ChatPanel({ catalog, downloaded, activeChatModel, setActiveChatModel, chatHistory, testText, setTestText, testing, sendChat, onGoToZoo }) {
+  const scrollRef = React.useRef(null)
+  React.useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+  }, [chatHistory, testing])
+  const chatable = catalog.filter(m => chatableIds.has(m.id) && downloaded.includes(m.id))
+  if (!chatable.length) {
+    return <div className="empty-panel"><Send size={28}/><h2>Chat with a model</h2>
+      <p>Download a text-classification model from the Model Zoo first (Sentiment, Toxicity, or Emotion).</p>
+      <button className="primary-button" onClick={onGoToZoo}>Browse Model Zoo</button></div>
+  }
+  const activeModel = catalog.find(m => m.id === activeChatModel)
+  return <div className="chat-panel">
+    <div className="chat-model-picker">
+      <label>MODEL</label>
+      <select value={activeChatModel || ''} onChange={e => setActiveChatModel(e.target.value)}>
+        {chatable.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+      </select>
+    </div>
+    <div className="chat-history" ref={scrollRef}>
+      {chatHistory.length === 0 && <div className="chat-empty">
+        <p className="mobile-kicker">LOCAL INFERENCE</p>
+        <h3>Ask {activeModel?.name} anything</h3>
+        <small>Runs entirely on your device. No internet required after first load.</small>
+      </div>}
+      {chatHistory.map((m, i) => (
+        <div key={i} className={`chat-msg ${m.role === 'user' ? 'chat-msg-user' : m.error ? 'chat-msg-error' : 'chat-msg-bot'}`}>
+          {m.role === 'bot' && !m.error && <>
+            <b>{m.text}</b>
+            <small>{m.conf}% · {m.latency}ms · {m.modelName}</small>
+          </>}
+          {m.role === 'bot' && m.error && <span>{m.text}</span>}
+          {m.role === 'user' && <span>{m.text}</span>}
+        </div>
+      ))}
+      {testing && <div className="chat-msg chat-msg-bot chat-msg-loading"><span className="dot-pulse"/></div>}
+    </div>
+    <form className="chat-input" onSubmit={e => { e.preventDefault(); sendChat() }}>
+      <input
+        type="text" value={testText}
+        onChange={e => setTestText(e.target.value)}
+        placeholder={testing ? 'Thinking…' : `Ask ${activeModel?.name}…`}
+        disabled={testing || !activeChatModel}
+      />
+      <button type="submit" disabled={testing || !testText.trim() || !activeChatModel} aria-label="Send">
+        <Send size={16}/>
+      </button>
+    </form>
+  </div>
+}
 
 export default function MobileDashboard() {
   const [tab, setTab] = React.useState('zoo')
@@ -59,8 +118,10 @@ export default function MobileDashboard() {
   const [drawerPage, setDrawerPage] = React.useState('home')
   const [selectedModel, setSelectedModel] = React.useState(null)
   const [testText, setTestText] = React.useState('')
-  const [testResult, setTestResult] = React.useState(null)
   const [testing, setTesting] = React.useState(false)
+  const [activeChatModel, setActiveChatModel] = React.useState(null) // model id
+  const [chatHistory, setChatHistory] = React.useState([]) // [{role:'user'|'bot', text, label?, conf?}]
+  const classifiersRef = React.useRef({}) // id -> { classifier, loading? }
   const msgTimeoutRef = React.useRef(null)
   const [byocEnabled, setByocEnabled] = React.useState(() => localStorage.getItem('toddler-byoc') !== '0')
   const [byocStatus, setByocStatus] = React.useState('idle') // idle|checking|training|disabled
@@ -362,19 +423,59 @@ export default function MobileDashboard() {
     } catch (error) { showMessage(error.message, 4000) }
   }
 
-  const runTest = async () => {
-    if (!testText.trim() || testing) return
-    setTesting(true); setTestResult(null)
+  // Pick a default chat model once any text model is downloaded
+  React.useEffect(() => {
+    const chatable = catalog.filter(m => chatableIds.has(m.id) && downloaded.includes(m.id))
+    if (!chatable.length) { setActiveChatModel(null); setChatHistory([]); return }
+    if (!activeChatModel || !chatable.find(m => m.id === activeChatModel)) {
+      setActiveChatModel(chatable[0].id)
+    }
+  }, [downloaded, catalog, activeChatModel])
+
+  const sendChat = async () => {
+    const text = testText.trim()
+    if (!text || testing) return
+    const modelId = activeChatModel
+    if (!modelId) return
+    const model = catalog.find(m => m.id === modelId)
+    const hfId = model && hfIdFor(model)
+    if (!hfId) return
+    setTestText('')
+    setChatHistory(h => [...h, { role: 'user', text }])
+    setTesting(true)
     const started = performance.now()
     try {
-      const { pipeline, env } = await import('@huggingface/transformers')
-      env.allowLocalModels = false; env.useBrowserCache = true
-      const classifier = await pipeline('text-classification', 'Xenova/distilbert-base-uncased-finetuned-sst-2-english', { quantized: true })
-      const output = await classifier(testText)
+      let entry = classifiersRef.current[modelId]
+      if (!entry?.classifier) {
+        // Set loading state
+        classifiersRef.current[modelId] = entry = { loading: true }
+        const { pipeline, env } = await import('@huggingface/transformers')
+        env.allowLocalModels = false; env.useBrowserCache = true
+        entry.classifier = await pipeline('text-classification', hfId, { quantized: true })
+        entry.loading = false
+      } else if (entry.loading) {
+        // Wait briefly for in-flight load
+        for (let i = 0; i < 100; i++) {
+          await new Promise(r => setTimeout(r, 100))
+          if (classifiersRef.current[modelId]?.classifier) break
+        }
+      }
+      const classifier = classifiersRef.current[modelId].classifier
+      if (!classifier) throw new Error('Model failed to load')
+      const output = await classifier(text)
       const result = Array.isArray(output) ? output[0] : output
-      setTestResult({ label: result.label, confidence: `${Math.round(result.score * 100)}%`, latency: `${Math.round(performance.now() - started)} ms` })
-    } catch (error) { setTestResult({ label: 'Runtime unavailable', confidence: '—', latency: error.message }) }
-    finally { setTesting(false) }
+      setChatHistory(h => [...h, {
+        role: 'bot',
+        text: result.label,
+        conf: Math.round((result.score || 0) * 100),
+        modelName: model.name,
+        latency: Math.round(performance.now() - started),
+      }])
+    } catch (error) {
+      setChatHistory(h => [...h, { role: 'bot', text: `Error: ${error.message || error}`, error: true }])
+    } finally {
+      setTesting(false)
+    }
   }
 
   return <div className="mobile-app">
@@ -394,12 +495,23 @@ export default function MobileDashboard() {
     <main className="mobile-main">
       <section className="mobile-welcome"><div><p className="mobile-kicker">LOCAL AI WORKSPACE</p><h1>Train on your device.</h1><p className="mobile-muted">Small models, private data, no cloud required.</p></div><div className="device-card"><Smartphone size={18}/><strong>{ram || '—'} GB RAM</strong><span>{PLATFORM_DISPLAY}</span></div></section>
       <section className="device-stats"><div><MemoryStick size={15}/><span>RAM</span><b>{ram || '—'} GB</b></div><div><HardDrive size={15}/><span>STORAGE</span><b>{storage ? `${Math.round((storage.quota - storage.usage) / 1e9)} GB free` : 'Checking'}</b></div><div><Cpu size={15}/><span>MODE</span><b>{ram && ram <= 2 ? 'Low memory' : 'Mobile'}</b></div></section>
-      <nav className="mobile-tabs">{[['zoo','Model Zoo',Zap],['train','Train',Play],['test','Test',FlaskConical],['dev','Dev',Code2]].map(([id, label, Icon]) => <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}><Icon size={16}/>{label}</button>)}</nav>
+      <nav className="mobile-tabs">{[['zoo','Model Zoo',Zap],['train','Train',Play],['chat','Chat',Send],['dev','Dev',Code2]].map(([id, label, Icon]) => <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}><Icon size={16}/>{label}</button>)}</nav>
 
       {tab === 'zoo' && <><div className="section-heading"><div><p className="mobile-kicker">MODEL ZOO</p><h2>Recommended for you</h2></div><span className="model-count">{recommended.length} compatible</span></div><div className="model-filters">{['All','Text','Vision','Detection','Embeddings','Recommended','Downloaded'].map(item => <button key={item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</div>{proPrompt && <div className="pro-upsell"><div><b>Device can't run this job.</b><small>{proPrompt.reason === 'vision' ? 'Vision BYOC jobs need cloud training.' : `Requires ~${proPrompt.requiredMb} MB training RAM.`}</small></div><button className="small-button" onClick={() => window.open('https://toddler.ai/pricing','_blank')}>Upgrade to Pro</button><button className="model-delete" onClick={() => setProPrompt(null)}>Dismiss</button></div>}{downloadError && <div className="download-error"><span>{downloadError}</span>{failedModel && <button className="retry-download" onClick={() => download(failedModel)}>Continue download</button>}</div>}<div className="model-list">{visibleModels.map(model => { const isDownloaded = downloaded.includes(model.id); const fits = canFit(model); return <article className={`model-card ${!fits ? 'disabled' : ''}`} key={model.id}><button className="model-icon model-info-trigger" style={{ color: model.color }} onClick={() => setSelectedModel(model)} aria-label={`View ${model.name} details`}><Zap size={19}/></button><div className="model-info" onClick={() => setSelectedModel(model)}><div className="model-title"><h3>{model.name}</h3>{isDownloaded && <CheckCircle2 size={16} className="success"/>}</div><p>{model.type}</p><small>{model.description}</small><div className="model-meta"><span>{modelSize(model)} MB</span><span>{model.params || `${(model.parameterCount || 0) / 1000000}M`} params</span><span>~{formatRam(modelRam(model))} RAM</span></div><div className="model-compatibility">{fits ? `✓ Fits your ${ram || 4} GB device` : modelRam(model) > availableRam ? `Needs ${formatRam(modelRam(model))} RAM` : `Needs ${modelSize(model)} MB storage`}</div></div><button className="model-action" disabled={isDownloaded || downloading === model.id || !fits || !isPublished(model)} onClick={() => download(model)}>{isDownloaded ? 'Downloaded' : downloading === model.id ? `Downloading ${downloadProgress}%…` : !isPublished(model) ? 'Coming soon' : fits ? <><Download size={15}/> Download</> : 'Not compatible'}</button>{isDownloaded && <button className="model-delete" onClick={() => removeModel(model.id)}>Remove local copy</button>}</article>})}</div></>}
 
       {tab === 'train' && <div className="empty-panel"><Play size={28}/><h2>Your downloaded models</h2>{downloaded.length ? <><div className="downloaded-list">{catalog.filter(model => downloaded.includes(model.id)).map(model => <div className="downloaded-row" key={model.id}><div><b>{model.name}</b><span>{modelSize(model)} MB · ready to train</span></div><label className="small-button">{uploading ? 'Uploading…' : 'Upload dataset'}<input type="file" accept=".csv,.json" hidden disabled={uploading} onChange={uploadDataset}/><ChevronRight size={14}/></label></div>)}</div>{message && <p className="upload-message">{message}</p>}{datasets.length > 0 && <div className="downloaded-list"><p className="mobile-kicker">UPLOADED DATASETS</p>{datasets.map(dataset => <div className="downloaded-row" key={dataset.id}><div><b>{dataset.name}</b><span>{Math.round((dataset.sizeBytes || dataset.bytes || 0) / 1024)} KB · uploaded</span></div><button className="small-button" disabled title="On-device training is coming soon">Coming soon <ChevronRight size={14}/></button></div>)}</div>}</> : <><p>Download a model from the Model Zoo to start training locally.</p><button className="primary-button" onClick={() => setTab('zoo')}>Browse Model Zoo</button></>}</div>}
-      {tab === 'test' && <div className="empty-panel"><FlaskConical size={28}/><h2>Test locally</h2><p>Try a downloaded text model on your device.</p>{downloaded.length ? <><textarea className="test-input" value={testText} onChange={event => setTestText(event.target.value)} placeholder="Type text to classify…"/><button className="primary-button" onClick={runTest}>{testing ? 'Loading model…' : 'Run test'}</button>{testResult && <div className="test-result"><b>{testResult.label}</b><span>Confidence: {testResult.confidence}</span><span>Latency: {testResult.latency}</span></div>}</> : <button className="primary-button" onClick={() => setTab('zoo')}>Choose a model</button>}</div>}
+      {tab === 'chat' && <ChatPanel
+        catalog={catalog}
+        downloaded={downloaded}
+        activeChatModel={activeChatModel}
+        setActiveChatModel={setActiveChatModel}
+        chatHistory={chatHistory}
+        testText={testText}
+        setTestText={setTestText}
+        testing={testing}
+        sendChat={sendChat}
+        onGoToZoo={() => setTab('zoo')}
+      />}
       {tab === 'dev' && <div className="empty-panel dev-panel"><Code2 size={28}/><h2>Build with your models</h2><p>Use the local API to call models running on this device.</p><pre id="toddler-dev-snippet">{`fetch('http://localhost:8787/predict', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ text })\n}).then(r => r.json()).then(console.log)`}</pre><button className="small-button" onClick={() => {
         const el = document.getElementById('toddler-dev-snippet');
         if (el && navigator.clipboard) navigator.clipboard.writeText(el.textContent || '');

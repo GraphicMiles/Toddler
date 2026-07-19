@@ -1,5 +1,5 @@
 import React from 'react'
-import { Download, Cpu, HardDrive, MemoryStick, CheckCircle2, Play, Send, Code2, ChevronRight, Smartphone, Zap, Loader2, Menu, X, Plus, Trash2, FolderOpen } from 'lucide-react'
+import { Download, Cpu, HardDrive, MemoryStick, CheckCircle2, Play, Send, Code2, ChevronRight, Smartphone, Zap, Loader2, Menu, X, Plus, Trash2, FolderOpen, Unlink } from 'lucide-react'
 import { Capacitor } from '@capacitor/core'
 import { auth, db } from './firebase'
 import { signOut } from 'firebase/auth'
@@ -126,72 +126,52 @@ function ChatPanel({ catalog, downloaded, activeChatModel, setActiveChatModel, c
 }
 
 // ---------- Sidebar: Projects list + current model settings ----------
-function Sidebar({ projects, activeProjectId, onSelectProject, onNewProject, onDeleteProject,
-                   downloaded, catalog, activeChatModel, onRemoveActiveModel,
-                   onClose, isMobile, byocStatus, byocJobName, byocEnabled, onToggleByoc }) {
-  const activeDownloaded = catalog.find(m => m.id === activeChatModel)
-  return <aside className={`td-sidebar${isMobile ? ' td-sidebar-drawer' : ''}`}>
-    <div className="td-sidebar-head">
-      <div className="mobile-brand"><span className="mobile-mark"/> TODDLER</div>
-      {isMobile && <button className="td-icon-btn" onClick={onClose} aria-label="Close menu"><X size={18}/></button>}
-    </div>
+function Sidebar({ currentProject, onDeleteProject, onClose, isMobile }) {
+  const handleUnpair = async () => {
+    if (!window.confirm('Unpair this device? You will be locked out and need a new pairing code to reconnect.')) return;
+    try {
+      await auth.signOut();
+      if (isMobile) onClose?.();
+    } catch (e) {
+      toast.error('Failed to unpair');
+    }
+  };
 
-    <div className="td-sidebar-section">
-      <div className="td-section-label">
-        <FolderOpen size={12}/> Projects
-      </div>
-      <div className="td-project-list">
-        {projects.length === 0 && <div className="td-empty-note">No projects yet.</div>}
-        {projects.map(p => (
-          <button key={p.id}
-            className={`td-project-item${p.id === activeProjectId ? ' active' : ''}`}
-            onClick={() => { onSelectProject(p.id); onClose?.() }}>
-            <div className="td-project-name">{p.name}</div>
-            <div className="td-project-meta" style={{ color: statusColor(p.status) }}>{statusLabel(p.status)}</div>
-          </button>
-        ))}
-      </div>
-      <button className="td-btn td-btn-outline td-btn-block" onClick={() => { onNewProject(); onClose?.() }}>
-        <Plus size={14}/> New Project
-      </button>
-    </div>
-
-    <div className="td-sidebar-section">
-      <div className="td-section-label"><Cpu size={12}/> Active Model</div>
-      {activeDownloaded ? (
-        <div className="td-model-card">
-          <div className="td-model-name">{activeDownloaded.name}</div>
-          <div className="td-model-meta">{activeDownloaded.type} · {Math.round((activeDownloaded.sizeMb || activeDownloaded.size/1024/1024) || 0)} MB</div>
-          <button className="td-btn td-btn-ghost td-btn-sm" onClick={() => onRemoveActiveModel(activeDownloaded.id)}>
-            <Trash2 size={12}/> Remove local copy
-          </button>
+  return (
+    <aside className="td-sidebar td-sidebar-drawer flex flex-col h-full bg-[var(--surface-2)] w-64 border-r border-[var(--line)]">
+      <div className="p-6 border-b border-[var(--line)] flex justify-between items-center bg-[var(--surface)]">
+        <div>
+          <h2 className="text-xl font-display font-bold text-white">Toddler Worker</h2>
+          <div className="text-[var(--accent-lime)] text-[10px] font-mono mt-1 flex items-center gap-2 tracking-widest uppercase">
+            <div className="w-2 h-2 rounded-full bg-[var(--accent-lime)] animate-pulse"></div> Online
+          </div>
         </div>
-      ) : (
-        <div className="td-empty-note">No active model. Download one from the Model Zoo.</div>
-      )}
-    </div>
+        {isMobile && <button className="btn-ghost !p-2" onClick={onClose}><X size={20}/></button>}
+      </div>
 
-    <div className="td-sidebar-section">
-      <div className="td-section-label"><Zap size={12}/> Device Training</div>
-      <label className="td-byoc-toggle">
-        <input type="checkbox" checked={byocEnabled} onChange={e => onToggleByoc(e.target.checked)} />
-        <span className="td-byoc-dot" style={{ background: byocEnabled ? '#c6ff33' : '#6f786c' }}/>
-        <span className="td-byoc-text">
-          {byocStatus === 'training' ? `Training${byocJobName ? ' ' + byocJobName.slice(0,10) : ''}` : byocEnabled ? 'Device ready' : 'Device idle'}
-        </span>
-      </label>
-    </div>
-
-    <div className="td-sidebar-footer">
-      {activeProjectId && projects.find(p => p.id === activeProjectId) && (
-        <button className="td-btn td-btn-danger td-btn-sm td-btn-block"
-          onClick={() => onDeleteProject(activeProjectId)}>
-          <Trash2 size={12}/> Delete active project
+      <div className="p-6 border-b border-[var(--line)]">
+        <div className="text-[10px] font-mono text-[var(--text-faint)] mb-3 uppercase tracking-wider">User Profile</div>
+        <div className="font-bold text-sm text-[var(--text)] truncate">{auth.currentUser?.email || 'Worker Node'}</div>
+        <button className="btn w-full mt-4 !border-[var(--danger)] !text-[var(--danger)] bg-transparent hover:!bg-[var(--danger)] hover:!text-white flex justify-center items-center gap-2 text-xs" onClick={handleUnpair}>
+          <Unlink size={14} /> Unpair Device
         </button>
-      )}
-      <button className="td-btn td-btn-ghost td-btn-block" onClick={() => signOut(auth)}>Log out</button>
-    </div>
-  </aside>
+      </div>
+
+      <div className="p-6 flex-grow">
+        <div className="text-[10px] font-mono text-[var(--text-faint)] mb-4 uppercase tracking-wider">Project Settings</div>
+        {currentProject ? (
+          <div>
+            <div className="font-bold text-sm text-[var(--text)] mb-4 truncate">{currentProject.name}</div>
+            <button className="btn-ghost w-full !text-[var(--danger)] border border-[var(--danger)]/30 hover:bg-[var(--danger)]/10 flex justify-center items-center gap-2 text-xs" onClick={() => { onDeleteProject(currentProject.id); onClose?.(); }}>
+              <Trash2 size={14} /> Delete Project
+            </button>
+          </div>
+        ) : (
+          <div className="text-xs text-[var(--text-dim)] italic">No active project.</div>
+        )}
+      </div>
+    </aside>
+  );
 }
 
 export default function MobileDashboard() {
@@ -608,6 +588,10 @@ export default function MobileDashboard() {
     onToggleByoc: (on) => { localStorage.setItem('toddler-byoc', on?'1':'0'); setByocEnabled(on); if (on) showMessage('Device training enabled.', 3000) },
   }
 
+  const currentProject = projects.find(p => p.id === activeProjectId) || projects[0];
+  const activeJobs = projects.filter(p => ['queued', 'training', 'device_training', 'awaiting_device'].includes(p.status));
+  const finishedJobs = projects.filter(p => p.status === 'trained');
+
   if (projectsLoading) {
     return (
       <div style={{minHeight: '100vh', backgroundColor: '#14130F', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'}}>
@@ -620,11 +604,11 @@ export default function MobileDashboard() {
     return (
       <div className="mobile-app td-split-layout">
         <div className="td-sidebar-desktop">
-          <Sidebar {...sidebarProps} isMobile={false} onClose={()=>{}}/>
+          <Sidebar currentProject={currentProject} onDeleteProject={handleDeleteProject} isMobile={false} onClose={()=>{}}/>
         </div>
         {sidebarOpen && <>
           <div className="drawer-backdrop" onClick={()=>setSidebarOpen(false)}/>
-          <Sidebar {...sidebarProps} isMobile={true} onClose={()=>setSidebarOpen(false)}/>
+          <Sidebar currentProject={currentProject} onDeleteProject={handleDeleteProject} isMobile={true} onClose={()=>setSidebarOpen(false)}/>
         </>}
         <main className="td-main-content" style={{ display: 'flex', flexDirection: 'column' }}>
           <header className="dash-header p-6 flex flex-wrap justify-between items-center gap-4 bg-[var(--surface)] border-b border-[var(--line)]">
@@ -676,7 +660,7 @@ export default function MobileDashboard() {
     return (
       <div className="mobile-app td-split-layout">
         <div className="td-sidebar-desktop">
-          <Sidebar {...sidebarProps} isMobile={false} onClose={()=>{}}/>
+          <Sidebar currentProject={currentProject} onDeleteProject={handleDeleteProject} isMobile={false} onClose={()=>{}}/>
         </div>
         <main className="td-main-content overflow-y-auto">
            <Onboarding onComplete={handleOnboardingComplete} />
@@ -685,215 +669,193 @@ export default function MobileDashboard() {
     );
   }
 
-  return <div className="mobile-app td-split-layout">
-    {/* Desktop sidebar (persistent) */}
-    <div className="td-sidebar-desktop">
-      <Sidebar {...sidebarProps} isMobile={false} onClose={()=>{}}/>
-    </div>
-
-    {/* Mobile drawer */}
-    {sidebarOpen && <>
-      <div className="drawer-backdrop" onClick={()=>setSidebarOpen(false)}/>
-      <Sidebar {...sidebarProps} isMobile={true} onClose={()=>setSidebarOpen(false)}/>
-    </>}
-
-    {/* Profile drawer (account settings) */}
-    {profileOpen && <>
-      <div className="drawer-backdrop" onClick={()=>setProfileOpen(false)}/>
-      <aside className="profile-drawer">
-        <button className="drawer-close" onClick={()=>setProfileOpen(false)}>×</button>
-        <div className="profile-avatar">{(auth.currentUser?.displayName || auth.currentUser?.email || 'U').charAt(0).toUpperCase()}</div>
-        <h2>{auth.currentUser?.displayName || 'Toddler user'}</h2>
-        <p>{auth.currentUser?.email || 'Signed-in account'}</p>
-        <div className="drawer-section"><span>ACCOUNT</span>
-          <button className="drawer-link" onClick={()=>showMessage('Profile settings coming soon.')}>Profile settings <ChevronRight size={14}/></button>
-          <button className="drawer-link" onClick={()=>{setProfileOpen(false); setTab('dev')}}>Developer settings <ChevronRight size={14}/></button>
+  return (
+    <div className="mobile-app flex flex-col h-screen bg-[var(--bg)] text-[var(--text)] font-sans">
+      {sidebarOpen && <>
+        <div className="fixed inset-0 bg-black/80 z-40" onClick={() => setSidebarOpen(false)} />
+        <div className="fixed inset-y-0 left-0 z-50 transform transition-transform duration-300">
+          <Sidebar currentProject={currentProject} onDeleteProject={handleDeleteProject} onClose={() => setSidebarOpen(false)} isMobile={true} />
         </div>
-        <div className="drawer-danger"><span>DANGER ZONE</span>
-          <button onClick={deleteAccount}>Delete account</button>
-        </div>
-        <button className="drawer-logout" onClick={()=>signOut(auth)}>Log out</button>
-      </aside>
-    </>}
+      </>}
 
-    {selectedModel && <div className="model-modal-backdrop" onClick={()=>setSelectedModel(null)}>
-      <section className="model-modal" onClick={e=>e.stopPropagation()}>
-        <button className="drawer-close" onClick={()=>setSelectedModel(null)}>×</button>
-        <p className="mobile-kicker">MODEL DETAILS</p>
-        <h2>{selectedModel.name}</h2>
-        <p className="mobile-muted">{selectedModel.description}</p>
-        <div className="detail-grid">
-          <span>Task<b>{selectedModel.type}</b></span>
-          <span>Format<b>{selectedModel.format || 'ONNX'}</b></span>
-          <span>Size<b>{modelSize(selectedModel)} MB</b></span>
-          <span>Parameters<b>{selectedModel.params || `${(selectedModel.parameterCount||0)/1000000}M`}</b></span>
-          <span>Training RAM<b>{formatRam(modelRam(selectedModel))}</b></span>
-          <span>License<b>{selectedModel.license || 'Apache-2.0'}</b></span>
-        </div>
-        <button className="primary-button" disabled={downloaded.includes(selectedModel.id) || !canFit(selectedModel) || !isPublished(selectedModel)}
-          onClick={()=>{ setSelectedModel(null); download(selectedModel) }}>
-          {downloaded.includes(selectedModel.id) ? 'Downloaded' : !isPublished(selectedModel) ? 'Coming soon' : canFit(selectedModel) ? 'Download model' : 'Not compatible'}
-        </button>
-      </section>
-    </div>}
-
-    {/* Main work area */}
-    <main className="td-main">
-      <header className="mobile-header td-main-header">
-        <div className="td-header-left">
-          <button className="td-icon-btn td-menu-btn" onClick={()=>setSidebarOpen(true)} aria-label="Open menu"><Menu size={18}/></button>
-          <div className="td-current-project">
-            {activeProjectId && projects.find(p=>p.id===activeProjectId) ? (
-              <>
-                <span className="td-kicker">PROJECT</span>
-                <span className="td-project-title">{projects.find(p=>p.id===activeProjectId).name}</span>
-              </>
-            ) : (
-              <>
-                <span className="td-kicker">WORKSPACE</span>
-                <span className="td-project-title">Toddler</span>
-              </>
-            )}
-          </div>
-        </div>
-        <div className="mobile-header-actions">
-          <label className="byoc-pill" title={byocEnabled ? 'Device helping train free-tier models' : 'Tap to enable device training'}>
-            <input type="checkbox" checked={byocEnabled} onChange={e=>{const on=e.target.checked; localStorage.setItem('toddler-byoc',on?'1':'0'); setByocEnabled(on); if(on)showMessage('Device training enabled.',3000)}} style={{display:'none'}}/>
-            {byocStatus==='training' ? <Loader2 size={12} className="spin"/> : <span className="online-dot" style={{background: byocEnabled?'#c6ff33':'#6f786c'}}/>}
-            {byocStatus==='training' ? `TRAINING ${byocProgress}%` : byocEnabled ? 'READY' : 'IDLE'}
-          </label>
-          <button className="profile-button" onClick={()=>setProfileOpen(true)} aria-label="Profile">
-            {(auth.currentUser?.displayName || auth.currentUser?.email || 'U').charAt(0).toUpperCase()}
+      <header className="p-4 flex items-center justify-between bg-[var(--surface)] shrink-0">
+        <div className="flex items-center gap-4">
+          <button className="text-[var(--text-dim)] hover:text-white" onClick={() => setSidebarOpen(true)}>
+            <Menu size={24} />
           </button>
+          <div>
+            <h1 className="text-lg font-display font-bold leading-none">Toddler Worker</h1>
+            <div className="text-[var(--accent-lime)] text-[10px] font-mono mt-1 tracking-widest flex items-center gap-2 uppercase">
+               <div className="w-1.5 h-1.5 rounded-full bg-[var(--accent-lime)] animate-pulse"></div> Online
+            </div>
+          </div>
         </div>
       </header>
 
-      <div className="mobile-main td-main-body">
-        <section className="mobile-welcome">
-          <div>
-            <p className="mobile-kicker">LOCAL AI WORKSPACE</p>
-            <h1>Train on your device.</h1>
-            <p className="mobile-muted">Small models, private data, no cloud required.</p>
-          </div>
-          <div className="device-card">
-            <Smartphone size={18}/><strong>{ram || '—'} GB RAM</strong><span>{PLATFORM_DISPLAY}</span>
-          </div>
-        </section>
-
-        <section className="device-stats">
-          <div><MemoryStick size={15}/><span>RAM</span><b>{ram || '—'} GB</b></div>
-          <div><HardDrive size={15}/><span>STORAGE</span><b>{storage ? `${Math.round((storage.quota-storage.usage)/1e9)} GB free` : 'Checking'}</b></div>
-          <div><Cpu size={15}/><span>MODE</span><b>{ram && ram<=2 ? 'Low memory' : 'Mobile'}</b></div>
-        </section>
-
-        <nav className="mobile-tabs">
-          {[['zoo','Model Zoo',Zap],['train','Train',Play],['chat','Chat',Send],['dev','Dev',Code2]].map(([id,label,Icon]) =>
-            <button key={id} className={tab===id?'active':''} onClick={()=>setTab(id)}><Icon size={16}/>{label}</button>)}
-        </nav>
-
-        {proPrompt && <div className="pro-upsell">
-          <div><b>Device can't run this job.</b>
-            <small>{proPrompt.reason==='vision' ? 'Vision BYOC jobs need cloud training.' : `Requires ~${proPrompt.requiredMb} MB training RAM.`}</small>
-          </div>
-          <button className="small-button" onClick={()=>window.open('https://toddler.ai/pricing','_blank')}>Upgrade to Pro</button>
-          <button className="model-delete" onClick={()=>setProPrompt(null)}>Dismiss</button>
-        </div>}
-
-        {downloadError && <div className="download-error">
-          <span>{downloadError}</span>
-          {failedModel && <button className="retry-download" onClick={()=>download(failedModel)}>Continue download</button>}
-        </div>}
-
-        {tab === 'zoo' && <>
-          <div className="section-heading">
-            <div><p className="mobile-kicker">MODEL ZOO</p><h2>Recommended for you</h2></div>
-            <span className="model-count">{recommended.length} compatible</span>
-          </div>
-          <div className="model-filters">{['All','Chat','Text','Vision','Detection','Embeddings','Recommended','Downloaded'].map(item =>
-            <button key={item} className={category===item?'active':''} onClick={()=>setCategory(item)}>{item}</button>)}
-          </div>
-          <div className="model-list">
-            {baseList.map(model => {
-              const isDownloaded = downloaded.includes(model.id); const fits = canFit(model)
-              return <article className={`model-card${!fits?' disabled':''}`} key={model.id}>
-                <button className="model-icon model-info-trigger" style={{color:model.color}} onClick={()=>setSelectedModel(model)} aria-label={`View ${model.name}`}><Zap size={19}/></button>
-                <div className="model-info" onClick={()=>setSelectedModel(model)}>
-                  <div className="model-title"><h3>{model.name}</h3>{isDownloaded && <CheckCircle2 size={16} className="success"/>}</div>
-                  <p>{model.type}</p>
-                  <small>{model.description}</small>
-                  <div className="model-meta"><span>{modelSize(model)} MB</span><span>{model.params||`${(model.parameterCount||0)/1000000}M`} params</span><span>~{formatRam(modelRam(model))} RAM</span></div>
-                  <div className="model-compatibility">
-                    {fits ? `✓ Fits your ${ram||4} GB device` : modelUnavailableReason(model) || (modelRam(model)>availableRam ? `Needs ${formatRam(modelRam(model))} RAM` : `Needs ${modelSize(model)} MB storage`)}
-                  </div>
-                </div>
-                <button className="model-action" disabled={isDownloaded || downloading===model.id || !fits || !isPublished(model)} onClick={()=>download(model)}>
-                  {isDownloaded ? (model.task==='chat'?'Ready':'Downloaded')
-                    : downloading===model.id ? `Downloading ${downloadProgress}%…`
-                    : !isPublished(model) ? 'Coming soon'
-                    : fits ? <><Download size={15}/> {model.task==='chat'?'Download LLM':'Download'}</>
-                    : 'Not compatible'}
-                </button>
-                {isDownloaded && <button className="model-delete" onClick={()=>removeModel(model.id)}>Remove local copy</button>}
-              </article>
-            })}
-          </div>
-        </>}
-
-        {tab === 'train' && <div className="empty-panel">
-          <Play size={28}/><h2>Training & Datasets</h2>
-          {downloaded.length ? <>
-            <div className="downloaded-list">
-              {catalog.filter(m=>downloaded.includes(m.id)).map(m =>
-                <div className="downloaded-row" key={m.id}>
-                  <div><b>{m.name}</b><span>{modelSize(m)} MB · ready to train</span></div>
-                  <label className="small-button">{uploading?'Uploading…':'Upload dataset'}<input type="file" accept=".csv,.json" hidden disabled={uploading} onChange={uploadDataset}/><ChevronRight size={14}/></label>
-                </div>)}
-            </div>
-            {message && <p className="upload-message">{message}</p>}
-            {datasets.length>0 && <div className="downloaded-list">
-              <p className="mobile-kicker">UPLOADED DATASETS</p>
-              {datasets.map(ds =>
-                <div className="downloaded-row" key={ds.id}>
-                  <div><b>{ds.name}</b><span>{Math.round((ds.sizeBytes||ds.bytes||0)/1024)} KB · uploaded</span></div>
-                  <button className="small-button" disabled title="On-device training coming soon">Coming soon <ChevronRight size={14}/></button>
-                </div>)}
-            </div>}
-            {activeProjectId && <div className="downloaded-list" style={{marginTop: 20}}>
-              <p className="mobile-kicker">ACTIVE PROJECT</p>
-              <div className="downloaded-row">
-                <div>
-                  <b>{projects.find(p=>p.id===activeProjectId)?.name}</b>
-                  <span>Status: {statusLabel(projects.find(p=>p.id===activeProjectId)?.status)}</span>
-                </div>
-                <button className="small-button" onClick={handleNewProject}><Plus size={12}/> New</button>
-              </div>
-            </div>}
-          </> : <>
-            <p>Download a model from the Model Zoo to start training locally.</p>
-            <button className="primary-button" onClick={()=>setTab('zoo')}>Browse Model Zoo</button>
-          </>}
-        </div>}
-
-        {tab === 'chat' && <ChatPanel
-          catalog={catalog} downloaded={downloaded}
-          activeChatModel={activeChatModel} setActiveChatModel={setActiveChatModel}
-          chatHistory={chatHistory} testText={testText} setTestText={setTestText} testing={testing}
-          sendChat={sendChat} onGoToZoo={()=>setTab('zoo')} llmState={llmState}
-          onUploadDocs={handleUploadDocs} onClearDocs={handleClearDocs} knowledgeFiles={knowledgeFiles}
-        />}
-
-        {tab === 'dev' && <div className="empty-panel dev-panel">
-          <Code2 size={28}/><h2>Build with your models</h2>
-          <p>Use the local API to call models running on this device.</p>
-          <pre id="toddler-dev-snippet">{`fetch('http://localhost:8787/predict', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ text })\n}).then(r => r.json()).then(console.log)`}</pre>
-          <button className="small-button" onClick={()=>{
-            const el=document.getElementById('toddler-dev-snippet');
-            if (el && navigator.clipboard) navigator.clipboard.writeText(el.textContent||'');
-            showMessage('Snippet copied.');
-          }}>Copy snippet</button>
-          {message && <p className="upload-message">{message}</p>}
-        </div>}
+      <div className="flex w-full border-y border-[var(--line)] bg-[var(--surface)] shrink-0">
+        {['Zoo', 'Training', 'Sandbox'].map(t => (
+          <button 
+            key={t} 
+            onClick={() => setTab(t.toLowerCase())} 
+            className={`flex-1 py-3 text-center font-mono text-xs uppercase transition-colors ${tab === t.toLowerCase() ? 'border-b-2 border-[var(--accent-lime)] text-[var(--accent-lime)] bg-[var(--surface-2)]' : 'text-[var(--text-dim)] border-b-2 border-transparent hover:text-[var(--text)]'}`}
+          >
+            {t}
+          </button>
+        ))}
       </div>
-    </main>
-  </div>
+
+      <main className="flex-grow overflow-y-auto p-4 md:p-6 relative">
+        {tab === 'zoo' && (
+          <div className="space-y-6 animate-in fade-in duration-300 max-w-lg mx-auto">
+            <div>
+              <h2 className="text-[10px] font-mono text-[var(--text-faint)] uppercase tracking-widest mb-4">Recommended for your device</h2>
+              <div className="grid grid-cols-1 gap-4">
+                {catalog.slice(0, 3).map(model => (
+                  <div key={model.id} className="panel border border-[var(--line)] bg-[var(--surface-2)] p-5 flex flex-col">
+                    <div className="flex justify-between items-start mb-1">
+                      <h3 className="font-bold text-lg">{model.name}</h3>
+                    </div>
+                    <div className="text-xs text-[var(--text-dim)] mb-4 capitalize">{model.task === 'chat' ? 'Chat LLM' : model.type}</div>
+                    
+                    <div className="flex items-center gap-3 text-xs font-mono text-[var(--text-faint)] mb-4">
+                      <span>{model.sizeMb} MB</span>
+                      <span>•</span>
+                      <span>~{model.inferenceRamMb || 300} MB RAM req</span>
+                    </div>
+                    
+                    <div className="text-[10px] font-mono text-[var(--accent-lime)] mb-5 flex items-center gap-2">
+                      <CheckCircle2 size={12} /> Compatible with your device
+                    </div>
+                    
+                    <button className="btn-ghost border border-[var(--line)] w-full text-xs font-mono uppercase hover:bg-[var(--line)] py-2" onClick={() => toast('Native downloads pending Phase 3')}>
+                      Download
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === 'training' && (
+          <div className="space-y-8 animate-in fade-in duration-300 max-w-lg mx-auto">
+            <div>
+              <h2 className="text-[10px] font-mono text-[var(--accent-purple)] uppercase tracking-widest mb-4">Currently Training (Background)</h2>
+              {activeJobs.length === 0 ? (
+                <div className="text-sm text-[var(--text-faint)] italic panel bg-transparent border-dashed border-[var(--line)] text-center py-8">No active jobs in queue.</div>
+              ) : (
+                <div className="space-y-4">
+                  {activeJobs.map(job => (
+                    <div key={job.id} className="panel border border-[var(--accent-purple)] bg-[var(--surface-2)] p-5">
+                      <h3 className="font-bold text-lg mb-1">{job.name}</h3>
+                      <div className="text-xs text-[var(--text-dim)] mb-4 capitalize">{job.type} Model</div>
+                      
+                      <div className="w-full bg-[var(--bg)] h-2 rounded-full mb-3 overflow-hidden border border-[var(--line)]">
+                        <div className="bg-[var(--accent-purple)] h-full transition-all duration-500" style={{ width: `${job.progress || 0}%` }}></div>
+                      </div>
+                      
+                      <div className="flex justify-between items-center text-[10px] font-mono text-[var(--text-faint)] uppercase">
+                        <span className="text-[var(--text)]">Progress: {job.progress || 0}%</span>
+                        <button className="text-[var(--danger)] hover:underline" onClick={() => handleDeleteProject(job.id)}>Pause</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h2 className="text-[10px] font-mono text-[var(--text-faint)] uppercase tracking-widest mb-4">Finished on this device</h2>
+              {finishedJobs.length === 0 ? (
+                <div className="text-sm text-[var(--text-faint)] italic">No completed jobs yet.</div>
+              ) : (
+                <div className="space-y-4">
+                  {finishedJobs.map(job => (
+                    <div key={job.id} className="panel border border-[var(--line)] bg-[var(--surface-2)] p-4 flex justify-between items-center">
+                      <div>
+                        <h3 className="font-bold text-sm mb-1">{job.name}</h3>
+                        <div className="text-xs text-[var(--text-dim)] capitalize">{job.type} • {((job.accuracy||0)*100).toFixed(0)}% Acc</div>
+                      </div>
+                      <button 
+                        className="btn-ghost text-[var(--text)] text-[10px] font-mono border border-[var(--line)] px-3 py-2 hover:bg-[var(--line)] transition-colors uppercase tracking-wider"
+                        onClick={() => { setActiveProjectId(job.id); setTab('sandbox'); }}
+                      >
+                        TEST ↗
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {tab === 'sandbox' && (
+          <div className="h-full flex flex-col animate-in fade-in duration-300 max-w-lg mx-auto">
+            {currentProject && currentProject.status === 'trained' ? (
+              <div className="flex-grow flex flex-col border border-[var(--line)] bg-[var(--surface-2)] relative">
+                <div className="p-3 border-b border-[var(--line)] bg-[var(--surface)] text-[10px] font-mono uppercase tracking-widest flex justify-between items-center">
+                  <span className="text-[var(--accent-lime)]">Active: {currentProject.name}</span>
+                  <span className="text-[var(--text-dim)]">{currentProject.type}</span>
+                </div>
+                
+                <div className="flex-grow p-4 overflow-y-auto space-y-4 bg-[var(--bg)]">
+                  {chatHistory.length === 0 && (
+                    <div className="text-center text-[var(--text-faint)] text-sm mt-10">
+                      Sandbox ready. Test your model's accuracy offline.
+                    </div>
+                  )}
+                  {chatHistory.map((msg, i) => (
+                    <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                      <div className={`max-w-[85%] p-3 text-sm rounded-sm ${msg.role === 'user' ? 'bg-[var(--surface-2)] border border-[var(--line)] text-white' : 'bg-transparent text-[var(--text-dim)]'}`}>
+                        {msg.role === 'bot' && <div className="text-[10px] font-mono text-[var(--text-faint)] mb-1 uppercase tracking-widest">TODDLER &gt;</div>}
+                        {msg.role === 'user' && msg.imageSrc && <div className="text-[10px] font-mono text-[var(--accent-purple)] mb-2">(Uploaded Image)</div>}
+                        {msg.text}
+                      </div>
+                      {msg.role === 'bot' && !msg.error && (
+                        <div className="text-[10px] font-mono text-[var(--accent-lime)] mt-1 ml-2">Confidence: {(msg.confidence||0.98)*100}%</div>
+                      )}
+                    </div>
+                  ))}
+                  {testing && (
+                    <div className="flex flex-col items-start mt-2">
+                      <div className="p-3 text-sm text-[var(--text-faint)]">
+                         <div className="text-[10px] font-mono uppercase tracking-widest mb-1">TODDLER &gt;</div>
+                         <span className="animate-pulse">Thinking...</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-3 border-t border-[var(--line)] bg-[var(--surface)]">
+                  <form onSubmit={e => { e.preventDefault(); sendChat(); }} className="flex gap-2 items-center">
+                    {currentProject.type === 'vision' ? (
+                       <button type="button" className="btn-ghost !p-3 border border-[var(--line)] text-[var(--text-dim)] hover:text-white bg-[var(--bg)]" onClick={() => toast('Camera capture pending Phase 3')}>
+                         📷
+                       </button>
+                    ) : null}
+                    <input 
+                      type="text" 
+                      className="input-field flex-grow !m-0 !py-3 bg-[var(--bg)] border border-[var(--line)]" 
+                      placeholder="Type a message..." 
+                      value={testText}
+                      onChange={e => setTestText(e.target.value)}
+                      disabled={testing}
+                    />
+                    <button type="submit" className="btn btn-solid !px-4 !py-3 !m-0" disabled={testing || !testText.trim()}>
+                      ▲
+                    </button>
+                  </form>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center text-[var(--text-faint)] text-sm mt-10">
+                No trained model selected. Go to Training to select a finished job.
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+    </div>
+  );
 }

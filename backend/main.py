@@ -335,3 +335,38 @@ async def queue_training_job(
         print(f"FCM Dispatch Error: {e}")
 
     return {"job_id": job_ref.id, "status": "queued"}
+
+
+@app.get("/models")
+async def get_models(platform: str = "web", ram_gb: int = 4):
+    """Phase 3: Unified Model Catalog. Returns models filtered by hardware capability."""
+    db = _require_db()
+    try:
+        # In a real scenario, this fetches from the Firestore 'models' collection.
+        # We serve a strict schema matching TODDLER_SPEC.md
+        models_ref = db.collection("models").where("status", "==", "published").get()
+        models = [m.to_dict() for m in models_ref]
+        
+        # Fallback if DB is not seeded yet
+        if not models:
+            models = [
+                {
+                    "id": "sentiment-lite", "name": "Sentiment Lite", "task": "text-classification",
+                    "sizeMb": 42, "minRamGb": 2, "runsOn": ["mobile", "desktop", "cloud"]
+                },
+                {
+                    "id": "smollm2-360m", "name": "SmolLM2 360M", "task": "chat",
+                    "sizeMb": 150, "minRamGb": 4, "runsOn": ["mobile", "desktop", "cloud"]
+                },
+                {
+                    "id": "llama-3.2-3b", "name": "Llama 3.2 3B", "task": "chat",
+                    "sizeMb": 1700, "minRamGb": 8, "runsOn": ["desktop", "cloud"]
+                }
+            ]
+
+        # Filter logic based on device specs
+        filtered = [m for m in models if m.get("minRamGb", 0) <= ram_gb and platform in m.get("runsOn", ["web", "mobile", "desktop", "cloud"])]
+        
+        return {"models": filtered}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

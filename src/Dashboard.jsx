@@ -278,6 +278,61 @@ const Dashboard = () => {
     );
   }
 
+
+  const saveResponse = async (label, text) => {
+    if (!currentProject) return;
+    const newResponses = { ...responses, [label]: text };
+    setResponses(newResponses);
+    try {
+      await updateDoc(doc(db, "projects", currentProject.id), { responses: newResponses });
+      vibrate(ImpactStyle.Light);
+      toast.success('Response memorized.');
+    } catch { toast.error('Save failed'); }
+  };
+
+  const handleDownload = async () => {
+    if (!currentProject) return;
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL;
+      if (!apiUrl) throw new Error("VITE_API_URL is missing.");
+      const response = await fetch(`${apiUrl}/projects/${currentProject.id}/download`);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const isJson = currentProject.model_format === 'toddler-bayes-v1';
+      const ext = isJson ? 'json' : 'pkl';
+      const a = document.createElement('a'); a.href = url; a.download = `model_${currentProject.id}.${ext}`;
+      document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); a.remove();
+      vibrate(ImpactStyle.Medium);
+      toast.success('Model exported.');
+    } catch { toast.error('Export failed'); }
+  };
+
+  const handleDelete = async () => {
+    if (!currentProject) return;
+    if (!window.confirm(`Delete project "${currentProject.name}"? This cannot be undone.`)) return;
+    const deletedId = currentProject.id;
+    try {
+      await deleteDoc(doc(db, "projects", deletedId));
+      const remaining = projects.filter(p => p.id !== deletedId);
+      setProjects(remaining);
+      setActiveProjectId(remaining[0]?.id || null);
+      vibrate(ImpactStyle.Heavy);
+      toast.success('Erased from existence.');
+    } catch { toast.error('Deletion failed'); }
+  };
+
+  const switchProject = (pid) => {
+    setActiveProjectId(pid);
+    setSidebarOpen(false);
+  };
+
+  const tabsForType = currentProject.type === 'vision'
+    ? ['overview', 'chat', 'dev']
+    : currentProject.type === 'generative'
+    ? ['chat', 'dev']
+    : ['overview', 'batch', 'chat', 'dev'];
+
     const effectiveTab = tabsForType.includes(activeTab) ? activeTab : tabsForType[0];
 
   return (

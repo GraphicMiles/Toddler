@@ -793,9 +793,12 @@
    ========================================================================== */
 .chat-panel {
   display: flex; flex-direction: column;
-  height: calc(100dvh - 280px); min-height: 420px;
+  height: calc(100dvh - 320px); min-height: 360px;
   background: var(--surface); border: 1px solid var(--line);
   margin-top: 4px;
+}
+@media (min-width: 521px) {
+  .chat-panel { height: calc(100dvh - 320px); min-height: 440px; }
 }
 .chat-model-picker {
   display: flex; align-items: center; gap: 10px;

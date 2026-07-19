@@ -7,7 +7,7 @@ import localforage from 'localforage'
 import { trainTextModel } from './textML'
 import { startTrainingForeground, stopTrainingForeground } from './nativeBridge'
 import { ensureNotifyPermission, notifyTrainingComplete } from './notify'
-import { LLM_CATALOG, loadLlm, chatLlm, unloadLlm, pickBestLlmModel, isWebGpuAvailable, addKnowledgeFile, clearKnowledge, getKnowledgeFiles, onLlmState } from './llm'
+import { LLM_CATALOG, loadLlm, chatLlm, unloadLlm, isWebGpuAvailable, addKnowledgeFile, clearKnowledge, getKnowledgeFiles, onLlmState } from './llm'
 
 // Free-tier caps by device RAM (bytes). Users above cap get upsell unless
 // their device can actually fit the training set.
@@ -361,17 +361,19 @@ export default function MobileDashboard() {
 
   // Load LLMs via @mlc-ai/web-llm (WebGPU, cached in IndexedDB by the library)
   const downloadLlm = async model => {
+    if (downloading === model.id) return // double-tap guard
     setDownloading(model.id); setDownloadError(''); setFailedModel(null)
     try {
-      await loadLlm(model.id, (p, text) => {
+      await loadLlm(model.id, (p, _statusText) => {
         setDownloadProgress(Math.round((p || 0) * 100))
       })
-      // mark as "downloaded" in the UI permanently
+      // mark as "downloaded" in the UI permanently (web-llm caches to IDB itself)
       const saved = new Set(downloaded); saved.add(model.id)
       saveModels([...saved])
       setDownloadProgress(100)
       showMessage(`${model.name} ready — open Chat to talk.`, 3500)
-      // Jump to chat tab, select this model
+      // Fresh history when switching to newly downloaded LLM
+      setChatHistory([])
       setActiveChatModel(model.id)
       setTab('chat')
     } catch (error) {
@@ -489,7 +491,21 @@ export default function MobileDashboard() {
   const llmReadyModels = React.useMemo(() => new Set(llmState.ready && llmState.modelId ? [llmState.modelId] : []), [llmState])
   React.useEffect(() => onLlmState(setLlmState), [])
 
-  const removeModel = async id => { await localforage.removeItem(`toddler-model-${id}`); saveModels(downloaded.filter(item => item !== id)) }
+  const removeModel = async id => {
+    const m = catalog.find(c => c.id === id)
+    // For LLMs web-llm manages its own cache; unload the engine and clear RAG
+    if (m?.task === 'chat') {
+      try { await unloadLlm() } catch {}
+      clearKnowledge()
+      if (activeChatModel === id) { setActiveChatModel(null); setChatHistory([]) }
+    } else {
+      await localforage.removeItem(`toddler-model-${id}`)
+      await localforage.removeItem(`toddler-model-partial-${id}`)
+      // Free HF classifier ref so memory is released
+      delete classifiersRef.current[id]
+    }
+    saveModels(downloaded.filter(item => item !== id))
+  }
   const deleteAccount = async () => {
     if (!window.confirm('Delete your account permanently? This cannot be undone.')) return
     if (!apiUrl) { showMessage('Server not configured.'); return }
@@ -535,16 +551,17 @@ export default function MobileDashboard() {
     try {
       if (model.task === 'chat') {
         // ---- On-device LLM via Web-LLM (streaming) ----
-        const botIdx = chatHistory.length + 1 // after pushing user above + placeholder
-        setChatHistory(h => [...h, { role: 'bot', text: '', streaming: true, modelName: model.name }])
+        // Append a placeholder bot message we'll stream into, identified by a unique id
+        const msgId = `llm-${Date.now()}-${Math.random().toString(36).slice(2,7)}`
+        setChatHistory(h => [...h, { role: 'bot', _id: msgId, text: '', streaming: true, modelName: model.name }])
         await chatLlm({
           modelId, message: text,
           onStart: () => {},
           onChunk: (delta, full) => {
-            setChatHistory(h => h.map((m, i) => i === botIdx ? { ...m, text: full } : m))
+            setChatHistory(h => h.map(m => m._id === msgId ? { ...m, text: full } : m))
           },
         })
-        setChatHistory(h => h.map((m, i) => i === botIdx
+        setChatHistory(h => h.map(m => m._id === msgId
           ? { ...m, streaming: false, latency: Math.round(performance.now() - started) }
           : m))
       } else {

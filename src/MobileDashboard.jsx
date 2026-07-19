@@ -257,8 +257,11 @@ export default function MobileDashboard() {
         })
         projectsRef.current = data
         setProjects(data)
-        if (data.length) setActiveProjectId(prev => prev && data.find(p => p.id === prev) ? prev : data[0].id)
-        else setActiveProjectId(null)
+        if (data.length) setActiveProjectId(prev => prev && data.find(p => p.id === prev) ? prev : data[0].id);
+        else {
+          setActiveProjectId(null);
+          setShowOnboarding(true);
+        }
         const anyTraining = data.some(p => ['queued','training','device_training','awaiting_device'].includes(p.status))
         if (iv) clearInterval(iv)
         iv = anyTraining ? setInterval(fetchProjects, 5000) : null

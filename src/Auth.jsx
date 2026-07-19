@@ -3,7 +3,7 @@ import { auth, googleProvider } from './firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithCredential, GoogleAuthProvider, sendPasswordResetEmail, sendEmailVerification } from 'firebase/auth';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { Capacitor } from '@capacitor/core';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 const Auth = ({ mode = 'login' }) => {
   const [email, setEmail] = useState('');
@@ -13,7 +13,6 @@ const Auth = ({ mode = 'login' }) => {
   const [resetSent, setResetSent] = useState(false);
   const [verifySent, setVerifySent] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation();
 
   const handleAuth = async (e) => {
     e.preventDefault();

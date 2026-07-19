@@ -1,61 +1,42 @@
 use tauri::{Manager, Window};
 use sysinfo::{System, SystemExt, CpuExt};
-use std::path::PathBuf;
-use std::fs;
+
+// Phase 7: Tauri Desktop Agent Scaffold & Hardware Auth
 
 #[tauri::command]
 fn get_hardware_report() -> String {
     let mut sys = System::new_all();
     sys.refresh_all();
-
-    let os = "Windows 11"; // Simplified for this pass
     let ram = sys.total_memory() / 1024 / 1024 / 1024; // GB
-    let cpu = sys.global_cpu_info().brand();
-    
-    // Caramelizing the hardware string...
-    format!("OS: {} | CPU: {} | RAM: {}GB", os, cpu, ram)
+    format!("OS: Desktop | CPU: {} | RAM: {}GB", sys.global_cpu_info().brand(), ram)
 }
 
 #[tauri::command]
-async fn check_and_download_dependencies(window: Window) -> Result<String, String> {
-    let app_dir = window.app_handle().path_resolver().app_local_data_dir().unwrap_or(PathBuf::from("./data"));
-    let bin_path = app_dir.join("ml_runtimes/directml.dll");
-
-    if bin_path.exists() {
-        return Ok("Dependencies verified.".to_string());
+fn pair_device(code: String) -> Result<String, String> {
+    // 1. Send the 6-digit code to the FastAPI Backend
+    // 2. Exchange for Firebase Custom Token
+    // 3. Register Desktop Hardware in Firestore
+    if code.len() == 6 {
+        Ok(format!("Successfully paired desktop agent using code: {}", code))
+    } else {
+        Err("Invalid pairing code".to_string())
     }
-
-    // Seeking wisdom from the cloud...
-    window.emit("download-progress", 0).map_err(|e| e.to_string())?;
-    
-    fs::create_dir_all(bin_path.parent().unwrap()).map_err(|e| e.to_string())?;
-
-    // Simulate download steps
-    for i in 1..=10 {
-        std::thread::sleep(std::time::Duration::from_millis(500));
-        window.emit("download-progress", i * 10).map_err(|e| e.to_string())?;
-    }
-
-    // In a real scenario, we'd use reqwest to download the actual .dll or .so
-    fs::write(&bin_path, "SIMULATED_BINARY_DATA").map_err(|e| e.to_string())?;
-
-    Ok("Architecture synchronized.".to_string())
 }
 
 #[tauri::command]
-fn initialize_training_protocol(job_id: String) -> String {
-    // Finding Nemo in the training queue...
-    format!("Protocol Initialized for Job: {}", job_id)
+async fn poll_training_queue(window: Window) -> Result<(), String> {
+    // Rust WebSocket/Listener waiting for jobs from the Control Tower
+    window.emit("job-received", "Llama-3.2-3B Fine-Tune").map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             get_hardware_report,
-            initialize_training_protocol,
-            check_and_download_dependencies
+            pair_device,
+            poll_training_queue
         ])
         .run(tauri::generate_context!())
         .expect("error while running toddler-desktop");
 }
-

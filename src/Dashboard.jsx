@@ -51,37 +51,7 @@ const Dashboard = () => {
         index++;
       }, 1500);
     }
-    
-  if (loading) {
-    return (
-      <div style={{minHeight: '100vh', backgroundColor: '#14130F', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'}}>
-        <div style={{width: '32px', height: '32px', border: '3px solid #C6FF33', borderTopColor: 'transparent', borderRadius: '50%'}} className="animate-spin"></div>
-      </div>
-    );
-  }
-
-  if (projects.length === 0) {
-    return (
-      <div className="app-container text-[var(--text)] font-sans">
-        <aside className="sidebar fixed md:static inset-y-0 left-0 z-50 transform translate-x-0">
-          <div className="sidebar-header justify-between">
-            <Link to="/" className="logo text-white cursor-pointer no-underline">
-              <span className="logo-mark"></span>TODDLER
-            </Link>
-          </div>
-          <div className="p-4 flex-grow flex flex-col gap-2 overflow-y-auto">
-            <div className="input-label mb-2 px-2">Projects</div>
-            <div className="text-[var(--text-faint)] px-2 text-sm">No projects yet.</div>
-          </div>
-        </aside>
-        <main className="main-content relative overflow-y-auto">
-          <Onboarding onComplete={(p) => { setProjects([p]); setActiveProjectId(p.id); }} />
-        </main>
-      </div>
-    );
-  }
-
-  return () => clearInterval(interval);
+    return () => clearInterval(interval);
   }, [predicting, isTyping, batching]);
 
   useEffect(() => () => {
@@ -279,7 +249,36 @@ const Dashboard = () => {
     }
   };
 
-  const effectiveTab = tabsForType.includes(activeTab) ? activeTab : tabsForType[0];
+  if (loading) {
+    return (
+      <div style={{minHeight: '100vh', backgroundColor: '#14130F', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'}}>
+        <div style={{width: '32px', height: '32px', border: '3px solid #C6FF33', borderTopColor: 'transparent', borderRadius: '50%'}} className="animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (projects.length === 0) {
+    return (
+      <div className="app-container text-[var(--text)] font-sans">
+        <aside className="sidebar fixed md:static inset-y-0 left-0 z-50 transform translate-x-0">
+          <div className="sidebar-header justify-between">
+            <Link to="/" className="logo text-white cursor-pointer no-underline">
+              <span className="logo-mark"></span>TODDLER
+            </Link>
+          </div>
+          <div className="p-4 flex-grow flex flex-col gap-2 overflow-y-auto">
+            <div className="input-label mb-2 px-2">Projects</div>
+            <div className="text-[var(--text-faint)] px-2 text-sm">No projects yet.</div>
+          </div>
+        </aside>
+        <main className="main-content relative overflow-y-auto">
+          <Onboarding onComplete={(p) => { setProjects([p]); setActiveProjectId(p.id); }} />
+        </main>
+      </div>
+    );
+  }
+
+    const effectiveTab = tabsForType.includes(activeTab) ? activeTab : tabsForType[0];
 
   return (
     <div className="app-container text-[var(--text)] font-sans">

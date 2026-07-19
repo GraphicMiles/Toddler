@@ -23,6 +23,7 @@ const Dashboard = () => {
   const [predictText, setPredictText] = useState('');
   const [prediction, setPrediction] = useState(null);
   const [predicting, setPredicting] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [responses, setResponses] = useState({});
@@ -257,10 +258,10 @@ const Dashboard = () => {
     );
   }
 
-  if (projects.length === 0) {
+  if (projects.length === 0 && !showOnboarding) {
     return (
       <div className="app-container text-[var(--text)] font-sans">
-        <aside className="sidebar fixed md:static inset-y-0 left-0 z-50 transform translate-x-0">
+        <aside className="sidebar fixed md:static inset-y-0 left-0 z-50 transform translate-x-0 transition-transform duration-200">
           <div className="sidebar-header justify-between">
             <Link to="/" className="logo text-white cursor-pointer no-underline">
               <span className="logo-mark"></span>TODDLER
@@ -270,13 +271,43 @@ const Dashboard = () => {
             <div className="input-label mb-2 px-2">Projects</div>
             <div className="text-[var(--text-faint)] px-2 text-sm">No projects yet.</div>
           </div>
+          <div className="p-4 border-t border-[var(--line)]">
+            <button className="btn-ghost w-full text-left font-mono text-xs" onClick={() => auth.signOut()}>Log out</button>
+          </div>
         </aside>
-        <main className="main-content relative overflow-y-auto">
-          <Onboarding onComplete={(p) => { setProjects([p]); setActiveProjectId(p.id); }} />
+        <main className="main-content relative overflow-y-auto bg-[var(--bg)] flex items-center justify-center p-8">
+          <div className="max-w-3xl w-full space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div>
+              <h1 className="text-4xl font-display font-bold mb-4">Welcome to Toddler</h1>
+              <p className="text-[var(--text-dim)]">Toddler trains AI models securely on your own hardware. The web app is just your control tower — connect a worker device or upload a dataset to get started.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="panel border border-[var(--line)] bg-[var(--surface-2)]">
+                <h3 className="font-bold mb-2 text-[var(--accent-lime)]">1. Connect a Worker</h3>
+                <p className="text-sm text-[var(--text-faint)] mb-6">Download the Toddler app on your phone or desktop to provide actual compute power.</p>
+                <div className="bg-[var(--bg)] p-4 border border-[var(--line)] text-center">
+                  <div className="text-[10px] uppercase font-mono text-[var(--text-dim)] mb-1">Your Pairing Code</div>
+                  <div className="text-2xl font-mono text-[var(--text)] tracking-widest">{auth.currentUser?.uid?.substring(0, 6).toUpperCase() || '749012'}</div>
+                </div>
+              </div>
+
+              <div className="panel border border-[var(--line)] bg-[var(--surface-2)] flex flex-col">
+                <h3 className="font-bold mb-2">2. Train a Model</h3>
+                <p className="text-sm text-[var(--text-faint)] mb-6 flex-grow">Upload a CSV or image dataset. We'll add the job to your queue and push it to your connected devices.</p>
+                <button className="btn btn-solid w-full" onClick={() => setShowOnboarding(true)}>
+                  + Create Project
+                </button>
+              </div>
+            </div>
+          </div>
         </main>
       </div>
     );
   }
+
+  // If projects array is completely empty but showOnboarding is true, just set currentProject artificially to null so it passes through the return
+  
 
 
   const saveResponse = async (label, text) => {
@@ -324,6 +355,7 @@ const Dashboard = () => {
 
   const switchProject = (pid) => {
     setActiveProjectId(pid);
+    setShowOnboarding(false);
     setSidebarOpen(false);
   };
 
@@ -374,7 +406,7 @@ const Dashboard = () => {
             <button
               key={p.id}
               onClick={() => switchProject(p.id)}
-              className={`text-left bg-[var(--surface-2)] border px-4 py-3 cursor-pointer ${p.id === currentProject.id ? 'border-[var(--accent-lime)]' : 'border-[var(--line)]'}`}
+              className={`text-left bg-[var(--surface-2)] border px-4 py-3 cursor-pointer ${p.id === currentProject?.id && !showOnboarding ? 'border-[var(--accent-lime)]' : 'border-[var(--line)]'}`}
             >
               <div className="font-medium truncate">{p.name}</div>
               <div className="font-mono text-[10px] mt-1" style={{color:'var(--accent-lime)'}}>
@@ -385,11 +417,8 @@ const Dashboard = () => {
             </button>
           ))}
           <button
-            className="btn mt-2"
-            onClick={() => {
-              setActiveProjectId(null);
-              setProjects([]);
-            }}
+            className="btn mt-2 border border-[var(--line)]"
+            onClick={() => setShowOnboarding(true)}
           >
             + New Project
           </button>
@@ -405,6 +434,17 @@ const Dashboard = () => {
           <span className="font-display font-bold">Toddler Dashboard</span>
           <button className="btn-ghost" onClick={() => setSidebarOpen(true)}>Menu</button>
         </div>
+
+        {showOnboarding ? (
+          <div className="flex-grow overflow-y-auto">
+            <Onboarding onComplete={(p) => { 
+              setProjects(prev => [...prev, p]); 
+              setActiveProjectId(p.id); 
+              setShowOnboarding(false); 
+            }} />
+          </div>
+        ) : (
+          <>
 
         <header className="dash-header p-6 md:p-8 flex flex-wrap justify-between items-center gap-4 bg-[var(--surface)] border-b border-[var(--line)]">
           <div>
@@ -800,6 +840,8 @@ const Dashboard = () => {
             </div>
           )}
         </div>
+          </>
+        )}
       </main>
     </div>
   );

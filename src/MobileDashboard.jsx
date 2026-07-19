@@ -262,6 +262,7 @@ export default function MobileDashboard() {
           setActiveProjectId(null);
           setShowOnboarding(true);
         }
+        
         const anyTraining = data.some(p => ['queued','training','device_training','awaiting_device'].includes(p.status))
         if (iv) clearInterval(iv)
         iv = anyTraining ? setInterval(fetchProjects, 5000) : null
@@ -597,7 +598,15 @@ export default function MobileDashboard() {
     onToggleByoc: (on) => { localStorage.setItem('toddler-byoc', on?'1':'0'); setByocEnabled(on); if (on) showMessage('Device training enabled.', 3000) },
   }
 
-  if (showOnboarding) return <Onboarding onComplete={handleOnboardingComplete} />
+  if (projectsLoading) {
+    return (
+      <div style={{minHeight: '100vh', backgroundColor: '#14130F', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'}}>
+        <div style={{width: '32px', height: '32px', border: '3px solid #C6FF33', borderTopColor: 'transparent', borderRadius: '50%'}} className="animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (showOnboarding || projects.length === 0) return <Onboarding onComplete={handleOnboardingComplete} />
 
   return <div className="mobile-app td-split-layout">
     {/* Desktop sidebar (persistent) */}

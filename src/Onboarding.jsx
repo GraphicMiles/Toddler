@@ -117,8 +117,8 @@ const Onboarding = ({ onComplete }) => {
         name: projectName,
         type: modelType,
         createdAt: new Date(),
-        status: 'training',
-        health: 'Optimal',
+        status: 'queued',
+        health: 'Pending',
         version: 1,
       };
 

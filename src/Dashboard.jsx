@@ -57,23 +57,32 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
+    let cancelled = false
+    let iv = null
     const fetchProjects = async () => {
       if (!auth.currentUser) return;
       try {
         const q = query(collection(db, "projects"), where("ownerUid", "==", auth.currentUser.uid));
         const querySnapshot = await getDocs(q);
+        if (cancelled) return
         const data = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         setProjects(data);
         if (data.length) {
           setActiveProjectId(prev => prev && data.find(p => p.id === prev) ? prev : data[0].id);
         }
+        // (Re)schedule poll whenever there's work in progress
+        const anyTraining = data.some(p => ['queued','training','device_training','awaiting_device'].includes(p.status))
+        if (iv) clearInterval(iv)
+        iv = anyTraining ? setInterval(fetchProjects, 5000) : null
       } catch (e) {
         console.error(e);
       } finally {
-        setTimeout(() => setLoading(false), 400);
+        if (!cancelled) setTimeout(() => setLoading(false), 400);
       }
     };
     fetchProjects();
+    return () => { cancelled = true; if (iv) clearInterval(iv) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const currentProject = projects.find(p => p.id === activeProjectId) || projects[0];
@@ -171,7 +180,7 @@ const Dashboard = () => {
       await updateDoc(doc(db, "projects", currentProject.id), { name: newName });
       setProjects(prev => prev.map(p => p.id === currentProject.id ? { ...p, name: newName } : p));
       setIsEditingName(false); vibrate(ImpactStyle.Light); toast.success('Identity updated.');
-    } catch (e) { toast.error('Rename failed'); }
+    } catch { toast.error('Rename failed'); }
   };
 
   const handleChatSend = async (e) => {
@@ -310,7 +319,7 @@ const Dashboard = () => {
       await updateDoc(doc(db, "projects", currentProject.id), { responses: newResponses });
       vibrate(ImpactStyle.Light);
       toast.success('Response memorized.');
-    } catch (e) { toast.error('Save failed'); }
+    } catch { toast.error('Save failed'); }
   };
 
   const handleDownload = async () => {
@@ -322,11 +331,13 @@ const Dashboard = () => {
       if (!response.ok) throw new Error('Download failed');
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `model_${currentProject.id}.pkl`;
+      const isJson = currentProject.model_format === 'toddler-bayes-v1';
+      const ext = isJson ? 'json' : 'pkl';
+      const a = document.createElement('a'); a.href = url; a.download = `model_${currentProject.id}.${ext}`;
       document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); a.remove();
       vibrate(ImpactStyle.Medium);
       toast.success('Model exported.');
-    } catch (e) { toast.error('Export failed'); }
+    } catch { toast.error('Export failed'); }
   };
 
   const handleDelete = async () => {
@@ -340,7 +351,7 @@ const Dashboard = () => {
       setActiveProjectId(remaining[0]?.id || null);
       vibrate(ImpactStyle.Heavy);
       toast.success('Erased from existence.');
-    } catch (e) { toast.error('Deletion failed'); }
+    } catch { toast.error('Deletion failed'); }
   };
 
   const switchProject = (pid) => {
@@ -433,7 +444,9 @@ const Dashboard = () => {
             )}
           </div>
           <div className="flex gap-3">
-            <button className="btn" onClick={handleDownload} disabled={!isModelReady}>Export .pkl</button>
+            <button className="btn" onClick={handleDownload} disabled={!isModelReady}>
+              Export {currentProject?.model_format === 'toddler-bayes-v1' ? '.json' : '.pkl'}
+            </button>
           </div>
         </header>
 
@@ -783,6 +796,15 @@ const Dashboard = () => {
                       <div className="text-white">)</div>
                       <div className="text-[var(--text-faint)] mt-4">print(response.choices[0].message.content)</div>
                     </div>
+                  ) : currentProject.model_format === 'toddler-bayes-v1' ? (
+                    <>
+                      <div className="text-[var(--text-faint)]">// Zero-dependency JSON model export (phone-trained)</div>
+                      <div className="text-white">import json, math, re</div>
+                      <div className="text-white mt-4">with open('model.json') as f:</div>
+                      <div className="pl-4 text-[var(--accent-purple)]">m = json.load(f)</div>
+                      <div className="text-white mt-4"># see README in export zip for full ~30-line predictor</div>
+                      <div className="text-white"># result = predict("your text here")</div>
+                    </>
                   ) : (
                     <>
                       <div className="text-white">import pickle</div>

@@ -916,3 +916,240 @@
     padding-top: 40px;
   }
 }
+
+/* ==========================================================================
+   Split Dashboard layout — 30% sidebar / 65% main on desktop, drawer on mobile
+   ========================================================================== */
+
+.td-split-layout {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  gap: clamp(12px, 2.5vw, 40px);
+  padding: clamp(12px, 2.5vw, 40px);
+  box-sizing: border-box;
+  /* justify-content: space-evenly via gap + widths that sum to <100% with auto margins */
+  justify-content: center;
+  align-items: stretch;
+  background: var(--bg, #14130F);
+}
+
+/* ---- Sidebar (desktop persistent) ---- */
+.td-sidebar-desktop { display: none; }
+@media (min-width: 840px) {
+  .td-sidebar-desktop {
+    display: block;
+    width: 30%;
+    max-width: 360px;
+    min-width: 260px;
+    flex-shrink: 0;
+  }
+}
+
+.td-sidebar {
+  background: var(--surface, #1D1B16);
+  border: 1px solid var(--line, #38352B);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: calc(100dvh - clamp(24px, 5vw, 80px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.td-sidebar-desktop .td-sidebar { position: sticky; top: clamp(12px, 2.5vw, 40px); }
+
+.td-sidebar-drawer {
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  width: min(340px, 86vw);
+  z-index: 120;
+  height: 100dvh;
+  min-height: 100dvh;
+  transform: translateX(0);
+  box-shadow: 8px 0 28px rgba(0,0,0,0.6);
+  padding-top: max(var(--mobile-safe-top, 0px), 0px);
+  padding-bottom: var(--mobile-safe-bottom, 0px);
+  box-sizing: border-box;
+}
+
+.td-sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid var(--line, #38352B);
+  flex-shrink: 0;
+}
+.td-icon-btn {
+  background: transparent;
+  border: 1px solid var(--line, #38352B);
+  color: var(--text, #F2EFE6);
+  width: 36px;
+  height: 36px;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  border-radius: 0;
+}
+.td-icon-btn:hover { border-color: var(--accent-lime, #C6FF33); color: var(--accent-lime, #C6FF33); }
+
+.td-sidebar-section {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line, #38352B);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.td-section-label {
+  font: 600 10px/1 'IBM Plex Mono', ui-monospace, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint, #6E695C);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.td-project-list { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; }
+.td-project-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface-2, #26231C);
+  border: 1px solid var(--line, #38352B);
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text, #F2EFE6);
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color .15s;
+}
+.td-project-item:hover { border-color: var(--text-dim, #A8A296); }
+.td-project-item.active { border-color: var(--accent-lime, #C6FF33); background: rgba(198,255,51,0.05); }
+.td-project-name { font-size: 14px; font-weight: 500; font-family: 'Space Grotesk', Inter, sans-serif; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-project-meta { font: 600 10px/1 'IBM Plex Mono', monospace; letter-spacing: 0.06em; text-transform: uppercase; flex-shrink: 0; }
+.td-empty-note { font-size: 12px; color: var(--text-faint, #6E695C); font-family: 'IBM Plex Mono', monospace; padding: 8px 0; }
+
+.td-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font: 600 11px/1 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 10px 14px; border: 1px solid var(--accent-lime, #C6FF33);
+  background: var(--accent-lime, #C6FF33); color: #14130F;
+  cursor: pointer; white-space: nowrap; text-decoration: none;
+  transition: all .15s;
+}
+.td-btn:hover { background: #fff; border-color: #fff; }
+.td-btn-outline { background: transparent; color: var(--accent-lime, #C6FF33); }
+.td-btn-outline:hover { background: var(--accent-lime, #C6FF33); color: #14130F; }
+.td-btn-ghost { background: transparent; border-color: var(--line, #38352B); color: var(--text-dim, #A8A296); }
+.td-btn-ghost:hover { background: var(--surface-2, #26231C); border-color: var(--text-dim, #A8A296); color: var(--text, #F2EFE6); }
+.td-btn-danger { background: transparent; border-color: var(--danger, #FF5C3E); color: var(--danger, #FF5C3E); }
+.td-btn-danger:hover { background: var(--danger, #FF5C3E); color: #fff; border-color: var(--danger, #FF5C3E); }
+.td-btn-block { width: 100%; }
+.td-btn-sm { padding: 7px 10px; font-size: 10px; }
+
+.td-model-card {
+  background: var(--surface-2, #26231C);
+  border: 1px solid var(--line, #38352B);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.td-model-name { font-family: 'Space Grotesk', Inter, sans-serif; font-size: 15px; font-weight: 600; }
+.td-model-meta { font: 10px/1.4 'IBM Plex Mono', monospace; color: var(--text-dim, #A8A296); }
+
+.td-byoc-toggle {
+  display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none;
+  padding: 8px 4px;
+}
+.td-byoc-toggle input { display: none; }
+.td-byoc-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.td-byoc-text { font: 600 11px/1 'IBM Plex Mono', monospace; letter-spacing: 0.06em; color: var(--accent-lime, #C6FF33); }
+
+.td-sidebar-footer { margin-top: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line, #38352B); }
+
+/* ---- Main area ---- */
+.td-main {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  max-width: 960px;
+}
+@media (min-width: 840px) {
+  .td-main { width: 65%; }
+  .td-menu-btn { display: none !important; }
+}
+
+.td-main-header {
+  position: sticky; top: 0; z-index: 10;
+  height: auto; min-height: 62px;
+  padding: 10px var(--mobile-px, 18px);
+  margin-bottom: clamp(10px, 1.5vw, 18px);
+  border: 1px solid var(--line, #38352B);
+  background: rgba(20,19,15,0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+.td-header-left { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+.td-current-project { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.td-kicker { font: 600 9px/1 'IBM Plex Mono', monospace; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-faint, #6E695C); }
+.td-project-title { font-family: 'Space Grotesk', Inter, sans-serif; font-size: clamp(15px, 2.5vw, 18px); font-weight: 600; color: var(--text, #F2EFE6); letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.td-main-body {
+  padding: 0 !important;
+  width: 100%;
+  flex: 1;
+  max-width: 100%;
+}
+@media (min-width: 840px) {
+  .td-main-body { padding: 0 !important; max-width: 100%; }
+  /* Make welcome section fit the desktop panel better */
+  .mobile-app.td-split-layout .mobile-main { padding: 0; margin: 0; max-width: 100%; }
+}
+
+/* Ensure the app shell doesn't double-add padding */
+.td-split-layout .mobile-main { padding-top: 0; padding-bottom: calc(var(--mobile-py) + 40px); }
+
+/* Tweak mobile header when in split layout to not duplicate top spacing */
+.td-split-layout .mobile-header { position: relative; border-bottom: 0; margin-bottom: 0; }
+
+/* On small/narrow screens (mobile drawer mode) add a bit of outer padding back */
+@media (max-width: 839px) {
+  .td-split-layout { padding: 0; gap: 0; }
+  .td-main { max-width: 100%; }
+  .td-main-header {
+    margin-bottom: 0;
+    border-left: 0; border-right: 0; border-top: 0;
+    padding-top: max(calc(var(--mobile-safe-top, 0px) + 8px), 14px);
+  }
+  .td-split-layout .mobile-main.td-main-body {
+    padding-left: var(--mobile-px, 16px) !important;
+    padding-right: var(--mobile-px, 16px) !important;
+  }
+}
+
+/* Chat panel needs to be aware of split layout height on desktop */
+@media (min-width: 840px) {
+  .td-split-layout .chat-panel {
+    height: calc(100dvh - 240px);
+    min-height: 500px;
+  }
+}
+
+/* Welcome + stats slightly tighter in split layout */
+@media (min-width: 840px) {
+  .td-split-layout .mobile-welcome { margin-bottom: 6px; }
+  .td-split-layout .device-stats { margin: 14px 0 18px; }
+  .td-split-layout .mobile-tabs { margin-bottom: 18px; }
+}

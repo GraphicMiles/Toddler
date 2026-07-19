@@ -553,48 +553,35 @@ export default function MobileDashboard() {
     if (!text || testing) return
     const modelId = activeChatModel
     if (!modelId) return
-    const model = catalog.find(m => m.id === modelId)
-    if (!model) return
+    
+    // In Phase 2, catalog is dynamic, but we just need an ID to route to the proxy
     setTestText('')
-    setChatHistory(h => [...h, { role:'user', text }])
     setTesting(true)
     const started = performance.now()
+    setChatHistory(h => [...h, { role:'user', text }])
+    
     try {
-      if (model.task === 'chat') {
-        const msgId = `llm-${Date.now()}-${Math.random().toString(36).slice(2,7)}`
-        setChatHistory(h => [...h, { role:'bot', _id:msgId, text:'', streaming:true, modelName:model.name }])
-        await chatLlm({ modelId, message:text, onStart:()=>{}, onChunk:(_, full) => setChatHistory(h => h.map(m => m._id===msgId ? {...m, text:full} : m)) })
-        setChatHistory(h => h.map(m => m._id===msgId ? {...m, streaming:false, latency:Math.round(performance.now()-started)} : m))
-      } else {
-        const hfId = hfIdFor(model)
-        if (!hfId) throw new Error('No model reference')
-        let entry = classifiersRef.current[modelId]
-        if (!entry?.classifier) {
-          classifiersRef.current[modelId] = entry = { loading:true }
-          const { pipeline, env } = await import('@huggingface/transformers')
-          env.allowLocalModels = false; env.useBrowserCache = true
-          entry.classifier = await pipeline('text-classification', hfId, { quantized:true })
-          entry.loading = false
-        } else if (entry.loading) {
-          for (let i=0;i<100;i++) { await new Promise(r=>setTimeout(r,100)); if (classifiersRef.current[modelId]?.classifier) break }
-        }
-        const classifier = classifiersRef.current[modelId].classifier
-        if (!classifier) throw new Error('Model failed to load')
-        const output = await classifier(text)
-        const result = Array.isArray(output) ? output[0] : output
-        setChatHistory(h => [...h, { role:'bot', text:`${result.label}  (${Math.round((result.score||0)*100)}%)`, modelName:model.name, latency: Math.round(performance.now()-started) }])
-      }
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const formData = new FormData();
+      formData.append('project_id', modelId);
+      formData.append('text', text);
+      
+      const response = await fetch(`${apiUrl}/predict`, { method: 'POST', body: formData });
+      if (!response.ok) throw new Error("Backend inference proxy failed");
+      const result = await response.json();
+      
+      setChatHistory(h => [...h, { role:'bot', text:`${result.prediction}  (${Math.round((result.confidence||0)*100)}%)`, modelName:'Remote Model', latency: Math.round(performance.now()-started) }])
     } catch (error) {
-      setChatHistory(h => { const t = h.filter(m => !(m.streaming && m.text==='')); return [...t, { role:'bot', text:`Error: ${error.message||error}`, error:true }] })
+      setChatHistory(h => [...h, { role:'bot', text:`Error: ${error.message||error}`, error:true }])
     } finally { setTesting(false) }
   }
 
   const handleUploadDocs = async (file) => {
-    try { const res = await addKnowledgeFile(file); showMessage(`Added ${res.filename} (${res.chunks} chunks)`, 2500); setChatHistory(h=>[...h]) }
+    try { throw new Error("RAG Document Upload moved to Phase 2 (Backend Proxy)"); showMessage(`Added ${res.filename} (${res.chunks} chunks)`, 2500); setChatHistory(h=>[...h]) }
     catch (err) { showMessage(err.message||'Failed to read document', 3000) }
   }
   const handleClearDocs = () => { clearKnowledge(); showMessage('Documents cleared.', 2000); setChatHistory(h=>[...h]) }
-  const knowledgeFiles = getKnowledgeFiles()
+  const knowledgeFiles = []
 
   const sidebarProps = {
     projects, activeProjectId,

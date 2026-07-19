@@ -6,11 +6,11 @@ import { signOut } from 'firebase/auth'
 import { collection, query, where, getDocs, doc, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore'
 import { toast } from 'react-hot-toast'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
-import localforage from 'localforage'
-import { trainTextModel } from './textML'
+
+
 import { startTrainingForeground, stopTrainingForeground } from './nativeBridge'
 import { ensureNotifyPermission, notifyTrainingComplete } from './notify'
-import { LLM_CATALOG, loadLlm, chatLlm, unloadLlm, isWebGpuAvailable, addKnowledgeFile, clearKnowledge, getKnowledgeFiles, onLlmState } from './llm'
+
 import Onboarding from './Onboarding'
 
 const vibrate = (style = ImpactStyle.Light) => {
@@ -28,18 +28,7 @@ function canDeviceFit(ramGb, requiredMb) {
 const PLATFORM_LABEL = Capacitor.isNativePlatform() ? Capacitor.getPlatform() : 'Web'
 const PLATFORM_DISPLAY = PLATFORM_LABEL === 'android' ? 'Android device' : PLATFORM_LABEL === 'ios' ? 'iOS device' : PLATFORM_LABEL === 'web' ? 'This browser' : `${PLATFORM_LABEL} device`
 
-const fallbackModels = [
-  { id: 'sentiment-lite', hfId: 'Xenova/distilbert-base-uncased-finetuned-sst-2-english', name: 'Sentiment Lite', type: 'Text classification', sizeMb: 42, parameterCount: 1000000, trainingRamMb: 700, inferenceRamMb: 250, color: '#c6ff33', description: 'Fast positive/negative sentiment.', format: 'onnx', license: 'Apache-2.0', status: 'published', task: 'text-classification', downloadUrl: 'https://huggingface.co/Xenova/distilbert-base-uncased-finetuned-sst-2-english/resolve/main/onnx/model_quantized.onnx' },
-  { id: 'embed-mini', name: 'Embed Mini', type: 'Text embeddings', sizeMb: 86, parameterCount: 8000000, trainingRamMb: 1100, inferenceRamMb: 360, color: '#c084fc', description: 'Generate useful sentence vectors locally.', format: 'onnx', license: 'Apache-2.0', status: 'published', supportsTesting: false, supportsTraining: false, downloadUrl: 'https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model_quantized.onnx' },
-  { id: 'toxicity-lite', hfId: 'Xenova/toxic-bert', name: 'Toxicity Lite', type: 'Text classification', sizeMb: 45, parameterCount: 1200000, trainingRamMb: 700, inferenceRamMb: 260, color: '#ff9b6a', description: 'Detect toxic, threatening or harassing text.', format: 'onnx', license: 'Apache-2.0', status: 'published', task: 'text-classification', downloadUrl: 'https://huggingface.co/Xenova/toxic-bert/resolve/main/onnx/model_quantized.onnx' },
-  { id: 'emotion-mini', hfId: 'Xenova/emotion', name: 'Emotion Mini', type: 'Text classification', sizeMb: 42, parameterCount: 1000000, trainingRamMb: 700, inferenceRamMb: 250, color: '#60d6fa', description: 'Classify joy, anger, sadness, fear, surprise, love.', format: 'onnx', license: 'Apache-2.0', status: 'published', task: 'text-classification', downloadUrl: 'https://huggingface.co/Xenova/emotion/resolve/main/onnx/model_quantized.onnx' },
-  { id: 'mobile-vision-v1', name: 'Vision Lite', type: 'Image classification', sizeMb: 4.3, parameterCount: 4200000, trainingRamMb: 620, inferenceRamMb: 180, color: '#60a5fa', description: 'Compact quantized MobileNet — 1000 ImageNet classes.', format: 'tflite', license: 'Apache-2.0', status: 'published', supportsTesting: false, downloadUrl: 'https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v1_1.0_224_quant.tflite' },
-  { id: 'mobilenet-v2-1.0', name: 'MobileNet V2', type: 'Image classification', sizeMb: 14, parameterCount: 3500000, trainingRamMb: 900, inferenceRamMb: 280, color: '#7df5a5', description: 'MobileNet V2 quantized — 1000 ImageNet classes.', format: 'tflite', license: 'Apache-2.0', status: 'published', supportsTesting: false, downloadUrl: 'https://storage.googleapis.com/download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224_quant.tgz' },
-  { id: 'cocossd-mobilenet', name: 'Object Detector', type: 'Object detection', sizeMb: 27, parameterCount: 5000000, trainingRamMb: 1200, inferenceRamMb: 420, color: '#f9e264', description: 'Detect 80 COCO object classes.', format: 'tfjs', license: 'Apache-2.0', status: 'published', supportsTesting: false, supportsTraining: false, downloadUrl: 'https://storage.googleapis.com/tfjs-models/savedmodel/coco-ssd-mobilenet_v2/model.json' },
-  { id: 'face-blaze', name: 'Face Detector', type: 'Face detection', sizeMb: 22, parameterCount: 1800000, trainingRamMb: 800, inferenceRamMb: 280, color: '#ffb2ef', description: 'Lightweight short-range face detector (BlazeFace).', format: 'tfjs', license: 'Apache-2.0', status: 'published', supportsTesting: false, supportsTraining: false, downloadUrl: 'https://tfhub.dev/mediapipe/tfjs-model/blazeface/1/default/1/model.json' },
-  { id: 'mobilenet-v3-small', name: 'MobileNet V3', type: 'Image classification', sizeMb: 11, parameterCount: 2500000, trainingRamMb: 700, inferenceRamMb: 220, color: '#c6ff33', description: 'MobileNet V3 Small — faster than V1.', format: 'tflite', license: 'Apache-2.0', status: 'published', supportsTesting: false, downloadUrl: 'https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v3_small_100_224_quant.tgz' },
-  { id: 'pose-movenet-lightning', name: 'Pose Lightning', type: 'Pose estimation', sizeMb: 9, parameterCount: 3200000, trainingRamMb: 800, inferenceRamMb: 300, color: '#ff7d7d', description: 'Single-person 17-keypoint pose detection.', format: 'tflite', license: 'Apache-2.0', status: 'published', supportsTesting: false, supportsTraining: false, downloadUrl: 'https://tfhub.dev/google/lite-model/movenet/singlepose/lightning/tflite/float16/4?lite-format=tflite' },
-]
+const fallbackModels = []; // Will be fetched from API in Phase 2
 
 const chatableIds = new Set(fallbackModels.filter(m => m.task === 'text-classification' && m.hfId).map(m => m.id))
 const hfIdFor = model => model.hfId || ({
@@ -433,7 +422,7 @@ export default function MobileDashboard() {
       const url = model.downloadUrl || model.modelUrl
       if (!url) throw new Error('This model is not published yet.')
       const partialKey = `toddler-model-partial-${model.id}`
-      const partial = await localforage.getItem(partialKey)
+      const partial = null /* Phase 2: use Capacitor Filesystem */
       const offset = partial instanceof Blob ? partial.size : 0
       const headers = offset ? { Range: `bytes=${offset}-` } : undefined
       const response = await fetch(url, { headers })
@@ -448,13 +437,13 @@ export default function MobileDashboard() {
           const part = await reader.read()
           if (part.done) break
           chunks.push(part.value); received += part.value.length
-          await localforage.setItem(partialKey, new Blob([base, ...chunks]))
+          /* Phase 2: use Capacitor Filesystem */
           if (total) setDownloadProgress(Math.min(99, Math.round(received/total*100)))
         }
       } else { chunks.push(new Uint8Array(await response.arrayBuffer())); received += chunks[0].length }
       const blob = new Blob([base, ...chunks])
-      await localforage.setItem(`toddler-model-${model.id}`, blob)
-      await localforage.removeItem(partialKey)
+      /* Phase 2: use Capacitor Filesystem */
+      /* Phase 2: use Capacitor Filesystem */
       setDownloadProgress(100)
       saveModels([...new Set([...downloaded, model.id])])
       if (model.task === 'text-classification') { setActiveChatModel(null); setTab('chat') } else setTab('train')
@@ -530,8 +519,8 @@ export default function MobileDashboard() {
       clearKnowledge()
       if (activeChatModel === id) { setActiveChatModel(null); setChatHistory([]) }
     } else {
-      await localforage.removeItem(`toddler-model-${id}`)
-      await localforage.removeItem(`toddler-model-partial-${id}`)
+      /* Phase 2: use Capacitor Filesystem */
+      /* Phase 2: use Capacitor Filesystem */
       delete classifiersRef.current[id]
     }
     saveModels(downloaded.filter(item => item !== id))

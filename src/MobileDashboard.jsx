@@ -5,7 +5,6 @@ import { auth } from './firebase'
 import { signOut } from 'firebase/auth'
 import localforage from 'localforage'
 import { trainTextModel } from './textML'
-import { trainVisionModel } from './visionML'
 import { startTrainingForeground, stopTrainingForeground } from './nativeBridge'
 
 // Free-tier caps by device RAM (bytes). Users above cap get upsell unless
@@ -13,12 +12,8 @@ import { startTrainingForeground, stopTrainingForeground } from './nativeBridge'
 const FREE_TIER = {
   maxTextRows: 50000,         // soft row cap for text
   maxVisionImages: 1000,      // hard image cap on free
-  visionRamPerImageMb: 2.5,   // ~2.5 MB RAM per 224px MobileNet activation
 }
 function estimateTextRamMb(rows) { return Math.max(80, Math.round(rows * 0.02)) }
-function estimateVisionRamMb(images) {
-  return Math.max(200, Math.round(FREE_TIER.visionRamPerImageMb * images + 180))
-}
 function canDeviceFit(ramGb, requiredMb) {
   const avail = Math.round((ramGb || 4) * 1024 * 0.45)
   return avail >= requiredMb
@@ -89,6 +84,15 @@ export default function MobileDashboard() {
   }, [])
 
   // ---- BYOC worker lifecycle ----
+  // Track when auth is ready so the worker boots even if auth.currentUser
+  // resolves a tick after the effect first runs on cold start.
+  const [authReady, setAuthReady] = React.useState(false)
+  React.useEffect(() => {
+    if (auth.currentUser) { setAuthReady(true); return }
+    const unsub = auth.onAuthStateChanged(u => setAuthReady(!!u))
+    return unsub
+  }, [])
+
   React.useEffect(() => {
     let cancelled = false
     let worker
@@ -111,7 +115,7 @@ export default function MobileDashboard() {
       stopTrainingForeground().catch(() => {})
       return cleanup
     }
-    if (!apiUrl || !auth.currentUser) return
+    if (!apiUrl || !authReady || !auth.currentUser) return cleanup
 
     const boot = async () => {
       try {
@@ -167,7 +171,7 @@ export default function MobileDashboard() {
       cleanup()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [byocEnabled, apiUrl])
+  }, [byocEnabled, apiUrl, authReady])
 
   // Refresh worker token when auth changes
   React.useEffect(() => {
@@ -239,15 +243,17 @@ export default function MobileDashboard() {
       fetch(`${apiUrl}/models`).then(r => r.ok ? r.json() : null).then(data => data?.models && setCatalog(data.models)).catch(() => {})
     }
     if (navigator.storage?.estimate) navigator.storage.estimate().then(({ quota, usage }) => setStorage({ quota, usage }))
-    const tryLoadDatasets = async () => {
+    if (!apiUrl || !authReady || !auth.currentUser) return
+    let cancelled = false
+    ;(async () => {
       try {
-        if (!apiUrl || !auth.currentUser) return
         const token = await auth.currentUser.getIdToken()
+        if (cancelled) return
         loadDatasets(token)
       } catch {}
-    }
-    tryLoadDatasets()
-  }, [apiUrl])
+    })()
+    return () => { cancelled = true }
+  }, [apiUrl, authReady])
 
   const saveModels = next => { setDownloaded(next); localStorage.setItem('toddler-models', JSON.stringify(next)) }
   const download = async model => {
@@ -376,7 +382,9 @@ export default function MobileDashboard() {
       <label className="byoc-pill" title={byocEnabled ? 'Your device is helping train free-tier models' : 'Tap to let your device train free-tier models'}>
         <input type="checkbox" checked={byocEnabled} onChange={e => { const on = e.target.checked; localStorage.setItem('toddler-byoc', on ? '1' : '0'); setByocEnabled(on); if (on) showMessage('Device training enabled — will pick up jobs when idle.', 3000) }} style={{display:'none'}} />
         {byocStatus === 'training' ? <Loader2 size={12} className="spin" /> : <span className="online-dot" style={{background: byocEnabled ? '#c6ff33' : '#6f786c'}} />}
-        {byocStatus === 'training' ? `TRAINING ${byocProgress}%` : byocEnabled ? 'DEVICE READY' : 'DEVICE IDLE'}
+        {byocStatus === 'training'
+          ? `TRAINING${byocJobName ? ' ' + byocJobName.slice(0, 12) : ''} ${byocProgress}%`
+          : byocEnabled ? 'DEVICE READY' : 'DEVICE IDLE'}
       </label>
       <button className="profile-button" onClick={() => setDrawerOpen(true)} aria-label="Open profile menu">{(auth.currentUser?.displayName || auth.currentUser?.email || 'U').charAt(0).toUpperCase()}</button>
     </div></header>

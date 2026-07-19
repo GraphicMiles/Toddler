@@ -85,19 +85,43 @@ class ToddlerAgent:
 
     # ---------------- training core (sync, callable from anywhere) ----------------
     def process_job(self, doc):
-        """Train one job document. Safe to call from polling or the listener."""
+        """Train one job document. Safe to call from polling or the listener.
+
+        Atomically claims the job from queued/awaiting_device so a BYOC phone
+        and the server agent can't both train the same job.
+        """
         with self._lock:
             if self.is_training:
                 return False
             self.is_training = True
         try:
-            job_data = doc.to_dict()
+            # Atomically transition the job to 'training' only if it's still
+            # available. If a phone already claimed it, bail out.
+            db = self.db
+            txn = db.transaction()
+
+            @firestore.transactional
+            def _claim(t, ref):
+                snap = t.get(ref)
+                if not snap.exists:
+                    return None
+                s = snap.to_dict() or {}
+                if s.get("status") not in ("queued", "awaiting_device"):
+                    return None
+                t.update(ref, {"status": "training", "progress": 10,
+                               "device": self.hardware.get('gpu_name') or 'CPU',
+                               "claimedAt": firestore.SERVER_TIMESTAMP})
+                return s
+
+            claimed = _claim(txn, doc.reference)
+            if claimed is None:
+                print(f"[agent] Job {doc.id} already claimed by another worker — skipping")
+                return False
+
+            job_data = {**claimed, **(doc.to_dict() or {})}
             job_id = doc.id
             project_id = job_data['project_id']
             print(f"[agent] Processing job {job_id} for project {project_id}")
-
-            doc.reference.update({'status': 'training', 'progress': 10,
-                                  'device': self.hardware.get('gpu_name') or 'CPU'})
 
             # 1. Load data
             csv_bytes = base64.b64decode(job_data['csv_data'])

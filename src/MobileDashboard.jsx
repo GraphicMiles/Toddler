@@ -90,56 +90,81 @@ export default function MobileDashboard() {
 
   // ---- BYOC worker lifecycle ----
   React.useEffect(() => {
-    if (!byocEnabled) {
-      if (byocWorkerRef.current) { byocWorkerRef.current.postMessage({type:'stop'}); byocWorkerRef.current.terminate(); byocWorkerRef.current = null }
-      setByocStatus('disabled'); setByocJobName(''); setByocProgress(0)
+    let cancelled = false
+    let worker
+    let cleanupRan = false
+    const cleanup = () => {
+      if (cleanupRan) return
+      cleanupRan = true
+      if (worker) {
+        try { worker.postMessage({ type: 'stop' }) } catch {}
+        worker.terminate()
+      }
+      if (byocWorkerRef.current === worker) byocWorkerRef.current = null
+      if (!cancelled) { setByocJobName(''); setByocProgress(0) }
       stopTrainingForeground().catch(() => {})
-      return
+    }
+
+    if (!byocEnabled) {
+      setByocStatus('disabled'); setByocJobName(''); setByocProgress(0)
+      if (byocWorkerRef.current) { byocWorkerRef.current.postMessage({type:'stop'}); byocWorkerRef.current.terminate(); byocWorkerRef.current = null }
+      stopTrainingForeground().catch(() => {})
+      return cleanup
     }
     if (!apiUrl || !auth.currentUser) return
-    let worker
-    try {
-      worker = new Worker('/byoc-worker.js', { type: 'classic' })
-    } catch (e) {
-      console.warn('BYOC worker failed to start', e); return
-    }
-    byocWorkerRef.current = worker
 
-    const sendToken = async () => {
+    const boot = async () => {
       try {
-        const t = await auth.currentUser.getIdToken()
-        worker.postMessage({ type: 'token', token: t })
-      } catch {}
-    }
-    sendToken()
-    worker.onmessage = async ev => {
-      const msg = ev.data || {}
-      if (msg.type === 'status') {
-        setByocStatus(msg.status || 'idle')
-        if (typeof msg.progress === 'number') setByocProgress(msg.progress)
-        if (msg.jobName) setByocJobName(msg.jobName)
-        if (msg.status === 'training') {
-          startTrainingForeground().catch(() => {})
-        } else if (msg.status === 'idle') {
-          stopTrainingForeground().catch(() => {})
+        worker = new Worker('/byoc-worker.js', { type: 'classic' })
+      } catch (e) {
+        console.warn('BYOC worker failed to start', e)
+        return
+      }
+      if (cancelled) { worker.terminate(); return }
+      byocWorkerRef.current = worker
+
+      const sendToken = async () => {
+        try {
+          const t = await auth.currentUser?.getIdToken()
+          if (t && !cancelled) worker.postMessage({ type: 'token', token: t })
+        } catch {}
+      }
+      sendToken()
+      worker.onmessage = ev => {
+        if (cancelled) return
+        const msg = ev.data || {}
+        if (msg.type === 'status') {
+          setByocStatus(msg.status || 'idle')
+          if (typeof msg.progress === 'number') setByocProgress(msg.progress)
+          if (msg.jobName) setByocJobName(msg.jobName)
+          if (msg.status === 'training') {
+            startTrainingForeground().catch(() => {})
+          } else if (msg.status === 'idle' || msg.status === 'disabled') {
+            stopTrainingForeground().catch(() => {})
+          }
+        } else if (msg.type === 'message') {
+          showMessage(msg.text, 4000)
+        } else if (msg.type === 'needToken') {
+          sendToken()
+        } else if (msg.type === 'trainText') {
+          runTextTraining(msg.job, msg.rows).then(() => sendToken())
+        } else if (msg.type === 'trainVision') {
+          runVisionTraining(msg.job).then(() => sendToken())
         }
-      } else if (msg.type === 'message') {
-        showMessage(msg.text, 4000)
-        stopTrainingForeground().catch(() => {})
-      } else if (msg.type === 'needToken') {
-        sendToken()
-      } else if (msg.type === 'trainText') {
-        // Run text training on main thread (textML.js needs no WASM/TF)
-        runTextTraining(msg.job, msg.rows).then(() => sendToken())
-      } else if (msg.type === 'trainVision') {
-        runVisionTraining(msg.job).then(() => sendToken())
+      }
+      try {
+        const token = await auth.currentUser.getIdToken()
+        if (cancelled) { worker.terminate(); return }
+        worker.postMessage({ type: 'start', apiUrl, token })
+      } catch (e) {
+        console.warn('BYOC boot failed', e)
       }
     }
-    worker.postMessage({ type: 'start', apiUrl, token: await auth.currentUser.getIdToken() })
+    boot()
+
     return () => {
-      worker.postMessage({ type: 'stop' })
-      worker.terminate()
-      byocWorkerRef.current = null
+      cancelled = true
+      cleanup()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [byocEnabled, apiUrl])
@@ -168,12 +193,15 @@ export default function MobileDashboard() {
         setProPrompt({ reason: 'text', rows: rows.length, requiredMb })
         return
       }
-      const result = trainTextModel(rows, p => {
-        fetch(`${apiUrl}/jobs/${job.id}/progress`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${auth.currentUser.accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ progress: Math.round(p) })
-        }).catch(() => {})
+      const result = trainTextModel(rows, async p => {
+        try {
+          const tok = await auth.currentUser?.getIdToken()
+          await fetch(`${apiUrl}/jobs/${job.id}/progress`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${tok || ''}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ progress: Math.round(p) })
+          })
+        } catch {}
       })
       worker.postMessage({ type: 'textDone', jobId: job.id,
         result: { accuracy: result.accuracy, labels: result.labels, topFeatures: result.topFeatures,
@@ -346,7 +374,7 @@ export default function MobileDashboard() {
   return <div className="mobile-app">
     <header className="mobile-header"><div className="mobile-brand"><span className="mobile-mark" /> TODDLER</div><div className="mobile-header-actions">
       <label className="byoc-pill" title={byocEnabled ? 'Your device is helping train free-tier models' : 'Tap to let your device train free-tier models'}>
-        <input type="checkbox" checked={byocEnabled} onChange={e => { const on = e.target.checked; localStorage.setItem('toddler-byoc', on ? '1' : '0'); setByocEnabled(on); if (on) { showMessage('Device training enabled — will pick up jobs when idle.'); setTimeout(runByocTick, 500) } }} style={{display:'none'}} />
+        <input type="checkbox" checked={byocEnabled} onChange={e => { const on = e.target.checked; localStorage.setItem('toddler-byoc', on ? '1' : '0'); setByocEnabled(on); if (on) showMessage('Device training enabled — will pick up jobs when idle.', 3000) }} style={{display:'none'}} />
         {byocStatus === 'training' ? <Loader2 size={12} className="spin" /> : <span className="online-dot" style={{background: byocEnabled ? '#c6ff33' : '#6f786c'}} />}
         {byocStatus === 'training' ? `TRAINING ${byocProgress}%` : byocEnabled ? 'DEVICE READY' : 'DEVICE IDLE'}
       </label>

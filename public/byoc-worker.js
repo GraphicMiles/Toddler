@@ -5,55 +5,40 @@
 //
 // Messages:
 //   main -> worker: { type: 'start', apiUrl, token } | { type: 'stop' }
+//                | { type: 'token', token }
 //   worker -> main: { type: 'status', status, progress?, jobName? }
 //                | { type: 'message', text }
 //                | { type: 'needToken' }
+//                | { type: 'trainText'|'trainVision', job, rows? }
 
 let timer = null
 let running = false
 let apiUrl = null
 let token = null
 let lock = false
-let trainerModule = null // lazy-loaded textML / visionML
-let importedTrainer = false
-
-async function loadDeps() {
-  if (importedTrainer) return
-  // In worker we can't use static imports easily; importScripts works
-  // but ESM modules in Vite dev need a workaround. We post a request to
-  // the main thread to do the training if the worker can't import.
-  importedTrainer = true
-}
+let trainingActive = false
+let waitingForToken = null // {promise, resolveFn}
 
 async function authHeaders() {
-  if (!token) {
-    // Ask main thread for a fresh token
-    self.postMessage({ type: 'needToken' })
-    // wait up to 5s
-    await new Promise(r => setTimeout(r, 5000))
+  if (token) {
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
   }
+  self.postMessage({ type: 'needToken' })
+  if (!waitingForToken) {
+    let resolveFn
+    const p = new Promise(resolve => { resolveFn = resolve })
+    waitingForToken = { promise: p, resolve: () => { waitingForToken = null; resolveFn() } }
+    // Safety timeout: don't hang forever
+    setTimeout(() => { if (waitingForToken) waitingForToken.resolve() }, 10000)
+  }
+  await waitingForToken.promise
   return {
-    'Authorization': `Bearer ${token}`,
+    'Authorization': `Bearer ${token || ''}`,
     'Content-Type': 'application/json'
   }
-}
-
-async function reportProgress(jobId, p) {
-  const h = await authHeaders()
-  try {
-    await fetch(`${apiUrl}/jobs/${jobId}/progress`, {
-      method: 'POST', headers: h, body: JSON.stringify({ progress: Math.round(p) })
-    })
-  } catch {}
-  self.postMessage({ type: 'status', status: 'training', progress: Math.round(p), jobId })
-}
-
-async function completeJob(jobId, payload) {
-  const h = await authHeaders()
-  const res = await fetch(`${apiUrl}/jobs/${jobId}/complete`, {
-    method: 'POST', headers: h, body: JSON.stringify(payload)
-  })
-  if (!res.ok) throw new Error(`complete failed ${res.status}`)
 }
 
 async function failJob(jobId, err) {
@@ -73,8 +58,18 @@ function decodeBase64(b64) {
   return new TextDecoder('utf-8').decode(bytes)
 }
 
+function splitCSVLine(line) {
+  const out = []; let cur = ''; let q = false
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]
+    if (c === '"') { q = !q; continue }
+    if (c === ',' && !q) { out.push(cur); cur = ''; continue }
+    cur += c
+  }
+  out.push(cur); return out
+}
+
 function parseCSV(text, textCol, labelCol) {
-  // Tiny RFC4180-ish parser — supports commas, no quoted-newlines for speed.
   const lines = text.split(/\r?\n/).filter(l => l.length > 0)
   if (lines.length < 2) throw new Error('CSV has no rows')
   const headers = splitCSVLine(lines[0])
@@ -91,19 +86,8 @@ function parseCSV(text, textCol, labelCol) {
   return rows
 }
 
-function splitCSVLine(line) {
-  const out = []; let cur = ''; let q = false
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i]
-    if (c === '"') { q = !q; continue }
-    if (c === ',' && !q) { out.push(cur); cur = ''; continue }
-    cur += c
-  }
-  out.push(cur); return out
-}
-
 async function tick() {
-  if (lock || !running) return
+  if (lock || !running || trainingActive) return
   lock = true
   try {
     const h = await authHeaders()
@@ -113,28 +97,29 @@ async function tick() {
     if (!job) { self.postMessage({ type: 'status', status: 'idle' }); lock = false; return }
 
     const isVision = job.project_id && job.type === 'vision'
-    self.postMessage({ type: 'status', status: 'training', progress: 3, jobName: job.project_id, kind: isVision ? 'vision' : 'text' })
+    self.postMessage({ type: 'status', status: 'training', progress: 3, jobName: job.project_id })
+    trainingActive = true
 
     if (isVision) {
-      // Vision jobs have image URLs zipped; defer to main thread which
-      // already has TF.js MobileNet loaded (large bundle).
       self.postMessage({ type: 'trainVision', job })
-      // main will call back with {type:'visionDone', jobId, ...} or {visionFailed}
-      lock = false
-      return
+      return // lock held until visionDone/fail
     }
 
-    // Text job: decode CSV, train with textML via the main thread (worker
-    // can't easily ESM-import textML when bundled by Vite without extra
-    // config; so we ship training back to main and keep the poll loop here).
     const rows = parseCSV(decodeBase64(job.csv_data), job.text_column, job.label_column)
     self.postMessage({ type: 'trainText', job, rows })
-    // Main thread will postText back when it's done.
-    lock = false
+    // lock held until textDone/fail
   } catch (e) {
     console.warn('[byoc-worker] tick error', e)
     lock = false
+    trainingActive = false
   }
+}
+
+function releaseLockAfterTraining() {
+  lock = false
+  trainingActive = false
+  // Kick next tick immediately so we don't wait a full 30s
+  setTimeout(tick, 250)
 }
 
 self.onmessage = async (e) => {
@@ -144,23 +129,51 @@ self.onmessage = async (e) => {
     if (!running) {
       running = true
       self.postMessage({ type: 'status', status: 'idle' })
-      // Kick immediately + every 30s
       tick()
       timer = setInterval(tick, 30000)
     }
   } else if (msg.type === 'stop') {
     running = false
+    trainingActive = false
+    lock = false
     if (timer) { clearInterval(timer); timer = null }
     self.postMessage({ type: 'status', status: 'disabled' })
   } else if (msg.type === 'token') {
     token = msg.token
+    if (waitingForToken) waitingForToken.resolve()
   } else if (msg.type === 'textDone') {
     const { jobId, result, error } = msg
-    if (error) { await failJob(jobId, error) }
-    else { await completeJob(jobId, result); self.postMessage({ type: 'message', text: `Training complete (${Math.round((result.accuracy||0)*100)}% accuracy).` }) }
+    try {
+      if (error) { await failJob(jobId, error) }
+      else {
+        const h = await authHeaders()
+        const res = await fetch(`${apiUrl}/jobs/${jobId}/complete`, {
+          method: 'POST', headers: h, body: JSON.stringify(result)
+        })
+        if (!res.ok) throw new Error(`complete failed ${res.status}`)
+        self.postMessage({ type: 'message', text: `Training complete (${Math.round((result.accuracy||0)*100)}% accuracy).` })
+      }
+    } catch (err) {
+      console.warn('[byoc-worker] textDone err', err)
+    } finally {
+      releaseLockAfterTraining()
+    }
   } else if (msg.type === 'visionDone') {
     const { jobId, result, error } = msg
-    if (error) { await failJob(jobId, error) }
-    else { await completeJob(jobId, result); self.postMessage({ type: 'message', text: 'Vision model trained on-device.' }) }
+    try {
+      if (error) { await failJob(jobId, error) }
+      else {
+        const h = await authHeaders()
+        const res = await fetch(`${apiUrl}/jobs/${jobId}/complete`, {
+          method: 'POST', headers: h, body: JSON.stringify(result)
+        })
+        if (!res.ok) throw new Error(`complete failed ${res.status}`)
+        self.postMessage({ type: 'message', text: 'Vision model trained on-device.' })
+      }
+    } catch (err) {
+      console.warn('[byoc-worker] visionDone err', err)
+    } finally {
+      releaseLockAfterTraining()
+    }
   }
 }

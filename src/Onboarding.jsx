@@ -55,7 +55,10 @@ const Onboarding = ({ onComplete }) => {
   const handleFileUpload = (e) => {
     const selectedFile = e.target.files[0];
     if (!selectedFile) return;
-    if (selectedFile.size > 5 * 1024 * 1024) { setError('File size exceeded. Max 5MB.'); return; }
+    // Server caps CSV at ~750KB (Firestore 1MB doc after base64). Surface a
+    // soft 5MB limit here so users see a friendly error before the server
+    // rejects it; larger files should use signed Cloud Storage uploads.
+    if (selectedFile.size > 5 * 1024 * 1024) { setError('File too large for web upload. Max 5MB.'); return; }
     setFile(selectedFile);
     Papa.parse(selectedFile, {
       header: true,

@@ -1,7 +1,10 @@
 (function() {
   const script = document.currentScript;
   const projectId = script.getAttribute('data-project-id');
-  const apiUrl = 'https://toddler-backend.vercel.app'; // Replace with actual backend URL if different
+  const apiUrl =
+    script.getAttribute('data-api-url') ||
+    (window.TODDLER_API_URL) ||
+    (location.origin.startsWith('http') ? location.origin : 'https://toddler.ai');
 
   if (!projectId) {
     console.error('Toddler Widget: data-project-id is required');

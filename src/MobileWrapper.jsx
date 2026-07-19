@@ -7,7 +7,7 @@ const MobileWrapper = ({ children }) => {
     if (Capacitor.isNativePlatform()) {
       // Configure Status Bar
       StatusBar.setStyle({ style: Style.Dark });
-      StatusBar.setBackgroundColor({ color: '#0A0812' });
+      StatusBar.setBackgroundColor({ color: '#14130F' });
       
     }
   }, []);

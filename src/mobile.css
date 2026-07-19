@@ -15,7 +15,7 @@
 .mobile-app {
   min-height: 100vh;
   min-height: 100dvh;
-  background: #10110e;
+  background: #14130F;
   color: #f2efe6;
   font-family: Inter, system-ui, -apple-system, sans-serif;
   /* A safe minimum top padding guarantees the header never sits flush
@@ -421,12 +421,12 @@
 }
 .success { color: #c6ff33; flex-shrink: 0; }
 .model-delete {
-  grid-column: 2;
+  grid-column: 2 / -1;
   justify-self: start;
   border: 0;
   background: transparent;
   color: #b94d42;
-  padding: 6px 0;
+  padding: 4px 0 0;
   font: 10px/1 'IBM Plex Mono', ui-monospace, monospace;
   cursor: pointer;
 }
@@ -758,6 +758,7 @@
   .device-card { margin-top: 16px; display: inline-grid; }
   .model-card { grid-template-columns: 34px 1fr; }
   .model-action { grid-column: 2; justify-self: start; margin-top: 2px; }
+  .model-delete { grid-column: 2; }
   .model-meta { flex-wrap: wrap; }
   .device-stats div { padding: 10px 8px; }
   .downloaded-row { flex-direction: column; align-items: flex-start; }

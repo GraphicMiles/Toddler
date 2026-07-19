@@ -13,6 +13,17 @@ import { ensureNotifyPermission, notifyTrainingComplete } from './notify'
 
 import Onboarding from './Onboarding'
 
+const trainTextModel = () => { throw new Error('Native training module pending Phase 2'); };
+const loadLlm = async () => {};
+const chatLlm = async () => {};
+const unloadLlm = async () => {};
+const isWebGpuAvailable = () => false;
+const addKnowledgeFile = async () => {};
+const clearKnowledge = () => {};
+const getKnowledgeFiles = () => [];
+const onLlmState = () => {};
+
+
 const vibrate = (style = ImpactStyle.Light) => {
   if (Capacitor.isNativePlatform()) Haptics.impact({ style }).catch(() => {})
 }
@@ -194,7 +205,7 @@ export default function MobileDashboard() {
   const downloadLock = React.useRef(new Set())
   const [ram, setRam] = React.useState(null)
   const [storage, setStorage] = React.useState(null)
-  const [catalog, setCatalog] = React.useState([...fallbackModels, ...LLM_CATALOG])
+  const [catalog, setCatalog] = React.useState([...fallbackModels])
   const [datasets, setDatasets] = React.useState([])
   const [uploading, setUploading] = React.useState(false)
   const [message, setMessage] = React.useState('')
@@ -394,7 +405,7 @@ export default function MobileDashboard() {
 
   React.useEffect(() => {
     setRam(navigator.deviceMemory ? Math.round(navigator.deviceMemory) : 4)
-    if (apiUrl) fetch(`${apiUrl}/models`).then(r => r.ok ? r.json() : null).then(data => { if (data?.models) setCatalog([...data.models, ...LLM_CATALOG]) }).catch(()=>{})
+    if (apiUrl) fetch(`${apiUrl}/models`).then(r => r.ok ? r.json() : null).then(data => { if (data?.models) setCatalog([...data.models]) }).catch(()=>{})
     if (navigator.storage?.estimate) navigator.storage.estimate().then(({ quota, usage }) => setStorage({ quota, usage }))
     if (!apiUrl || !authReady || !auth.currentUser) return
     let cancelled = false

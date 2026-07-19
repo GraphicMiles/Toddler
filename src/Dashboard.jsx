@@ -327,13 +327,13 @@ const Dashboard = () => {
     setSidebarOpen(false);
   };
 
-  const tabsForType = currentProject.type === 'vision'
+  const tabsForType = currentProject?.type === 'vision'
     ? ['overview', 'chat', 'dev']
-    : currentProject.type === 'generative'
+    : currentProject?.type === 'generative'
     ? ['chat', 'dev']
     : ['overview', 'batch', 'chat', 'dev'];
 
-    const effectiveTab = tabsForType.includes(activeTab) ? activeTab : tabsForType[0];
+  const effectiveTab = tabsForType.includes(activeTab) ? activeTab : tabsForType[0];
 
   return (
     <div className="app-container text-[var(--text)] font-sans">

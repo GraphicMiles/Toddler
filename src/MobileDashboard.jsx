@@ -1,9 +1,10 @@
 import React from 'react'
 import { Download, Cpu, HardDrive, MemoryStick, CheckCircle2, Play, Send, Code2, ChevronRight, Smartphone, Zap, Loader2, Menu, X, Plus, Trash2, FolderOpen, Unlink } from 'lucide-react'
 import { Capacitor } from '@capacitor/core'
+import { PushNotifications } from '@capacitor/push-notifications'
 import { auth, db } from './firebase'
 import { signOut } from 'firebase/auth'
-import { collection, query, where, getDocs, doc, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, deleteDoc, addDoc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { toast } from 'react-hot-toast'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
 
@@ -351,6 +352,29 @@ export default function MobileDashboard() {
     const unsub = auth.onAuthStateChanged(async user => {
       if (!user) return
       try { const t = await user.getIdToken(); byocWorkerRef.current?.postMessage({ type: 'token', token: t }) } catch {}
+      
+      // Register FCM Token for Silent Push Dispatch
+      if (Capacitor.isNativePlatform()) {
+        try {
+          let perm = await PushNotifications.checkPermissions();
+          if (perm.receive === 'prompt') perm = await PushNotifications.requestPermissions();
+          if (perm.receive === 'granted') {
+            PushNotifications.addListener('registration', async (token) => {
+              
+              // Save the hardware signature and FCM token
+              const ram = navigator.deviceMemory ? Math.round(navigator.deviceMemory) : 4;
+              await setDoc(doc(db, "users", user.uid, "devices", Capacitor.getPlatform() + "_" + navigator.userAgent.replace(/\D/g,'').slice(0,6)), {
+                platform: Capacitor.getPlatform(),
+                status: 'online',
+                ram_gb: ram,
+                fcmToken: token.value,
+                lastSeen: new Date()
+              }, { merge: true });
+            });
+            await PushNotifications.register();
+          }
+        } catch(e) { console.error("FCM Registration failed", e) }
+      }
     })
     return unsub
   }, [])

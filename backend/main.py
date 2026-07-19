@@ -10,7 +10,7 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Header
 from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore, messaging
 
 app = FastAPI()
 
@@ -312,5 +312,26 @@ async def queue_training_job(
         "progress": 0,
         "created_at": firestore.SERVER_TIMESTAMP
     })
+
+    # 3. Dispatch Silent FCM Wake-up Call to user's registered BYOC devices
+    try:
+        user_uid = doc_ref.get().to_dict().get('ownerUid')
+        if user_uid:
+            devices = db.collection("users").document(user_uid).collection("devices").where("status", "==", "online").get()
+            tokens = [d.to_dict().get("fcmToken") for d in devices if d.to_dict().get("fcmToken")]
+            
+            if tokens:
+                message = messaging.MulticastMessage(
+                    data={
+                        "action": "WAKE_WORKER",
+                        "job_id": job_ref.id,
+                        "project_id": project_id
+                    },
+                    tokens=tokens,
+                )
+                messaging.send_multicast(message)
+                print(f"Dispatched silent wake-up to {len(tokens)} worker devices.")
+    except Exception as e:
+        print(f"FCM Dispatch Error: {e}")
 
     return {"job_id": job_ref.id, "status": "queued"}

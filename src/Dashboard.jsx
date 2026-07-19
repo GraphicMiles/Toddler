@@ -285,7 +285,11 @@ const Dashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="panel border border-[var(--line)] bg-[var(--surface-2)]">
                 <h3 className="font-bold mb-2 text-[var(--accent-lime)]">1. Connect a Worker</h3>
-                <p className="text-sm text-[var(--text-faint)] mb-6">Download the Toddler app on your phone or desktop to provide actual compute power.</p>
+                <p className="text-sm text-[var(--text-faint)] mb-4">Download the Toddler app on your phone or desktop to provide actual compute power.</p>
+                <div className="flex gap-2 mb-4">
+                  <a href="#" onClick={(e)=>{e.preventDefault(); alert("Android APK build coming in Phase 3!")}} className="btn-ghost flex-1 text-center border border-[var(--line)] py-2 text-xs font-mono no-underline hover:bg-[var(--line)]">📱 Android</a>
+                  <a href="#" onClick={(e)=>{e.preventDefault(); alert("Desktop Agent coming in Phase 3!")}} className="btn-ghost flex-1 text-center border border-[var(--line)] py-2 text-xs font-mono no-underline hover:bg-[var(--line)]">💻 Mac/PC</a>
+                </div>
                 <div className="bg-[var(--bg)] p-4 border border-[var(--line)] text-center">
                   <div className="text-[10px] uppercase font-mono text-[var(--text-dim)] mb-1">Your Pairing Code</div>
                   <div className="text-2xl font-mono text-[var(--text)] tracking-widest">{auth.currentUser?.uid?.substring(0, 6).toUpperCase() || '749012'}</div>

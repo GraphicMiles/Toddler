@@ -279,3 +279,38 @@ def delete_account(authorization: str | None = Header(default=None)):
         return {"status": "deleted"}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Account deletion failed: {exc}")
+\n
+@app.post("/train")
+async def queue_training_job(
+    project_id: str = Form(...),
+    dataset_url: str = Form(...),
+    text_column: str = Form(None),
+    label_column: str = Form(None),
+    authorization: str | None = Header(default=None)
+):
+    """Phase 2: Creates a training job for BYOC or Cloud workers using the signed Cloudinary dataset URL."""
+    db = _require_db()
+    
+    # 1. Update the project document with dataset parameters
+    doc_ref = db.collection("projects").document(project_id)
+    doc_ref.update({
+        "status": "queued",
+        "datasetUrl": dataset_url,
+        "datasetConfig": {
+            "textColumn": text_column,
+            "labelColumn": label_column
+        }
+    })
+    
+    # 2. Add job to the central training_jobs queue
+    job_ref = db.collection("training_jobs").document()
+    job_ref.set({
+        "project_id": project_id,
+        "dataset_url": dataset_url,
+        "runner": "auto",  # Allows mobile BYOC, desktop BYOC, or cloud to claim it
+        "status": "queued",
+        "progress": 0,
+        "created_at": firestore.SERVER_TIMESTAMP
+    })
+
+    return {"job_id": job_ref.id, "status": "queued"}

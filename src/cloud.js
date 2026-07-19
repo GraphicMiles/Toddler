@@ -1,29 +1,44 @@
-export const uploadToCloudinary = async (jsonString) => {
-  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+import { auth } from './firebase';
+
+export const uploadDatasetToCloudinary = async (file, onProgress) => {
+  const apiUrl = import.meta.env.VITE_API_URL;
+  if (!apiUrl) throw new Error("Backend API URL not set");
   
-  if (!cloudName || !uploadPreset || cloudName === 'your_cloud_name') {
-    return null; // Fallback to IndexedDB if not configured
-  }
+  const token = await auth.currentUser?.getIdToken();
+  if (!token) throw new Error("Unauthorized");
 
-  const blob = new Blob([jsonString], { type: 'application/json' });
+  // 1. Get signed url payload from backend
+  const res = await fetch(`${apiUrl}/uploads/sign`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  
+  if (!res.ok) throw new Error("Failed to get signed upload parameters from server");
+  const signed = await res.json();
+
+  // 2. Upload directly to Cloudinary
   const formData = new FormData();
-  formData.append('file', blob, 'model_weights.json');
-  formData.append('upload_preset', uploadPreset);
-  formData.append('resource_type', 'raw'); // Essential for non-image files like JSON
+  formData.append('file', file);
+  formData.append('api_key', signed.apiKey);
+  formData.append('timestamp', signed.timestamp);
+  formData.append('signature', signed.signature);
+  formData.append('folder', signed.folder);
+  if (signed.uploadPreset) formData.append('upload_preset', signed.uploadPreset);
+  
+  // Need raw resource_type for CSVs and JSON
+  const resourceType = file.type.startsWith('image/') ? 'image' : 'raw';
 
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`, {
+  // Using standard fetch for Cloudinary upload
+  const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${signed.cloudName}/${resourceType}/upload`, {
     method: 'POST',
     body: formData
   });
-  
-  if (!res.ok) throw new Error("Cloudinary upload failed. Check your upload preset.");
-  const data = await res.json();
-  return data.secure_url;
-};
 
-export const fetchFromCloudinary = async (url) => {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Failed to fetch model weights from Cloudinary.");
-  return await res.text();
+  if (!uploadRes.ok) {
+    const errorData = await uploadRes.json();
+    throw new Error(`Cloudinary upload failed: ${errorData.error?.message || uploadRes.statusText}`);
+  }
+
+  const data = await uploadRes.json();
+  return data.secure_url;
 };

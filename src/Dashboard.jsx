@@ -327,6 +327,28 @@ const Dashboard = () => {
     setSidebarOpen(false);
   };
 
+
+  if (!currentProject) {
+    return (
+      <div className="app-container text-[var(--text)] font-sans">
+        <aside className="sidebar fixed md:static inset-y-0 left-0 z-50 transform translate-x-0">
+          <div className="sidebar-header justify-between">
+            <Link to="/" className="logo text-white cursor-pointer no-underline">
+              <span className="logo-mark"></span>TODDLER
+            </Link>
+          </div>
+          <div className="p-4 flex-grow flex flex-col gap-2 overflow-y-auto">
+            <div className="input-label mb-2 px-2">Projects</div>
+            <div className="text-[var(--text-faint)] px-2 text-sm">No projects yet.</div>
+          </div>
+        </aside>
+        <main className="main-content relative overflow-y-auto">
+          <Onboarding onComplete={(p) => { setProjects([p]); setActiveProjectId(p.id); }} />
+        </main>
+      </div>
+    );
+  }
+
   const tabsForType = currentProject?.type === 'vision'
     ? ['overview', 'chat', 'dev']
     : currentProject?.type === 'generative'

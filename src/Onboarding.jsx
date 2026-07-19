@@ -136,14 +136,43 @@ const Onboarding = ({ onComplete }) => {
 
       const docRef = await addDoc(collection(db, "projects"), projectData);
 
-      // TODO: Phase 2 - Implement Signed Object Storage Upload
-      // 1. Get signed URL from backend
-      // 2. Upload dataset/images to Cloudinary
-      // 3. POST /train with dataset_ref
+      // Phase 2: Secure Cloud Storage Upload Hand-off
+      const { uploadDatasetToCloudinary } = await import('./cloud');
       
+      let datasetUrl = null;
+      if (modelType === 'text' || modelType === 'generative') {
+        if (!file) throw new Error("Dataset file is missing.");
+        setLoadingMessage('Uploading dataset to secured storage...');
+        datasetUrl = await uploadDatasetToCloudinary(file);
+      } else if (modelType === 'vision') {
+        // Zip images or notify user. For the scope of this update, we set a placeholder dataset_ref 
+        // because native mobile BYOC expects an image ZIP or structured blob. 
+        datasetUrl = "pending_vision_zip_upload"; 
+      }
+
+      await updateDoc(docRef, { datasetUrl });
+
+      const apiUrl = import.meta.env.VITE_API_URL;
+      if (apiUrl) {
+         setLoadingMessage('Waking training workers...');
+         const token = await auth.currentUser?.getIdToken();
+         const formData = new FormData();
+         formData.append('project_id', docRef.id);
+         formData.append('dataset_url', datasetUrl);
+         if (modelType === 'text') {
+            formData.append('text_column', selection.text);
+            formData.append('label_column', selection.label);
+         }
+         await fetch(`${apiUrl}/train`, { 
+             method: 'POST', 
+             headers: { 'Authorization': `Bearer ${token}` },
+             body: formData
+         }).catch(() => {}); // fire and forget
+      }
+
       setIsUploading(false);
       vibrate(ImpactStyle.Heavy);
-      onComplete({ id: docRef.id, ...projectData, status: 'queued', labels: visionLabels || [], responses: {} });
+      onComplete({ id: docRef.id, ...projectData, status: 'queued', datasetUrl, labels: visionLabels || [], responses: {} });
     } catch (err) {
       setError(err.message);
       setIsUploading(false);

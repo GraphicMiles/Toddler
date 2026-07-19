@@ -6,6 +6,26 @@ import Dashboard from './Dashboard'
 import MobileDashboard from './MobileDashboard'
 import MobileWrapper from './MobileWrapper'
 import { Capacitor } from '@capacitor/core'
+
+// Use the mobile UI on native AND on narrow/coarse-touch viewports (phones in
+// mobile Chrome, small tablets, etc.). Desktop Dashboard has a sidebar layout
+// that doesn't work on phone-sized screens.
+function useIsMobile() {
+  const [isMobile, setIsMobile] = React.useState(() => {
+    if (Capacitor.isNativePlatform()) return true
+    if (typeof window === 'undefined') return false
+    return window.matchMedia('(max-width: 839px), (pointer: coarse) and (max-width: 1024px)').matches
+  })
+  React.useEffect(() => {
+    if (Capacitor.isNativePlatform()) return
+    const mq = window.matchMedia('(max-width: 839px), (pointer: coarse) and (max-width: 1024px)')
+    const handler = e => setIsMobile(e.matches)
+    mq.addEventListener?.('change', handler)
+    handler(mq)
+    return () => mq.removeEventListener?.('change', handler)
+  }, [])
+  return isMobile
+}
 import { App as CapApp } from '@capacitor/app'
 import { auth } from './firebase'
 import { onAuthStateChanged } from 'firebase/auth'
@@ -31,6 +51,7 @@ function DeepLinkHandler() {
 }
 
 function App() {
+  const isMobile = useIsMobile()
   const [user, setUser] = React.useState(null)
   const [loading, setLoading] = React.useState(true)
 
@@ -66,7 +87,7 @@ function App() {
           <Route path="/" element={Capacitor.isNativePlatform() ? (user ? <Navigate to="/dashboard" replace /> : <Auth mode="login" />) : <LandingPage />} />
           <Route path="/login" element={<Auth mode="login" />} />
           <Route path="/signup" element={<Auth mode="signup" />} />
-          <Route path="/dashboard/*" element={user ? (Capacitor.isNativePlatform() ? <MobileDashboard /> : <Dashboard />) : <Navigate to="/login" />} />
+          <Route path="/dashboard/*" element={user ? (isMobile ? <MobileDashboard /> : <Dashboard />) : <Navigate to="/login" />} />
         </Routes>
       </BrowserRouter>
     </MobileWrapper>

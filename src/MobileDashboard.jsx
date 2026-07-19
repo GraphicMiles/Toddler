@@ -606,7 +606,18 @@ export default function MobileDashboard() {
     );
   }
 
-  if (showOnboarding || projects.length === 0) return <Onboarding onComplete={handleOnboardingComplete} />
+  if (showOnboarding || projects.length === 0) {
+    return (
+      <div className="mobile-app td-split-layout">
+        <div className="td-sidebar-desktop">
+          <Sidebar {...sidebarProps} isMobile={false} onClose={()=>{}}/>
+        </div>
+        <main className="td-main-content">
+           <Onboarding onComplete={handleOnboardingComplete} />
+        </main>
+      </div>
+    );
+  }
 
   return <div className="mobile-app td-split-layout">
     {/* Desktop sidebar (persistent) */}

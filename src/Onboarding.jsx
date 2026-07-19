@@ -109,7 +109,7 @@ const Onboarding = ({ onComplete }) => {
     setStep(3);
   };
 
-  const handleComplete = async () => {
+    const handleComplete = async () => {
     setIsUploading(true); setError('');
     try {
       const projectData = {
@@ -126,164 +126,26 @@ const Onboarding = ({ onComplete }) => {
         if (!selection.text || !selection.label) throw new Error('Column mapping incomplete.');
         projectData.redactPii = redactPii;
         projectData.dataset = { textColumn: selection.text, labelColumn: selection.label, rowCount: csvData ? csvData.length : 0 };
-        
-        const docRef = await addDoc(collection(db, "projects"), projectData);
-        
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('project_id', docRef.id);
-        formData.append('text_column', selection.text);
-        formData.append('label_column', selection.label);
-        formData.append('redact_pii', redactPii ? 'true' : 'false');
-
-        const apiUrl = import.meta.env.VITE_API_URL;
-        if (!apiUrl) { await deleteDoc(doc(db, "projects", docRef.id)); throw new Error("VITE_API_URL is missing in environment variables."); }
-        
-        let response;
-        try {
-          response = await fetch(`${apiUrl}/train`, { method: 'POST', body: formData });
-        } catch (e) {
-          await deleteDoc(doc(db, "projects", docRef.id));
-          throw new Error('Network Error: Could not connect to the backend (check CORS or URL).');
-        }
-
-        if (!response.ok) {
-          let errText = `HTTP Error ${response.status}: ${response.statusText}`;
-          try {
-            const errData = await response.json();
-            errText = errData.detail || errData.message || errText;
-          } catch {}
-          await deleteDoc(doc(db, "projects", docRef.id));
-          throw new Error(errText);
-        }
-        
-        const result = await response.json();
-        if (!result.job_id) {
-          await deleteDoc(doc(db, "projects", docRef.id));
-          throw new Error('Backend did not return a job ID.');
-        }
-
-        // Nudge the server training worker immediately (in case it's running
-        // and asleep on free tier).
-        const nudgeServer = () => {
-          fetch(`${apiUrl}/_agent/run`, { method: 'POST', keepalive: true })
-            .then(r => r.json().catch(() => null))
-            .then(d => d && console.log('[toddler] server kicked:', d))
-            .catch(() => {});
-        };
-        nudgeServer();
-        setTimeout(nudgeServer, 8000);
-
-        // Poll /jobs/{job_id} until training completes. Training may finish in
-        // one of two ways: (1) the server agent picks up the job (Pro/cloud),
-        // or (2) the user's Android BYOC device claims and trains it (free).
-        // Either path ends with status === 'completed' and an accuracy value.
-        const accuracy = await new Promise((resolve, reject) => {
-          const maxAttempts = 900; // up to ~15 minutes at 1s (BYOC can be slower)
-          let attempts = 0;
-          pollIntervalRef.current = setInterval(async () => {
-            attempts++;
-            try {
-              const r = await fetch(`${apiUrl}/jobs/${result.job_id}`);
-              if (!r.ok) {
-                if (attempts > maxAttempts) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; reject(new Error('Lost contact with training server')); }
-                return;
-              }
-              const j = await r.json();
-              if (typeof j.progress === 'number') {
-                setLoadingMessage(
-                  j.status === 'device_training'
-                    ? `Training on your device… ${j.progress}%`
-                    : j.status === 'queued' || j.status === 'awaiting_device'
-                      ? 'Waiting for a trainer… open the Toddler app on your phone to train on-device, or upgrade to Pro.'
-                      : `Training… ${j.progress}%`
-                );
-              }
-              if (j.status === 'completed') { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; resolve(typeof j.accuracy === 'number' ? j.accuracy : 0.9); return; }
-              if (j.status === 'failed')    { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; reject(new Error(j.error || 'Training failed')); return; }
-            } catch (e) { if (attempts > maxAttempts) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; reject(e); } }
-          }, 1000);
-        });
-
-        // Fetch final project doc to get labels list (written by the agent)
-        let finalLabels = [];
-        try {
-          const { getDoc } = await import('firebase/firestore');
-          const snap = await getDoc(doc(db, "projects", docRef.id));
-          if (snap.exists()) finalLabels = snap.data().labels || [];
-        } catch {}
-
-        vibrate(ImpactStyle.Heavy);
-        setIsUploading(false);
-        onComplete({ id: docRef.id, ...projectData, status: 'trained', accuracy, labels: finalLabels, responses: {} });
-        
       } else if (modelType === 'generative') {
         if (!selection.text || !selection.label) throw new Error('Generative mapping incomplete.');
-        projectData.dataset = { 
-          promptColumn: selection.text, 
-          completionColumn: selection.label, 
-          systemPrompt: selection.systemPrompt,
-          rowCount: csvData ? csvData.length : 0 
-        };
-        
-        const docRef = await addDoc(collection(db, "projects"), projectData);
-        
-        // --- START BROWSER-SIMULATED GENERATIVE FINE-TUNING ---
-        let mockProgress = 0;
-        genIntervalRef.current = setInterval(() => {
-          mockProgress++;
-          if (mockProgress === 1) setLoadingMessage('Validating JSONL conversion...');
-          if (mockProgress === 3) setLoadingMessage(`Pushing ${csvData.length} records to Training Cluster...`);
-          if (mockProgress === 5) setLoadingMessage('Fine-tuning base LLM (LoRA)...');
-          if (mockProgress === 8) {
-            clearInterval(genIntervalRef.current);
-            genIntervalRef.current = null;
-            setIsUploading(false);
-            vibrate(ImpactStyle.Heavy);
-            onComplete({ id: docRef.id, ...projectData, status: 'trained', accuracy: null, labels: [], responses: {} });
-          }
-        }, 1500);
-        // --- END BROWSER SIMULATION ---
-        
+        projectData.dataset = { promptColumn: selection.text, completionColumn: selection.label, systemPrompt: selection.systemPrompt, rowCount: csvData ? csvData.length : 0 };
       } else if (modelType === 'vision') {
         projectData.labels = visionLabels;
         projectData.dataset = { imageCount: imageFiles.length, categories: visionLabels.length };
-        
-        const docRef = await addDoc(collection(db, "projects"), projectData);
-        
-        // --- START BROWSER-BASED VISION ML (EDGE ML) ---
-        import('./visionML').then(async ({ trainVisionModel }) => {
-          import('localforage').then(async (localforageModule) => {
-             const lf = localforageModule.default || localforageModule;
-             try {
-               const serializedModel = await trainVisionModel(imageFiles, (msg) => setLoadingMessage(msg));
-               
-               // Try uploading to Cloudinary
-               const { uploadToCloudinary } = await import('./cloud');
-               const modelUrl = await uploadToCloudinary(serializedModel);
-               
-               if (modelUrl) {
-                 await updateDoc(docRef, { modelUrl });
-                 projectData.modelUrl = modelUrl;
-               } else {
-                 // Fallback to IndexedDB
-                 await lf.setItem(`model_${docRef.id}`, serializedModel);
-               }
-               
-               setIsUploading(false);
-               vibrate(ImpactStyle.Heavy);
-               onComplete({ id: docRef.id, ...projectData, status: 'trained', accuracy: 0.98 });
-             } catch (err) {
-               setError("Vision Training Error: " + err.message);
-               setIsUploading(false);
-               await deleteDoc(doc(db, "projects", docRef.id)); // Clean up corrupted document
-             }
-          });
-        });
-        // --- END BROWSER ML ---
       }
-    } catch (err) { 
-      setError(err.message || 'Something went wrong'); 
+
+      const docRef = await addDoc(collection(db, "projects"), projectData);
+
+      // TODO: Phase 2 - Implement Signed Object Storage Upload
+      // 1. Get signed URL from backend
+      // 2. Upload dataset/images to Cloudinary
+      // 3. POST /train with dataset_ref
+      
+      setIsUploading(false);
+      vibrate(ImpactStyle.Heavy);
+      onComplete({ id: docRef.id, ...projectData, status: 'queued', labels: visionLabels || [], responses: {} });
+    } catch (err) {
+      setError(err.message);
       setIsUploading(false);
     }
   };

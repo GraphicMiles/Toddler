@@ -198,196 +198,57 @@ const Dashboard = () => {
     } catch { toast.error('Rename failed'); }
   };
 
-  const handleChatSend = async (e) => {
+    const handleChatSend = async (e) => {
     e.preventDefault();
     if (!currentProject) return;
     if (!chatInput && !previewImage) return;
 
+    const sentImage = previewImage;
+    const sentText = chatInput;
+    
     if (currentProject.type === 'vision') {
-      if (!previewImage) return;
-      const userMsg = { role: 'user', imageSrc: previewImage };
+      if (!sentImage) return;
+      const userMsg = { role: 'user', imageSrc: sentImage };
       setChatMessages(prev => [...prev, userMsg]);
-      const sentImage = previewImage;
       setPreviewImage(null);
-      setIsTyping(true);
-
-      try {
-        let datasetJson;
-        if (currentProject.modelUrl) {
-          const { fetchFromCloudinary } = await import('./cloud');
-          datasetJson = await fetchFromCloudinary(currentProject.modelUrl);
-        } else {
-          const localforageModule = await import('localforage');
-          const lf = localforageModule.default || localforageModule;
-          datasetJson = await lf.getItem(`model_${currentProject.id}`);
-        }
-        if (!datasetJson) throw new Error("Local model weights not found.");
-
-        const { predictVisionImage } = await import('./visionML');
-        const result = await predictVisionImage(sentImage, datasetJson);
-        const botResponse = responses[result.prediction] || `Decision: "${result.prediction}". (No custom response set)`;
-        setChatMessages(prev => [...prev, { role: 'bot', text: botResponse, intent: result.prediction, confidence: result.confidence || 0, originImage: sentImage }]);
-      } catch (e) {
-        toast.error(e.message || "Vision prediction failed");
-      } finally {
-        setIsTyping(false);
-      }
-      return;
-    }
-
-    if (currentProject.type === 'generative') {
-      if (!chatInput.trim()) return;
-      const userMsg = { role: 'user', text: chatInput };
+    } else {
+      if (!sentText) return;
+      const userMsg = { role: 'user', text: sentText };
       setChatMessages(prev => [...prev, userMsg]);
       setChatInput('');
-      setIsTyping(true);
-
-      if (genTimeoutRef.current) clearTimeout(genTimeoutRef.current);
-      genTimeoutRef.current = setTimeout(() => {
-        const mockResponses = [
-          "That's an interesting question. Based on the fine-tuned dataset, the most likely protocol involves adjusting the top-k sampling rate.",
-          "I've analyzed your input. The system prompt suggests we should prioritize technical accuracy here. Proceed with the deployment.",
-          "As an AI trained on your specific documentation, I recommend checking the internal API routing logic before pushing to production."
-        ];
-        const randomResp = mockResponses[Math.floor(Math.random() * mockResponses.length)];
-        setChatMessages(prev => [...prev, { role: 'bot', text: randomResp, intent: null, confidence: null }]);
-        setIsTyping(false);
-        genTimeoutRef.current = null;
-      }, 2500);
-      return;
     }
+    
+    setIsTyping(true);
 
-    // Text chat
-    if (!chatInput.trim()) return;
-    if (!isModelReady) { toast.error('Model is not trained yet.'); return; }
-    const userMsg = { role: 'user', text: chatInput };
-    setChatMessages(prev => [...prev, userMsg]); setChatInput(''); setIsTyping(true);
     try {
+      // Proxy all predictions through the backend, never run locally
       const apiUrl = import.meta.env.VITE_API_URL;
-      if (!apiUrl) throw new Error("VITE_API_URL is missing.");
       const formData = new FormData();
       formData.append('project_id', currentProject.id);
-      formData.append('text', userMsg.text);
-
-      let response;
-      try {
-        response = await fetch(`${apiUrl}/predict`, { method: 'POST', body: formData });
-      } catch (e) {
-        throw new Error('Network Error: Check backend CORS or URL.');
-      }
-      if (!response.ok) {
-        let errText = `HTTP Error ${response.status}`;
-        try { const errData = await response.json(); errText = errData.detail || errData.message || errText; } catch {}
-        throw new Error(errText);
-      }
-      const data = await response.json();
-      const predictionLabel = data.prediction || 'Unknown';
-      const conf = typeof data.confidence === 'number' ? data.confidence : 0;
-      const botResponse = responses[predictionLabel] || `Decision: "${predictionLabel}". (No custom response set)`;
-      setTimeout(() => {
-        setChatMessages(prev => [...prev, { role: 'bot', text: botResponse, intent: predictionLabel, confidence: conf }]);
-        setIsTyping(false);
-      }, 800);
-    } catch (e) { setIsTyping(false); toast.error(e.message || 'Chat failed'); }
-  };
-
-  const handleRetrainVision = async (imageSrc, correctLabel) => {
-    if (!correctLabel || correctLabel === "Correct this?" || !currentProject) return;
-    const loadingToast = toast.loading("Fine-tuning model...");
-    try {
-      let datasetJson;
-      const localforageModule = await import('localforage');
-      const lf = localforageModule.default || localforageModule;
-
-      if (currentProject.modelUrl) {
-        const { fetchFromCloudinary } = await import('./cloud');
-        datasetJson = await fetchFromCloudinary(currentProject.modelUrl);
+      
+      if (currentProject.type === 'vision') {
+         // TODO: Phase 2 - vision payload
+         throw new Error("Vision backend proxy pending Phase 2");
       } else {
-        datasetJson = await lf.getItem(`model_${currentProject.id}`);
+         formData.append('text', sentText);
       }
-
-      const { retrainVisionImage } = await import('./visionML');
-      const newWeightsJson = await retrainVisionImage(imageSrc, datasetJson, correctLabel);
-
-      const { uploadToCloudinary } = await import('./cloud');
-      const newUrl = await uploadToCloudinary(newWeightsJson);
-
-      if (newUrl) {
-        await updateDoc(doc(db, "projects", currentProject.id), { modelUrl: newUrl });
-        setProjects(prev => prev.map(p => p.id === currentProject.id ? { ...p, modelUrl: newUrl } : p));
-      } else {
-        await lf.setItem(`model_${currentProject.id}`, newWeightsJson);
-      }
-      vibrate(ImpactStyle.Medium);
-      toast.success("Model successfully fine-tuned!", { id: loadingToast });
+      
+      const response = await fetch(`${apiUrl}/predict`, { method: 'POST', body: formData });
+      if (!response.ok) throw new Error("Backend inference proxy failed");
+      const result = await response.json();
+      
+      const botResponse = currentProject.type === 'vision' 
+        ? (responses[result.prediction] || `Decision: "${result.prediction}".`)
+        : result.prediction;
+        
+      setChatMessages(prev => [...prev, { role: 'bot', text: botResponse, intent: result.prediction, confidence: result.confidence || 0, originImage: sentImage }]);
     } catch (e) {
-      toast.error(e.message || "Fine-tuning failed", { id: loadingToast });
+      toast.error(e.message || "Prediction failed");
+    } finally {
+      setIsTyping(false);
     }
   };
 
-  const saveResponse = async (label, text) => {
-    if (!currentProject) return;
-    const newResponses = { ...responses, [label]: text };
-    setResponses(newResponses);
-    try {
-      await updateDoc(doc(db, "projects", currentProject.id), { responses: newResponses });
-      vibrate(ImpactStyle.Light);
-      toast.success('Response memorized.');
-    } catch { toast.error('Save failed'); }
-  };
-
-  const handleDownload = async () => {
-    if (!currentProject) return;
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL;
-      if (!apiUrl) throw new Error("VITE_API_URL is missing.");
-      const response = await fetch(`${apiUrl}/projects/${currentProject.id}/download`);
-      if (!response.ok) throw new Error('Download failed');
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const isJson = currentProject.model_format === 'toddler-bayes-v1';
-      const ext = isJson ? 'json' : 'pkl';
-      const a = document.createElement('a'); a.href = url; a.download = `model_${currentProject.id}.${ext}`;
-      document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); a.remove();
-      vibrate(ImpactStyle.Medium);
-      toast.success('Model exported.');
-    } catch { toast.error('Export failed'); }
-  };
-
-  const handleDelete = async () => {
-    if (!currentProject) return;
-    if (!window.confirm(`Delete project "${currentProject.name}"? This cannot be undone.`)) return;
-    const deletedId = currentProject.id;
-    try {
-      await deleteDoc(doc(db, "projects", deletedId));
-      const remaining = projects.filter(p => p.id !== deletedId);
-      setProjects(remaining);
-      setActiveProjectId(remaining[0]?.id || null);
-      vibrate(ImpactStyle.Heavy);
-      toast.success('Erased from existence.');
-    } catch { toast.error('Deletion failed'); }
-  };
-
-  const switchProject = (pid) => {
-    setActiveProjectId(pid);
-    setSidebarOpen(false);
-  };
-
-  if (loading) return (
-    <div className="min-h-screen bg-[var(--bg)] p-12 text-[var(--text-dim)] font-mono text-sm flex items-center justify-center">
-      <div style={{width: '32px', height: '32px', border: '3px solid #C6FF33', borderTopColor: 'transparent', borderRadius: '50%'}} className="animate-spin"></div>
-    </div>
-  );
-
-  if (projects.length === 0 || !currentProject) return <Onboarding onComplete={(p) => { setProjects(prev => [...prev, p]); setActiveProjectId(p.id); }} />;
-
-  const tabsForType = currentProject.type === 'vision'
-    ? ['overview', 'chat', 'dev']
-    : currentProject.type === 'generative'
-    ? ['chat', 'dev']
-    : ['overview', 'batch', 'chat', 'dev'];
-
-  // If the active tab isn't valid for this type, reset
   const effectiveTab = tabsForType.includes(activeTab) ? activeTab : tabsForType[0];
 
   return (
@@ -516,8 +377,8 @@ const Dashboard = () => {
                                 const { fetchFromCloudinary } = await import('./cloud');
                                 datasetJson = await fetchFromCloudinary(currentProject.modelUrl);
                               } else {
-                                const localforageModule = await import('localforage');
-                                const lf = localforageModule.default || localforageModule;
+                                throw new Error("Local training moved to BYOC/Cloud (Phase 2)");
+                                
                                 datasetJson = await lf.getItem(`model_${currentProject.id}`);
                               }
                               if (!datasetJson) throw new Error("Local model weights not found.");

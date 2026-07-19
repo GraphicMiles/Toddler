@@ -91,7 +91,7 @@ async function tick() {
   lock = true
   try {
     const h = await authHeaders()
-    const res = await fetch(`${apiUrl}/jobs/claim`, { method: 'POST', headers: h })
+    const res = await fetch(`${apiUrl}/jobs/claim?platform=mobile`, { method: 'POST', headers: h })
     if (!res.ok) { lock = false; return }
     const { job } = await res.json()
     if (!job) { self.postMessage({ type: 'status', status: 'idle' }); lock = false; return }
@@ -130,7 +130,7 @@ self.onmessage = async (e) => {
       running = true
       self.postMessage({ type: 'status', status: 'idle' })
       tick()
-      timer = setInterval(tick, 30000)
+      timer = setInterval(tick, 150000)
     }
   } else if (msg.type === 'stop') {
     running = false

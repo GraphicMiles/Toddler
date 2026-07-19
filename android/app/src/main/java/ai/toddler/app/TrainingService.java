@@ -41,7 +41,8 @@ public class TrainingService extends Service {
         Notification n = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Toddler")
                 .setContentText("Training a model on your device…")
-                .setSmallIcon(android.R.drawable.ic_popup_sync)
+                .setSmallIcon(R.drawable.ic_stat_training)
+                .setColor(0xFFC6FF33)
                 .setOngoing(true)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build();

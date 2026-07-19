@@ -321,13 +321,27 @@ async def claim_job(authorization: str | None = Header(default=None)):
     user = _verify_user(authorization)
     db = _require_db()
     uid = user["uid"]
-    # Find this user's oldest queued project
-    projects_q = (db.collection("projects")
-                    .where("ownerUid", "==", uid)
-                    .where("status", "in", ["queued", "awaiting_device"])
-                    .order_by("createdAt")
-                    .limit(1))
-    project_docs = list(projects_q.stream())
+    # Find this user's oldest queued project. Try ordered query first; fall
+    # back to in-memory sort if the composite Firestore index is missing.
+    try:
+        projects_q = (db.collection("projects")
+                        .where("ownerUid", "==", uid)
+                        .where("status", "in", ["queued", "awaiting_device"])
+                        .order_by("createdAt")
+                        .limit(1))
+        project_docs = list(projects_q.stream())
+    except Exception:
+        projects_q = (db.collection("projects")
+                        .where("ownerUid", "==", uid)
+                        .where("status", "in", ["queued", "awaiting_device"])
+                        .limit(50))
+        def _pkey(d):
+            ts = (d.to_dict() or {}).get("createdAt")
+            try:
+                return ts.timestamp() if hasattr(ts, "timestamp") else 0
+            except Exception:
+                return 0
+        project_docs = sorted(projects_q.stream(), key=_pkey)[:1]
     if not project_docs:
         return {"job": None}
     proj = project_docs[0]
@@ -424,14 +438,25 @@ async def complete_job(
     ).decode("ascii")
 
     proj_existing = proj.to_dict() or {}
+    cm_in = payload.get("confusionMatrix")
+    cm_list = []
+    labels_for_cm = list(payload.get("labels") or [])
+    if isinstance(cm_in, dict) and cm_in:
+        if not labels_for_cm:
+            labels_for_cm = list(cm_in.keys())
+        for actual in labels_for_cm:
+            cm_list.append([int((cm_in.get(actual) or {}).get(pred, 0)) for pred in labels_for_cm])
+    elif isinstance(cm_in, list):
+        cm_list = cm_in
+
     update_payload = {
         "status": "trained",
         "accuracy": float(payload.get("accuracy", 0)),
         "model_artifact_json": model_b64_json,
         "model_format": artifact_json.get("kind", "toddler-bayes-v1"),
-        "labels": list(payload.get("labels") or []),
+        "labels": labels_for_cm,
         "distribution": payload.get("distribution") or {},
-        "confusion_matrix": payload.get("confusionMatrix") or [],
+        "confusion_matrix": cm_list,
         "top_features": payload.get("topFeatures") or {},
         "health": "On-device trained",
         "trainedAt": firestore.SERVER_TIMESTAMP,
@@ -563,21 +588,61 @@ async def batch_predict(
 @app.get("/projects/{project_id}/export")
 async def export_project(project_id: str, x_api_key: str | None = Header(default=None, alias="X-API-Key")):
     try:
-        # Allow resolving either by path id OR x-api-key
         _, doc = _resolve_project(project_id, x_api_key)
         data = doc.to_dict()
         resolved_id = doc.id
-        model_b64 = data.get('model_artifact')
-        if not model_b64:
-            raise HTTPException(status_code=400, detail="Model artifact missing.")
-        model_bytes = base64.b64decode(model_b64)
-        
-        # Create a zip in memory
+
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
-            zip_file.writestr("model.pkl", model_bytes)
+            json_b64 = data.get('model_artifact_json')
+            if json_b64:
+                artifact = json.loads(base64.b64decode(json_b64).decode('utf-8'))
+                zip_file.writestr("model.json", json.dumps(artifact, indent=2))
+                script = (
+                    'import json, math, re, sys\n\n'
+                    f'# Toddler AI - Integration Script (on-device Bayes model)\n'
+                    f'# Project ID: {resolved_id}\n\n'
+                    'STOPWORDS = set("the a an and or but if then of at by for with about against between into through during before after above below to from up down in out on off over under again further is am are was were be been being have has had having do does did doing i me my myself we our ours ourselves you your yours yourself yourselves he him his himself she her hers herself it its itself they them their theirs themselves what which who whom this that these those as so than too very can will just don should now".split())\n\n'
+                    'def tok(s):\n'
+                    '    s = re.sub(r"[^a-z0-9\\s\']+", " ", str(s).lower())\n'
+                    '    return [w for w in s.split() if len(w) > 1 and w not in STOPWORDS]\n\n'
+                    'with open("model.json") as f:\n'
+                    '    m = json.load(f)\n'
+                    'idx = {w:i for i,w in enumerate(m["vocab"])}\n\n'
+                    'def predict(text):\n'
+                    '    toks = tok(text); tf = {}\n'
+                    '    for w in toks:\n'
+                    '        i = idx.get(w)\n'
+                    '        if i is None: continue\n'
+                    '        tf[i] = tf.get(i, 0) + 1\n'
+                    '    vec = {}; norm = 0.0\n'
+                    '    for i,c in tf.items():\n'
+                    '        v = c * m["idf"][i]; vec[i] = v; norm += v*v\n'
+                    '    norm = math.sqrt(norm) or 1.0\n'
+                    '    for i in vec: vec[i] /= norm\n'
+                    '    best, bestS = None, -1e300\n'
+                    '    for c in range(len(m["classes"])):\n'
+                    '        s = m["logPrior"][c]\n'
+                    '        for i,v in vec.items(): s += m["logProb"][c][i] * v\n'
+                    '        if s > bestS: bestS = s; best = m["classes"][c]\n'
+                    '    return best\n\n'
+                    'if __name__ == "__main__":\n'
+                    '    if len(sys.argv) > 1: print(predict(sys.argv[1]))\n'
+                    '    else: print("Usage: python toddler_run.py \'your text here\'")\n'
+                )
+                zip_file.writestr("toddler_run.py", script)
+                readme = f"""# Toddler AI Project: {data.get('name')}
 
-            script = f'''import pickle
+On-device Bayes model (JSON format). No dependencies beyond the Python stdlib:
+`python toddler_run.py "your sample text"`
+"""
+            else:
+                model_b64 = data.get('model_artifact')
+                if not model_b64:
+                    raise HTTPException(status_code=400, detail="Model artifact missing.")
+                model_bytes = base64.b64decode(model_b64)
+                zip_file.writestr("model.pkl", model_bytes)
+                script = f'''import pickle
 import sys
 
 # Toddler AI - Integration Script
@@ -594,9 +659,8 @@ if __name__ == "__main__":
     else:
         print("Usage: python toddler_run.py 'your text here'")
 '''
-            zip_file.writestr("toddler_run.py", script)
-
-            readme = f"""# Toddler AI Project: {data.get('name')}
+                zip_file.writestr("toddler_run.py", script)
+                readme = f"""# Toddler AI Project: {data.get('name')}
 
 To run your model locally:
 1. Install requirements: `pip install scikit-learn pandas`
@@ -620,6 +684,15 @@ async def download_model(project_id: str, x_api_key: str | None = Header(default
         _, doc = _resolve_project(project_id, x_api_key)
         data = doc.to_dict()
         resolved_id = doc.id
+        json_b64 = data.get('model_artifact_json')
+        if json_b64:
+            artifact = json.loads(base64.b64decode(json_b64).decode('utf-8'))
+            body = json.dumps(artifact, indent=2).encode('utf-8')
+            return Response(
+                content=body,
+                media_type="application/json",
+                headers={"Content-Disposition": f"attachment; filename=model_{resolved_id}.json"}
+            )
         model_b64 = data.get('model_artifact')
         if not model_b64:
             raise HTTPException(status_code=400, detail="Model artifact missing.")
@@ -653,6 +726,22 @@ MODEL_CATALOG = [
         "trainingRamMb": 1100, "inferenceRamMb": 360, "supportsTraining": False,
         "supportsTesting": True, "license": "Apache-2.0", "status": "published",
         "downloadUrl": "https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model_quantized.onnx"
+    },
+    {
+        "id": "toxicity-lite", "name": "Toxicity Lite", "type": "Text classification",
+        "description": "Detect toxic, threatening or harassing text.", "format": "onnx",
+        "sizeMb": 45, "parameterCount": 1200000, "minimumRamGb": 2,
+        "trainingRamMb": 700, "inferenceRamMb": 260, "supportsTraining": True,
+        "supportsTesting": True, "license": "Apache-2.0", "status": "published",
+        "downloadUrl": "https://huggingface.co/Xenova/toxic-bert/resolve/main/onnx/model_quantized.onnx"
+    },
+    {
+        "id": "emotion-mini", "name": "Emotion Mini", "type": "Text classification",
+        "description": "Classify emotions: joy, anger, sadness, fear, surprise, love.", "format": "onnx",
+        "sizeMb": 42, "parameterCount": 1000000, "minimumRamGb": 2,
+        "trainingRamMb": 700, "inferenceRamMb": 250, "supportsTraining": True,
+        "supportsTesting": True, "license": "Apache-2.0", "status": "published",
+        "downloadUrl": "https://huggingface.co/Xenova/emotion/resolve/main/onnx/model_quantized.onnx"
     },
     # --- VISION ---
     {

@@ -197,11 +197,28 @@ class ToddlerAgent:
         if self.db is None:
             return []
         try:
+            try:
+                q = (self.db.collection('training_jobs')
+                     .where('status', 'in', ['queued', 'awaiting_device'])
+                     .order_by('createdAt')
+                     .limit(limit))
+                results = list(q.stream())
+                if results:
+                    return results
+            except Exception as idx_err:
+                print(f"[agent] ordered query unavailable ({idx_err}); falling back")
             q = (self.db.collection('training_jobs')
-                 .where('status', '==', 'queued')
-                 .order_by('createdAt')
-                 .limit(limit))
-            return list(q.stream())
+                 .where('status', 'in', ['queued', 'awaiting_device'])
+                 .limit(max(limit * 5, 50)))
+            rows = list(q.stream())
+            def _key(d):
+                ts = (d.to_dict() or {}).get('createdAt')
+                try:
+                    return ts.timestamp() if hasattr(ts, 'timestamp') else 0
+                except Exception:
+                    return 0
+            rows.sort(key=_key)
+            return rows[:limit]
         except Exception as e:
             print(f"[agent] pending_jobs error: {e}")
             return []

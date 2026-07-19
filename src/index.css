@@ -222,3 +222,76 @@ footer { border-top: 1px solid var(--line); padding: 40px 0; }
   letter-spacing: 0.05em;
   margin-bottom: 8px;
 }
+
+/* ---------- DASHBOARD LAYOUT ---------- */
+.app-container {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
+}
+.sidebar-header {
+  padding: 20px 20px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+}
+.sidebar .p-4 { padding: 16px; }
+.sidebar .flex-grow { flex-grow: 1; }
+.sidebar .border-t { border-top: 1px solid var(--line); }
+
+.main-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+.dash-header {
+  flex-shrink: 0;
+}
+
+input, textarea, select, button { font-family: inherit; }
+
+/* Make Dashboard usable on narrow screens / tablets (sidebar drawer) */
+@media (max-width: 839px) {
+  .app-container { display: block; }
+  .sidebar {
+    position: fixed !important;
+    top: 0; left: 0; bottom: 0;
+    width: min(320px, 85vw);
+    z-index: 60;
+    height: 100vh !important;
+    transform: translateX(-100%);
+    transition: transform .2s ease;
+    box-shadow: 8px 0 24px rgba(0,0,0,0.5);
+  }
+  .sidebar.translate-x-0 { transform: translateX(0) !important; }
+  /* When sidebar is closed (default on mobile), the md:translate-x-0 tailwind
+     class would otherwise force it visible. Override that. */
+  .sidebar.-translate-x-full { transform: translateX(-100%) !important; }
+  .main-content { height: auto; min-height: 100vh; overflow: visible; }
+  .dash-header h1 { font-size: 28px !important; }
+  .panel { padding: 16px; }
+  .dash-header { padding: 16px !important; }
+  .p-8, .p-6 { padding: 16px !important; }
+  .grid-cols-3 { grid-template-columns: 1fr !important; }
+  textarea.test-input, .input-field { font-size: 16px !important; } /* prevent iOS zoom */
+  /* Ensure the mobile header bar (Toddler Dashboard + Menu button) shows */
+  .main-content .md\:hidden { display: flex !important; }
+}

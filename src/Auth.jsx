@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import { auth, googleProvider } from './firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithCredential, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithCredential, GoogleAuthProvider, sendPasswordResetEmail, sendEmailVerification } from 'firebase/auth';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { Capacitor } from '@capacitor/core';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 
 const Auth = ({ mode = 'login' }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [verifySent, setVerifySent] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -19,9 +22,19 @@ const Auth = ({ mode = 'login' }) => {
     setLoading(true);
     try {
       if (mode === 'login') {
-        await signInWithEmailAndPassword(auth, email, password);
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        // Remind unverified users once per login
+        if (cred.user && !cred.user.emailVerified) {
+          try { await cred.user.reload(); } catch {}
+        }
       } else {
-        await createUserWithEmailAndPassword(auth, email, password);
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        try {
+          await sendEmailVerification(cred.user);
+          setVerifySent(true);
+        } catch (vErr) {
+          console.warn('verification email failed', vErr);
+        }
       }
       navigate('/dashboard');
     } catch (err) {
@@ -29,6 +42,18 @@ const Auth = ({ mode = 'login' }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleReset = async (e) => {
+    e.preventDefault();
+    if (!email) { setError('Enter your email first, then tap Forgot password.'); return; }
+    setLoading(true); setError('');
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setResetSent(true);
+    } catch (err) {
+      setError(err.message);
+    } finally { setLoading(false); }
   };
 
   const handleGoogle = async () => {
@@ -133,13 +158,31 @@ const Auth = ({ mode = 'login' }) => {
             </button>
           </form>
 
-          <p className="mt-8 text-center text-sm text-[var(--text-dim)]">
-            {mode === 'login' ? (
-              <>New to Toddler? <Link to="/signup" className="text-[var(--accent-lime)] underline">Sign up</Link></>
-            ) : (
-              <>Already have an account? <Link to="/login" className="text-[var(--accent-lime)] underline">Log in</Link></>
+          {resetSent && (
+            <div className="mt-4 p-3 border border-[var(--accent-lime)] bg-[var(--accent-lime)]/10 text-[var(--accent-lime)] text-xs font-mono">
+              Password reset email sent — check your inbox.
+            </div>
+          )}
+          {verifySent && (
+            <div className="mt-4 p-3 border border-[var(--accent-lime)] bg-[var(--accent-lime)]/10 text-[var(--accent-lime)] text-xs font-mono">
+              Verification email sent to {email}. Click the link, then sign in.
+            </div>
+          )}
+
+          <div className="mt-6 flex flex-col gap-2 text-center text-sm">
+            {mode === 'login' && (
+              <button onClick={handleReset} disabled={loading} className="bg-transparent border-none text-[var(--text-dim)] hover:text-[var(--accent-lime)] cursor-pointer underline font-mono text-xs">
+                Forgot password?
+              </button>
             )}
-          </p>
+            <p className="text-[var(--text-dim)]">
+              {mode === 'login' ? (
+                <>New to Toddler? <Link to="/signup" className="text-[var(--accent-lime)] underline">Sign up</Link></>
+              ) : (
+                <>Already have an account? <Link to="/login" className="text-[var(--accent-lime)] underline">Log in</Link></>
+              )}
+            </p>
+          </div>
         </div>
       </div>
     </div>

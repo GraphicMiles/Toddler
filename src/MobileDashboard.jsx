@@ -6,6 +6,8 @@ import { signOut } from 'firebase/auth'
 import localforage from 'localforage'
 import { trainTextModel } from './textML'
 import { startTrainingForeground, stopTrainingForeground } from './nativeBridge'
+import { ensureNotifyPermission, notifyTrainingComplete } from './notify'
+import { LLM_CATALOG, loadLlm, chatLlm, unloadLlm, pickBestLlmModel, isWebGpuAvailable, addKnowledgeFile, clearKnowledge, getKnowledgeFiles, onLlmState } from './llm'
 
 // Free-tier caps by device RAM (bytes). Users above cap get upsell unless
 // their device can actually fit the training set.
@@ -48,51 +50,77 @@ const hfIdFor = model => model.hfId || ({
 
 const formatRam = value => value >= 1024 ? `${(value / 1024).toFixed(1)} GB` : `${value} MB`
 
-function ChatPanel({ catalog, downloaded, activeChatModel, setActiveChatModel, chatHistory, testText, setTestText, testing, sendChat, onGoToZoo }) {
+function ChatPanel({ catalog, downloaded, activeChatModel, setActiveChatModel, chatHistory, testText, setTestText, testing, sendChat, onGoToZoo, llmState, onUploadDocs, onClearDocs, knowledgeFiles }) {
   const scrollRef = React.useRef(null)
+  const fileRef = React.useRef(null)
   React.useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-  }, [chatHistory, testing])
-  const chatable = catalog.filter(m => chatableIds.has(m.id) && downloaded.includes(m.id))
+  }, [chatHistory, testing, llmState?.progress])
+  const chatable = catalog.filter(m =>
+    (chatableIds.has(m.id) && downloaded.includes(m.id)) ||
+    (m.task === 'chat' && (downloaded.includes(m.id) || (llmState?.ready && llmState.modelId === m.id)))
+  )
+  const activeModel = catalog.find(m => m.id === activeChatModel)
+  const isLlm = activeModel?.task === 'chat'
+  const loadingLlm = llmState?.loading && llmState?.modelId === activeChatModel
   if (!chatable.length) {
     return <div className="empty-panel"><Send size={28}/><h2>Chat with a model</h2>
-      <p>Download a text-classification model from the Model Zoo first (Sentiment, Toxicity, or Emotion).</p>
+      <p>Download a chat LLM (needs ≥4 GB RAM) or a text-classification model from the Model Zoo.</p>
       <button className="primary-button" onClick={onGoToZoo}>Browse Model Zoo</button></div>
   }
-  const activeModel = catalog.find(m => m.id === activeChatModel)
   return <div className="chat-panel">
     <div className="chat-model-picker">
       <label>MODEL</label>
       <select value={activeChatModel || ''} onChange={e => setActiveChatModel(e.target.value)}>
-        {chatable.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+        {chatable.map(m => <option key={m.id} value={m.id}>
+          {m.name}{m.task === 'chat' ? ' (LLM)' : ''}
+        </option>)}
       </select>
     </div>
+    {isLlm && <div className="chat-docs-bar">
+      <small>{knowledgeFiles.length ? `${knowledgeFiles.length} doc(s) in memory` : 'No documents added'}</small>
+      <button onClick={() => fileRef.current?.click()} className="chat-doc-btn">+ Add .txt/.csv/.js</button>
+      <input ref={fileRef} type="file" accept=".txt,.csv,.md,.json,.js,.py" multiple hidden
+        onChange={async e => {
+          for (const f of Array.from(e.target.files || [])) await onUploadDocs(f)
+          e.target.value = ''
+        }} />
+      {knowledgeFiles.length > 0 && <button onClick={onClearDocs} className="chat-doc-btn chat-doc-clear">Clear</button>}
+    </div>}
     <div className="chat-history" ref={scrollRef}>
       {chatHistory.length === 0 && <div className="chat-empty">
-        <p className="mobile-kicker">LOCAL INFERENCE</p>
-        <h3>Ask {activeModel?.name} anything</h3>
-        <small>Runs entirely on your device. No internet required after first load.</small>
+        <p className="mobile-kicker">{isLlm ? 'LOCAL LLM' : 'LOCAL INFERENCE'}</p>
+        <h3>{isLlm ? 'Talk to Toddler locally' : `Ask ${activeModel?.name} anything`}</h3>
+        <small>{isLlm
+          ? 'Runs entirely on your device via WebGPU. Add documents to "train" it on your data.'
+          : 'Runs entirely on your device. No internet required after first load.'}</small>
       </div>}
       {chatHistory.map((m, i) => (
         <div key={i} className={`chat-msg ${m.role === 'user' ? 'chat-msg-user' : m.error ? 'chat-msg-error' : 'chat-msg-bot'}`}>
-          {m.role === 'bot' && !m.error && <>
-            <b>{m.text}</b>
-            <small>{m.conf}% · {m.latency}ms · {m.modelName}</small>
-          </>}
-          {m.role === 'bot' && m.error && <span>{m.text}</span>}
-          {m.role === 'user' && <span>{m.text}</span>}
+          {m.role === 'bot' && !m.error && m.streaming ? (
+            <pre className="chat-stream">{m.text}<span className="chat-caret"/></pre>
+          ) : m.role === 'bot' && !m.error ? (
+            <>
+              <pre className="chat-bubble-text">{m.text}</pre>
+              {m.modelName && <small>{m.latency ? `${m.latency}ms · ` : ''}{m.modelName}</small>}
+            </>
+          ) : m.role === 'bot' && m.error ? <span>{m.text}</span>
+            : m.role === 'user' && <span>{m.text}</span>}
         </div>
       ))}
-      {testing && <div className="chat-msg chat-msg-bot chat-msg-loading"><span className="dot-pulse"/></div>}
+      {loadingLlm && <div className="chat-msg chat-msg-bot chat-msg-loading">
+        <span className="chat-loading-text">Loading model… {Math.round((llmState.progress||0)*100)}% {llmState.text ? '· ' + llmState.text.slice(0,50) : ''}</span>
+      </div>}
+      {testing && !loadingLlm && <div className="chat-msg chat-msg-bot chat-msg-loading"><span className="dot-pulse"/></div>}
     </div>
     <form className="chat-input" onSubmit={e => { e.preventDefault(); sendChat() }}>
       <input
         type="text" value={testText}
         onChange={e => setTestText(e.target.value)}
-        placeholder={testing ? 'Thinking…' : `Ask ${activeModel?.name}…`}
-        disabled={testing || !activeChatModel}
+        placeholder={testing || loadingLlm ? 'Thinking…' : isLlm ? `Message ${activeModel?.name.split(' ')[0]}…` : `Ask ${activeModel?.name}…`}
+        disabled={testing || loadingLlm || !activeChatModel}
       />
-      <button type="submit" disabled={testing || !testText.trim() || !activeChatModel} aria-label="Send">
+      <button type="submit" disabled={testing || loadingLlm || !testText.trim() || !activeChatModel} aria-label="Send">
         <Send size={16}/>
       </button>
     </form>
@@ -110,7 +138,9 @@ export default function MobileDashboard() {
   const downloadLock = React.useRef(new Set())
   const [ram, setRam] = React.useState(null)
   const [storage, setStorage] = React.useState(null)
-  const [catalog, setCatalog] = React.useState(fallbackModels)
+  // Merge static classification/vision/detection models with on-device LLMs.
+  // LLMs are added regardless of backend response; the backend doesn't know about them.
+  const [catalog, setCatalog] = React.useState([...fallbackModels, ...LLM_CATALOG])
   const [datasets, setDatasets] = React.useState([])
   const [uploading, setUploading] = React.useState(false)
   const [message, setMessage] = React.useState('')
@@ -143,6 +173,11 @@ export default function MobileDashboard() {
     if (byocWorkerRef.current) { byocWorkerRef.current.postMessage({type:'stop'}); byocWorkerRef.current.terminate(); byocWorkerRef.current = null }
     stopTrainingForeground().catch(() => {})
   }, [])
+
+  // Prompt for notification permission once after sign-in (Android 13+ requires it)
+  React.useEffect(() => {
+    if (authReady && auth.currentUser) ensureNotifyPermission().catch(() => {})
+  }, [authReady])
 
   // ---- BYOC worker lifecycle ----
   // Track when auth is ready so the worker boots even if auth.currentUser
@@ -209,6 +244,9 @@ export default function MobileDashboard() {
           }
         } else if (msg.type === 'message') {
           showMessage(msg.text, 4000)
+          if (/training complete/i.test(msg.text || '')) {
+            notifyTrainingComplete({ id: 'byoc-' + Date.now(), title: 'Toddler', body: msg.text }).catch(() => {})
+          }
         } else if (msg.type === 'needToken') {
           sendToken()
         } else if (msg.type === 'trainText') {
@@ -301,7 +339,10 @@ export default function MobileDashboard() {
   React.useEffect(() => {
     setRam(navigator.deviceMemory ? Math.round(navigator.deviceMemory) : 4)
     if (apiUrl) {
-      fetch(`${apiUrl}/models`).then(r => r.ok ? r.json() : null).then(data => data?.models && setCatalog(data.models)).catch(() => {})
+      fetch(`${apiUrl}/models`).then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.models) setCatalog([...data.models, ...LLM_CATALOG])
+        }).catch(() => {})
     }
     if (navigator.storage?.estimate) navigator.storage.estimate().then(({ quota, usage }) => setStorage({ quota, usage }))
     if (!apiUrl || !authReady || !auth.currentUser) return
@@ -317,43 +358,68 @@ export default function MobileDashboard() {
   }, [apiUrl, authReady])
 
   const saveModels = next => { setDownloaded(next); localStorage.setItem('toddler-models', JSON.stringify(next)) }
+
+  // Load LLMs via @mlc-ai/web-llm (WebGPU, cached in IndexedDB by the library)
+  const downloadLlm = async model => {
+    setDownloading(model.id); setDownloadError(''); setFailedModel(null)
+    try {
+      await loadLlm(model.id, (p, text) => {
+        setDownloadProgress(Math.round((p || 0) * 100))
+      })
+      // mark as "downloaded" in the UI permanently
+      const saved = new Set(downloaded); saved.add(model.id)
+      saveModels([...saved])
+      setDownloadProgress(100)
+      showMessage(`${model.name} ready — open Chat to talk.`, 3500)
+      // Jump to chat tab, select this model
+      setActiveChatModel(model.id)
+      setTab('chat')
+    } catch (error) {
+      setDownloadError(error.message); setFailedModel(model)
+    } finally { setDownloading(null); setDownloadProgress(0) }
+  }
+
   const download = async model => {
     if (downloadLock.current.has(model.id)) return
     downloadLock.current.add(model.id)
+    // LLM models go through web-llm's own downloader/cache
+    if (model.task === 'chat') {
+      downloadLock.current.delete(model.id); return downloadLlm(model)
+    }
     setDownloading(model.id); setDownloadProgress(0); setDownloadError(''); setFailedModel(null)
     try {
       if (!navigator.onLine) throw new Error('You are offline. Connect to the internet to download this model.')
       const url = model.downloadUrl || model.modelUrl
       if (!url) throw new Error('This model is not published for download yet.')
-      if (model.downloadUrl || model.modelUrl) {
-        const partialKey = `toddler-model-partial-${model.id}`
-        const partial = await localforage.getItem(partialKey)
-        const offset = partial instanceof Blob ? partial.size : 0
-        const headers = offset ? { Range: `bytes=${offset}-` } : undefined
-        const response = await fetch(url, { headers })
-        if (!response.ok && response.status !== 206) throw new Error('Model download failed.')
-        const resumed = offset > 0 && response.status === 206
-        const base = resumed ? partial : new Blob([])
-        const contentLength = Number(response.headers.get('content-length')) || 0
-        const total = resumed ? offset + contentLength : contentLength
-        const reader = response.body?.getReader(); const chunks = []; let received = offset
-        if (reader) {
-          while (true) {
-            const part = await reader.read()
-            if (part.done) break
-            chunks.push(part.value); received += part.value.length
-            await localforage.setItem(partialKey, new Blob([base, ...chunks]))
-            if (total) setDownloadProgress(Math.min(99, Math.round(received / total * 100)))
-          }
-        } else { chunks.push(new Uint8Array(await response.arrayBuffer())); received += chunks[0].length }
-        const blob = new Blob([base, ...chunks])
-        const expectedBytes = Number(model.sizeBytes || 0)
-        if (expectedBytes && blob.size < expectedBytes * 0.95) throw new Error('Download interrupted. Tap Continue download to resume.')
-        await localforage.setItem(`toddler-model-${model.id}`, blob)
-        await localforage.removeItem(partialKey)
-        setDownloadProgress(100)
-      }
-      saveModels([...new Set([...downloaded, model.id])]); setTab('train')
+      const partialKey = `toddler-model-partial-${model.id}`
+      const partial = await localforage.getItem(partialKey)
+      const offset = partial instanceof Blob ? partial.size : 0
+      const headers = offset ? { Range: `bytes=${offset}-` } : undefined
+      const response = await fetch(url, { headers })
+      if (!response.ok && response.status !== 206) throw new Error('Model download failed.')
+      const resumed = offset > 0 && response.status === 206
+      const base = resumed ? partial : new Blob([])
+      const contentLength = Number(response.headers.get('content-length')) || 0
+      const total = resumed ? offset + contentLength : contentLength
+      const reader = response.body?.getReader(); const chunks = []; let received = offset
+      if (reader) {
+        while (true) {
+          const part = await reader.read()
+          if (part.done) break
+          chunks.push(part.value); received += part.value.length
+          await localforage.setItem(partialKey, new Blob([base, ...chunks]))
+          if (total) setDownloadProgress(Math.min(99, Math.round(received / total * 100)))
+        }
+      } else { chunks.push(new Uint8Array(await response.arrayBuffer())); received += chunks[0].length }
+      const blob = new Blob([base, ...chunks])
+      const expectedBytes = Number(model.sizeBytes || 0)
+      if (expectedBytes && blob.size < expectedBytes * 0.95) throw new Error('Download interrupted. Tap Continue download to resume.')
+      await localforage.setItem(`toddler-model-${model.id}`, blob)
+      await localforage.removeItem(partialKey)
+      setDownloadProgress(100)
+      saveModels([...new Set([...downloaded, model.id])])
+      if (model.task === 'text-classification') { setActiveChatModel(null); setTab('chat') }
+      else setTab('train')
     } catch (error) { setDownloadError(error.message); setFailedModel(model) } finally { downloadLock.current.delete(model.id); setDownloading(null); setDownloadProgress(0) }
   }
 
@@ -398,17 +464,30 @@ export default function MobileDashboard() {
     return bytes ? Math.round(bytes / 1048576) : 0
   }
   const freeStorageMb = storage ? (storage.quota - storage.usage) / 1048576 : 10240
-  const isPublished = model => !!(model.downloadUrl || model.modelUrl) && (model.status === 'published' || model.status == null)
+  const isPublished = model => !!(model.downloadUrl || model.modelUrl || model.task === 'chat') && (model.status === 'published' || model.status == null)
   const canDownload = model => isPublished(model) && modelSize(model) <= freeStorageMb
-  const canFit = model => modelRam(model) <= availableRam && canDownload(model)
+  // LLMs have WebGPU requirement above the RAM gate
+  const modelUnavailableReason = model => {
+    if (model.task === 'chat' && !isWebGpuAvailable()) return 'Needs WebGPU (recent Chrome on Android).'
+    if (model.minRamGb && (ram || 4) < model.minRamGb) return `Needs ≥${model.minRamGb} GB RAM`
+    return null
+  }
+  const canFit = model => modelRam(model) <= availableRam && canDownload(model) && !modelUnavailableReason(model)
   const recommended = catalog.filter(canFit)
   const baseList = category === 'Recommended' ? recommended
-                 : category === 'Downloaded' ? catalog.filter(m => downloaded.includes(m.id))
+                 : category === 'Downloaded' ? catalog.filter(m => downloaded.includes(m.id) || m.task === 'chat' && llmReadyModels.has(m.id))
                  : category === 'All' ? catalog
+                 : category === 'Chat' || category === 'LLM' ? catalog.filter(m => m.task === 'chat')
                  : category === 'Vision' ? catalog.filter(m => /image|vision/i.test(m.type || ''))
                  : category === 'Detection' ? catalog.filter(m => /detection|pose|face/i.test(m.type || ''))
+                 : category === 'Embeddings' ? catalog.filter(m => /embedding/i.test(m.type || ''))
                  : catalog.filter(m => (m.type || '').toLowerCase().includes(category.toLowerCase()))
   const visibleModels = baseList
+
+  // Track which LLM models are fully loaded in memory (so "Downloaded" filter shows them)
+  const [llmState, setLlmState] = React.useState({ ready: false, loading: false, modelId: null, progress: 0, text: '' })
+  const llmReadyModels = React.useMemo(() => new Set(llmState.ready && llmState.modelId ? [llmState.modelId] : []), [llmState])
+  React.useEffect(() => onLlmState(setLlmState), [])
 
   const removeModel = async id => { await localforage.removeItem(`toddler-model-${id}`); saveModels(downloaded.filter(item => item !== id)) }
   const deleteAccount = async () => {
@@ -423,14 +502,24 @@ export default function MobileDashboard() {
     } catch (error) { showMessage(error.message, 4000) }
   }
 
-  // Pick a default chat model once any text model is downloaded
+  // Pick a default chat model once any chatable model is downloaded.
+  // Prefer LLMs over classifiers when both are available.
   React.useEffect(() => {
-    const chatable = catalog.filter(m => chatableIds.has(m.id) && downloaded.includes(m.id))
-    if (!chatable.length) { setActiveChatModel(null); setChatHistory([]); return }
-    if (!activeChatModel || !chatable.find(m => m.id === activeChatModel)) {
-      setActiveChatModel(chatable[0].id)
+    const chatable = catalog.filter(m =>
+      (chatableIds.has(m.id) && downloaded.includes(m.id)) ||
+      (m.task === 'chat' && (downloaded.includes(m.id) || (llmState.ready && llmState.modelId === m.id)))
+    )
+    if (!chatable.length) {
+      // Don't clear activeChatModel if user's current model is still loading
+      if (!llmState.loading) { setActiveChatModel(null); setChatHistory([]) }
+      return
     }
-  }, [downloaded, catalog, activeChatModel])
+    if (!activeChatModel || !chatable.find(m => m.id === activeChatModel)) {
+      // Prefer the LLM with the biggest minRamGb that fits, otherwise first classifier
+      const llms = chatable.filter(m => m.task === 'chat').sort((a,b)=>(b.minRamGb||0)-(a.minRamGb||0))
+      setActiveChatModel((llms[0] || chatable[0]).id)
+    }
+  }, [downloaded, catalog, activeChatModel, llmState])
 
   const sendChat = async () => {
     const text = testText.trim()
@@ -438,45 +527,76 @@ export default function MobileDashboard() {
     const modelId = activeChatModel
     if (!modelId) return
     const model = catalog.find(m => m.id === modelId)
-    const hfId = model && hfIdFor(model)
-    if (!hfId) return
+    if (!model) return
     setTestText('')
     setChatHistory(h => [...h, { role: 'user', text }])
     setTesting(true)
     const started = performance.now()
     try {
-      let entry = classifiersRef.current[modelId]
-      if (!entry?.classifier) {
-        // Set loading state
-        classifiersRef.current[modelId] = entry = { loading: true }
-        const { pipeline, env } = await import('@huggingface/transformers')
-        env.allowLocalModels = false; env.useBrowserCache = true
-        entry.classifier = await pipeline('text-classification', hfId, { quantized: true })
-        entry.loading = false
-      } else if (entry.loading) {
-        // Wait briefly for in-flight load
-        for (let i = 0; i < 100; i++) {
-          await new Promise(r => setTimeout(r, 100))
-          if (classifiersRef.current[modelId]?.classifier) break
+      if (model.task === 'chat') {
+        // ---- On-device LLM via Web-LLM (streaming) ----
+        const botIdx = chatHistory.length + 1 // after pushing user above + placeholder
+        setChatHistory(h => [...h, { role: 'bot', text: '', streaming: true, modelName: model.name }])
+        await chatLlm({
+          modelId, message: text,
+          onStart: () => {},
+          onChunk: (delta, full) => {
+            setChatHistory(h => h.map((m, i) => i === botIdx ? { ...m, text: full } : m))
+          },
+        })
+        setChatHistory(h => h.map((m, i) => i === botIdx
+          ? { ...m, streaming: false, latency: Math.round(performance.now() - started) }
+          : m))
+      } else {
+        // ---- HF transformers text-classification ----
+        const hfId = hfIdFor(model)
+        if (!hfId) throw new Error('No model reference')
+        let entry = classifiersRef.current[modelId]
+        if (!entry?.classifier) {
+          classifiersRef.current[modelId] = entry = { loading: true }
+          const { pipeline, env } = await import('@huggingface/transformers')
+          env.allowLocalModels = false; env.useBrowserCache = true
+          entry.classifier = await pipeline('text-classification', hfId, { quantized: true })
+          entry.loading = false
+        } else if (entry.loading) {
+          for (let i = 0; i < 100; i++) {
+            await new Promise(r => setTimeout(r, 100))
+            if (classifiersRef.current[modelId]?.classifier) break
+          }
         }
+        const classifier = classifiersRef.current[modelId].classifier
+        if (!classifier) throw new Error('Model failed to load')
+        const output = await classifier(text)
+        const result = Array.isArray(output) ? output[0] : output
+        setChatHistory(h => [...h, {
+          role: 'bot',
+          text: `${result.label}  (${Math.round((result.score||0)*100)}%)`,
+          modelName: model.name,
+          latency: Math.round(performance.now() - started),
+        }])
       }
-      const classifier = classifiersRef.current[modelId].classifier
-      if (!classifier) throw new Error('Model failed to load')
-      const output = await classifier(text)
-      const result = Array.isArray(output) ? output[0] : output
-      setChatHistory(h => [...h, {
-        role: 'bot',
-        text: result.label,
-        conf: Math.round((result.score || 0) * 100),
-        modelName: model.name,
-        latency: Math.round(performance.now() - started),
-      }])
     } catch (error) {
-      setChatHistory(h => [...h, { role: 'bot', text: `Error: ${error.message || error}`, error: true }])
+      setChatHistory(h => {
+        // Remove placeholder streaming bot message if it exists
+        const trimmed = h.filter(m => !(m.streaming && m.text === ''))
+        return [...trimmed, { role: 'bot', text: `Error: ${error.message || error}`, error: true }]
+      })
     } finally {
       setTesting(false)
     }
   }
+
+  // RAG file uploads → feeds LLM context
+  const handleUploadDocs = async (file) => {
+    try {
+      const res = await addKnowledgeFile(file)
+      showMessage(`Added ${res.filename} (${res.chunks} chunks)`, 2500)
+      // Force rerender
+      setChatHistory(h => [...h])
+    } catch (err) { showMessage(err.message || 'Failed to read document', 3000) }
+  }
+  const handleClearDocs = () => { clearKnowledge(); showMessage('Documents cleared.', 2000); setChatHistory(h=>[...h]) }
+  const knowledgeFiles = getKnowledgeFiles()
 
   return <div className="mobile-app">
     <header className="mobile-header"><div className="mobile-brand"><span className="mobile-mark" /> TODDLER</div><div className="mobile-header-actions">
@@ -497,7 +617,20 @@ export default function MobileDashboard() {
       <section className="device-stats"><div><MemoryStick size={15}/><span>RAM</span><b>{ram || '—'} GB</b></div><div><HardDrive size={15}/><span>STORAGE</span><b>{storage ? `${Math.round((storage.quota - storage.usage) / 1e9)} GB free` : 'Checking'}</b></div><div><Cpu size={15}/><span>MODE</span><b>{ram && ram <= 2 ? 'Low memory' : 'Mobile'}</b></div></section>
       <nav className="mobile-tabs">{[['zoo','Model Zoo',Zap],['train','Train',Play],['chat','Chat',Send],['dev','Dev',Code2]].map(([id, label, Icon]) => <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}><Icon size={16}/>{label}</button>)}</nav>
 
-      {tab === 'zoo' && <><div className="section-heading"><div><p className="mobile-kicker">MODEL ZOO</p><h2>Recommended for you</h2></div><span className="model-count">{recommended.length} compatible</span></div><div className="model-filters">{['All','Text','Vision','Detection','Embeddings','Recommended','Downloaded'].map(item => <button key={item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</div>{proPrompt && <div className="pro-upsell"><div><b>Device can't run this job.</b><small>{proPrompt.reason === 'vision' ? 'Vision BYOC jobs need cloud training.' : `Requires ~${proPrompt.requiredMb} MB training RAM.`}</small></div><button className="small-button" onClick={() => window.open('https://toddler.ai/pricing','_blank')}>Upgrade to Pro</button><button className="model-delete" onClick={() => setProPrompt(null)}>Dismiss</button></div>}{downloadError && <div className="download-error"><span>{downloadError}</span>{failedModel && <button className="retry-download" onClick={() => download(failedModel)}>Continue download</button>}</div>}<div className="model-list">{visibleModels.map(model => { const isDownloaded = downloaded.includes(model.id); const fits = canFit(model); return <article className={`model-card ${!fits ? 'disabled' : ''}`} key={model.id}><button className="model-icon model-info-trigger" style={{ color: model.color }} onClick={() => setSelectedModel(model)} aria-label={`View ${model.name} details`}><Zap size={19}/></button><div className="model-info" onClick={() => setSelectedModel(model)}><div className="model-title"><h3>{model.name}</h3>{isDownloaded && <CheckCircle2 size={16} className="success"/>}</div><p>{model.type}</p><small>{model.description}</small><div className="model-meta"><span>{modelSize(model)} MB</span><span>{model.params || `${(model.parameterCount || 0) / 1000000}M`} params</span><span>~{formatRam(modelRam(model))} RAM</span></div><div className="model-compatibility">{fits ? `✓ Fits your ${ram || 4} GB device` : modelRam(model) > availableRam ? `Needs ${formatRam(modelRam(model))} RAM` : `Needs ${modelSize(model)} MB storage`}</div></div><button className="model-action" disabled={isDownloaded || downloading === model.id || !fits || !isPublished(model)} onClick={() => download(model)}>{isDownloaded ? 'Downloaded' : downloading === model.id ? `Downloading ${downloadProgress}%…` : !isPublished(model) ? 'Coming soon' : fits ? <><Download size={15}/> Download</> : 'Not compatible'}</button>{isDownloaded && <button className="model-delete" onClick={() => removeModel(model.id)}>Remove local copy</button>}</article>})}</div></>}
+      {tab === 'zoo' && <><div className="section-heading"><div><p className="mobile-kicker">MODEL ZOO</p><h2>Recommended for you</h2></div><span className="model-count">{recommended.length} compatible</span></div><div className="model-filters">{['All','Chat','Text','Vision','Detection','Embeddings','Recommended','Downloaded'].map(item => <button key={item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</div>{proPrompt && <div className="pro-upsell"><div><b>Device can't run this job.</b><small>{proPrompt.reason === 'vision' ? 'Vision BYOC jobs need cloud training.' : `Requires ~${proPrompt.requiredMb} MB training RAM.`}</small></div><button className="small-button" onClick={() => window.open('https://toddler.ai/pricing','_blank')}>Upgrade to Pro</button><button className="model-delete" onClick={() => setProPrompt(null)}>Dismiss</button></div>}{downloadError && <div className="download-error"><span>{downloadError}</span>{failedModel && <button className="retry-download" onClick={() => download(failedModel)}>Continue download</button>}</div>}<div className="model-list">{visibleModels.map(model => { const isDownloaded = downloaded.includes(model.id); const fits = canFit(model); return <article className={`model-card ${!fits ? 'disabled' : ''}`} key={model.id}><button className="model-icon model-info-trigger" style={{ color: model.color }} onClick={() => setSelectedModel(model)} aria-label={`View ${model.name} details`}><Zap size={19}/></button><div className="model-info" onClick={() => setSelectedModel(model)}><div className="model-title"><h3>{model.name}</h3>{isDownloaded && <CheckCircle2 size={16} className="success"/>}</div><p>{model.type}</p><small>{model.description}</small><div className="model-meta"><span>{modelSize(model)} MB</span><span>{model.params || `${(model.parameterCount || 0) / 1000000}M`} params</span><span>~{formatRam(modelRam(model))} RAM</span></div><div className="model-compatibility">
+                  {fits ? `✓ Fits your ${ram || 4} GB device` :
+                    modelUnavailableReason(model) ||
+                    (modelRam(model) > availableRam ? `Needs ${formatRam(modelRam(model))} RAM` : `Needs ${modelSize(model)} MB storage`)}
+                </div></div>
+                <button className="model-action"
+                  disabled={isDownloaded || downloading === model.id || !fits || !isPublished(model)}
+                  onClick={() => download(model)}>
+                  {isDownloaded ? (model.task === 'chat' ? 'Ready' : 'Downloaded')
+                    : downloading === model.id ? `Downloading ${downloadProgress}%…`
+                    : !isPublished(model) ? 'Coming soon'
+                    : fits ? <><Download size={15}/> {model.task === 'chat' ? 'Download LLM' : 'Download'}</>
+                    : 'Not compatible'}
+                </button>{isDownloaded && <button className="model-delete" onClick={() => removeModel(model.id)}>Remove local copy</button>}</article>})}</div></>}
 
       {tab === 'train' && <div className="empty-panel"><Play size={28}/><h2>Your downloaded models</h2>{downloaded.length ? <><div className="downloaded-list">{catalog.filter(model => downloaded.includes(model.id)).map(model => <div className="downloaded-row" key={model.id}><div><b>{model.name}</b><span>{modelSize(model)} MB · ready to train</span></div><label className="small-button">{uploading ? 'Uploading…' : 'Upload dataset'}<input type="file" accept=".csv,.json" hidden disabled={uploading} onChange={uploadDataset}/><ChevronRight size={14}/></label></div>)}</div>{message && <p className="upload-message">{message}</p>}{datasets.length > 0 && <div className="downloaded-list"><p className="mobile-kicker">UPLOADED DATASETS</p>{datasets.map(dataset => <div className="downloaded-row" key={dataset.id}><div><b>{dataset.name}</b><span>{Math.round((dataset.sizeBytes || dataset.bytes || 0) / 1024)} KB · uploaded</span></div><button className="small-button" disabled title="On-device training is coming soon">Coming soon <ChevronRight size={14}/></button></div>)}</div>}</> : <><p>Download a model from the Model Zoo to start training locally.</p><button className="primary-button" onClick={() => setTab('zoo')}>Browse Model Zoo</button></>}</div>}
       {tab === 'chat' && <ChatPanel
@@ -511,6 +644,10 @@ export default function MobileDashboard() {
         testing={testing}
         sendChat={sendChat}
         onGoToZoo={() => setTab('zoo')}
+        llmState={llmState}
+        onUploadDocs={handleUploadDocs}
+        onClearDocs={handleClearDocs}
+        knowledgeFiles={knowledgeFiles}
       />}
       {tab === 'dev' && <div className="empty-panel dev-panel"><Code2 size={28}/><h2>Build with your models</h2><p>Use the local API to call models running on this device.</p><pre id="toddler-dev-snippet">{`fetch('http://localhost:8787/predict', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ text })\n}).then(r => r.json()).then(console.log)`}</pre><button className="small-button" onClick={() => {
         const el = document.getElementById('toddler-dev-snippet');

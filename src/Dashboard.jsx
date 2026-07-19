@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import Onboarding from './Onboarding';
+import { notifyTrainingComplete } from './notify';
 
 const vibrate = (style = ImpactStyle.Light) => {
   if (Capacitor.isNativePlatform()) {
@@ -66,6 +67,16 @@ const Dashboard = () => {
         const querySnapshot = await getDocs(q);
         if (cancelled) return
         const data = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        // Fire a local notification when a project just finished training
+        data.forEach(p => {
+          if (p.status === 'trained') {
+            const was = projects.find(pp => pp.id === p.id);
+            if (was && was.status !== 'trained' && was.status !== 'failed') {
+              const acc = typeof p.accuracy === 'number' ? ` (${Math.round(p.accuracy*100)}% accuracy)` : '';
+              notifyTrainingComplete({ id: p.id, title: 'Toddler', body: `"${p.name || 'Model'}" ready${acc}.` });
+            }
+          }
+        });
         setProjects(data);
         if (data.length) {
           setActiveProjectId(prev => prev && data.find(p => p.id === prev) ? prev : data[0].id);

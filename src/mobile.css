@@ -824,8 +824,17 @@
 .chat-msg-bot {
   align-self: flex-start; background: var(--surface-2); color: var(--text);
   border: 1px solid var(--line); border-bottom-left-radius: 2px;
-  display: flex; flex-direction: column; gap: 4px;
+  display: flex; flex-direction: column; gap: 6px;
+  max-width: 88%;
 }
+.chat-bubble-text {
+  margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 14px; line-height: 1.45; font-family: inherit;
+}
+.chat-stream {
+  margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 14px; line-height: 1.45; font-family: inherit;
+}
+.chat-caret { display: inline-block; width: 7px; height: 14px; background: var(--accent-lime); margin-left: 2px; vertical-align: middle; animation: blinkCaret 1s infinite; }
+@keyframes blinkCaret { 0%,49%{opacity:1;} 50%,100%{opacity:0;} }
 .chat-msg-bot b { color: var(--accent-lime); font-size: 15px; }
 .chat-msg-bot small { font-size: 10px; color: var(--text-faint); font-family: var(--mono, monospace); }
 .chat-msg-error {
@@ -833,6 +842,20 @@
   border: 1px solid rgba(255,80,80,0.3); font-size: 12px;
 }
 .chat-msg-loading { padding: 14px; display: flex; align-items: center; justify-content: center; }
+.chat-loading-text { font-size: 11px; color: var(--text-faint); font-family: var(--mono, monospace); }
+.chat-docs-bar {
+  display: flex; gap: 8px; align-items: center; padding: 8px 12px;
+  border-bottom: 1px solid var(--line); background: var(--surface-2); flex-wrap: wrap;
+}
+.chat-docs-bar small { font-size: 10px; color: var(--text-faint); font-family: var(--mono, monospace); flex: 1; }
+.chat-doc-btn {
+  background: transparent; color: var(--accent-lime); border: 1px solid var(--accent-lime);
+  padding: 4px 10px; font-size: 10px; font-family: var(--mono, monospace); cursor: pointer;
+  letter-spacing: 0.05em;
+}
+.chat-doc-btn:hover { background: var(--accent-lime); color: #14130F; }
+.chat-doc-clear { color: #ff8a8a; border-color: #ff8a8a; }
+.chat-doc-clear:hover { background: #ff8a8a; color: #14130F; }
 .dot-pulse {
   width: 8px; height: 8px; border-radius: 50%; background: var(--accent-lime);
   animation: chatPulse 1s infinite ease-in-out;

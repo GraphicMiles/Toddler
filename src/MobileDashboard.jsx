@@ -271,7 +271,6 @@ export default function MobileDashboard() {
         if (data.length) setActiveProjectId(prev => prev && data.find(p => p.id === prev) ? prev : data[0].id);
         else {
           setActiveProjectId(null);
-          setShowOnboarding(true);
         }
         
         const anyTraining = data.some(p => ['queued','training','device_training','awaiting_device'].includes(p.status))
@@ -617,13 +616,65 @@ export default function MobileDashboard() {
     );
   }
 
-  if (showOnboarding || projects.length === 0) {
+  if (projects.length === 0 && !showOnboarding) {
     return (
       <div className="mobile-app td-split-layout">
         <div className="td-sidebar-desktop">
           <Sidebar {...sidebarProps} isMobile={false} onClose={()=>{}}/>
         </div>
-        <main className="td-main-content">
+        {sidebarOpen && <>
+          <div className="drawer-backdrop" onClick={()=>setSidebarOpen(false)}/>
+          <Sidebar {...sidebarProps} isMobile={true} onClose={()=>setSidebarOpen(false)}/>
+        </>}
+        <main className="td-main-content" style={{ display: 'flex', flexDirection: 'column' }}>
+          <header className="dash-header p-6 flex flex-wrap justify-between items-center gap-4 bg-[var(--surface)] border-b border-[var(--line)]">
+            <div className="md:hidden flex items-center gap-4 w-full">
+              <button className="btn-ghost !px-2" onClick={() => setSidebarOpen(true)}>
+                <Menu size={20} />
+              </button>
+              <h1 className="text-xl font-display font-bold flex-1">Toddler Control</h1>
+            </div>
+            <div className="hidden md:block">
+              <h1 className="text-4xl font-display font-bold">Welcome to Toddler</h1>
+            </div>
+          </header>
+          
+          <div className="p-6 md:p-12 flex-grow overflow-y-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div>
+              <p className="text-[var(--text-dim)]">Toddler trains AI models securely on your own hardware. The web app is just your control tower — connect a worker device or upload a dataset to get started.</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 max-w-2xl">
+              <div className="panel border border-[var(--line)] bg-[var(--surface-2)]">
+                <h3 className="font-bold mb-2 text-[var(--accent-lime)]">1. Connect a Worker</h3>
+                <p className="text-sm text-[var(--text-faint)] mb-6">Download the Toddler app on your phone or desktop to provide actual compute power.</p>
+                <div className="bg-[var(--bg)] p-4 border border-[var(--line)] text-center">
+                  <div className="text-[10px] uppercase font-mono text-[var(--text-dim)] mb-1">Your Pairing Code</div>
+                  <div className="text-2xl font-mono text-[var(--text)] tracking-widest">{auth.currentUser?.uid?.substring(0, 6).toUpperCase() || '749012'}</div>
+                </div>
+              </div>
+
+              <div className="panel border border-[var(--line)] bg-[var(--surface-2)] flex flex-col">
+                <h3 className="font-bold mb-2">2. Train a Model</h3>
+                <p className="text-sm text-[var(--text-faint)] mb-6 flex-grow">Upload a CSV or image dataset. We'll add the job to your queue and push it to your connected devices.</p>
+                <button className="btn btn-solid w-full" onClick={() => setShowOnboarding(true)}>
+                  + Create Project
+                </button>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (showOnboarding) {
+    return (
+      <div className="mobile-app td-split-layout">
+        <div className="td-sidebar-desktop">
+          <Sidebar {...sidebarProps} isMobile={false} onClose={()=>{}}/>
+        </div>
+        <main className="td-main-content overflow-y-auto">
            <Onboarding onComplete={handleOnboardingComplete} />
         </main>
       </div>

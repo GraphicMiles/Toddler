@@ -8,4 +8,13 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  build: {
+    rollupOptions: {
+      // @mlc-ai/web-llm is lazy-loaded at runtime (6MB+); don't bundle it.
+      external: ['@mlc-ai/web-llm'],
+    },
+  },
+  optimizeDeps: {
+    exclude: ['@mlc-ai/web-llm'],
+  },
 })

@@ -2,14 +2,15 @@ import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import LandingPage from './LandingPage'
 import Auth from './Auth'
-import Dashboard from './Dashboard'
-import MobileDashboard from './MobileDashboard'
+import Zoo from './Zoo'
+import ModelDetail from './ModelDetail'
+import TrainWizard from './TrainWizard'
+import MyModels from './MyModels'
+import ModelWorkspace from './ModelWorkspace'
+import MobileApp from './MobileApp'
 import MobileWrapper from './MobileWrapper'
 import { Capacitor } from '@capacitor/core'
 
-// Use the mobile UI on native AND on narrow/coarse-touch viewports (phones in
-// mobile Chrome, small tablets, etc.). Desktop Dashboard has a sidebar layout
-// that doesn't work on phone-sized screens.
 function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState(() => {
     if (Capacitor.isNativePlatform()) return true
@@ -26,6 +27,7 @@ function useIsMobile() {
   }, [])
   return isMobile
 }
+
 import { App as CapApp } from '@capacitor/app'
 import { auth } from './firebase'
 import { onAuthStateChanged } from 'firebase/auth'
@@ -38,10 +40,9 @@ function DeepLinkHandler() {
     const handler = ({ url }) => {
       try {
         const u = new URL(url)
-        // toddler://login, toddler://signup, https://toddler.ai/login, etc.
         const path = u.host + u.pathname.replace(/\/+$/, '')
         if (path === 'login' || path === 'signup') navigate(`/${path}`)
-        else if (path === 'dashboard' || path === '') navigate('/dashboard')
+        else if (path === 'zoo' || path === 'dashboard' || path === '') navigate('/zoo')
       } catch {}
     }
     CapApp.addListener('appUrlOpen', handler)
@@ -73,10 +74,39 @@ function App() {
     </div>
   )
 
+  // Native mobile → always use MobileApp
+  if (Capacitor.isNativePlatform()) {
+    return (
+      <MobileWrapper>
+        <Toaster 
+          position="top-center"
+          toastOptions={{
+            style: { background: '#1D1B16', color: '#F2EFE6', border: '1px solid #38352B', borderRadius: '0', fontFamily: '"IBM Plex Mono", monospace', fontSize: '12px' }
+          }}
+        />
+        <BrowserRouter>
+          <DeepLinkHandler />
+          <Routes>
+            <Route path="/" element={user ? <MobileApp /> : <Auth mode="login" />} />
+            <Route path="/login" element={<Auth mode="login" />} />
+            <Route path="/signup" element={<Auth mode="signup" />} />
+            <Route path="/zoo" element={user ? <MobileApp /> : <Navigate to="/login" />} />
+            <Route path="/zoo/:modelId" element={user ? <MobileApp /> : <Navigate to="/login" />} />
+            <Route path="/zoo/:modelId/train" element={user ? <MobileApp /> : <Navigate to="/login" />} />
+            <Route path="/models" element={user ? <MobileApp /> : <Navigate to="/login" />} />
+            <Route path="/models/:projectId" element={user ? <MobileApp /> : <Navigate to="/login" />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </BrowserRouter>
+      </MobileWrapper>
+    )
+  }
+
+  // Web → responsive (mobile web gets MobileApp, desktop gets Zoo layout)
   return (
     <MobileWrapper>
       <Toaster 
-        position={Capacitor.isNativePlatform() ? "top-center" : "bottom-right"}
+        position={isMobile ? "top-center" : "bottom-right"}
         toastOptions={{
           style: { background: '#1D1B16', color: '#F2EFE6', border: '1px solid #38352B', borderRadius: '0', fontFamily: '"IBM Plex Mono", monospace', fontSize: '12px' }
         }}
@@ -84,10 +114,15 @@ function App() {
       <BrowserRouter>
         <DeepLinkHandler />
         <Routes>
-          <Route path="/" element={Capacitor.isNativePlatform() ? (user ? <Navigate to="/dashboard" replace /> : <Auth mode="login" />) : <LandingPage />} />
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Auth mode="login" />} />
           <Route path="/signup" element={<Auth mode="signup" />} />
-          <Route path="/dashboard/*" element={user ? (isMobile ? <MobileDashboard /> : <Dashboard />) : <Navigate to="/login" />} />
+          <Route path="/zoo" element={user ? (isMobile ? <MobileApp /> : <Zoo />) : <Navigate to="/login" />} />
+          <Route path="/zoo/:modelId" element={user ? (isMobile ? <MobileApp /> : <ModelDetail />) : <Navigate to="/login" />} />
+          <Route path="/zoo/:modelId/train" element={user ? (isMobile ? <MobileApp /> : <TrainWizard />) : <Navigate to="/login" />} />
+          <Route path="/models" element={user ? (isMobile ? <MobileApp /> : <MyModels />) : <Navigate to="/login" />} />
+          <Route path="/models/:projectId" element={user ? (isMobile ? <MobileApp /> : <ModelWorkspace />) : <Navigate to="/login" />} />
+          <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </BrowserRouter>
     </MobileWrapper>

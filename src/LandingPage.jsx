@@ -34,11 +34,11 @@ const LandingPage = () => {
 
       <header className="hero">
         <div className="wrap">
-          <div className="eyebrow"><span className="dot"></span>v1.0 · public beta</div>
-          <h1>Upload a spreadsheet.<br/>Walk away with a <em>classifier</em>.</h1>
-          <p>Toddler trains models on the data you already have — no ML background, no vendor lock-in. Every model you train is yours to export, forever.</p>
+          <div className="eyebrow"><span className="dot"></span>Model Zoo · Open Source · Device-First</div>
+          <h1>Train your own AI.<br/>Own it. <em>Sell it.</em></h1>
+          <p>Browse open-source LLMs. Train them on your data — right on your device. List your creation on the Marketplace for others to use.</p>
           <div className="hero-actions">
-            <Link className="btn btn-solid" to="/signup">Train your first model →</Link>
+            <Link className="btn btn-solid" to="/signup">Browse the Zoo →</Link>
             <a className="btn" href="#how">See how it works</a>
           </div>
 
@@ -167,8 +167,8 @@ const LandingPage = () => {
 
       <section className="cta-section">
         <div className="wrap">
-          <h2>Your data already knows the answer. Toddler just reads it back to you.</h2>
-          <Link className="btn btn-solid" to="/signup">Start training free →</Link>
+          <h2>Your data already knows the answer. Train an AI that reads it.</h2>
+          <Link className="btn btn-solid" to="/signup">Browse the Zoo →</Link>
         </div>
       </section>
 

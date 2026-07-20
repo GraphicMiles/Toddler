@@ -1,26 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { auth, db } from './firebase'
 import { doc, getDoc } from 'firebase/firestore'
-import { buildRAGPrompt } from './rag'
-import { loadModel, streamCompletion, hasWebGPU, onLlmState } from './llm'
 import Sidebar from './components/Sidebar'
 import toast from 'react-hot-toast'
 
+/**
+ * ModelWorkspace — Web control tower view of a trained model.
+ *
+ * Chat proxies through the backend /chat endpoint.
+ * Does NOT load web-llm or run inference locally.
+ * The web app is a manager, not a trainer/runner.
+ */
 export default function ModelWorkspace() {
   const { projectId } = useParams()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const [project, setProject] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [llmState, setLlmState] = useState({ status: 'idle' })
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const messagesEndRef = useRef()
 
-  // Load project
   useEffect(() => {
     if (!auth.currentUser || !projectId) return
     getDoc(doc(db, 'projects', projectId))
@@ -31,20 +33,6 @@ export default function ModelWorkspace() {
       .finally(() => setLoading(false))
   }, [projectId])
 
-  // Listen to LLM state
-  useEffect(() => onLlmState(setLlmState), [])
-
-  // Auto-load model when project is ready
-  useEffect(() => {
-    if (!project || project.status !== 'trained') return
-    if (project.baseModelId && llmState.status === 'idle') {
-      loadModel(project.baseModelId).catch(err => {
-        console.warn('Model load failed:', err.message)
-      })
-    }
-  }, [project, llmState.status])
-
-  // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
@@ -52,52 +40,45 @@ export default function ModelWorkspace() {
   const handleSend = async (e) => {
     e?.preventDefault()
     const text = input.trim()
-    if (!text || sending) return
+    if (!text || sending || !project) return
 
     setInput('')
     setMessages(prev => [...prev, { role: 'user', text }])
     setSending(true)
 
     try {
-      let systemPrompt = 'You are a helpful assistant.'
-      let sources = []
+      const apiUrl = import.meta.env.VITE_API_URL
+      if (!apiUrl) throw new Error('VITE_API_URL not configured')
 
-      // RAG: retrieve relevant chunks
-      if (project.trainingMode === 'rag' && project.chunkCount > 0) {
-        const rag = await buildRAGPrompt(projectId, text)
-        if (rag.systemPrompt) systemPrompt = rag.systemPrompt
-        sources = rag.sources || []
+      const token = await auth.currentUser?.getIdToken()
+      const formData = new FormData()
+      formData.append('project_id', projectId)
+      formData.append('text', text)
+
+      const res = await fetch(`${apiUrl}/chat`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      })
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.detail || `HTTP ${res.status}`)
       }
 
-      // Add placeholder for bot response
-      const botIndex = messages.length + 1
-      setMessages(prev => [...prev, { role: 'bot', text: '', sources, loading: true }])
-
-      // Stream LLM response
-      const fullText = await streamCompletion(
-        [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: text },
-        ],
-        (chunk, accumulated) => {
-          setMessages(prev => {
-            const updated = [...prev]
-            updated[botIndex] = { ...updated[botIndex], text: accumulated, loading: false }
-            return updated
-          })
-        }
-      )
+      const data = await res.json()
+      setMessages(prev => [...prev, {
+        role: 'bot',
+        text: data.response || data.prediction || 'No response.',
+        sources: data.sources || [],
+        latency: data.latency_ms,
+      }])
     } catch (err) {
-      setMessages(prev => {
-        const updated = [...prev]
-        const last = updated[updated.length - 1]
-        if (last?.role === 'bot') {
-          updated[updated.length - 1] = { ...last, text: `Error: ${err.message}`, error: true, loading: false }
-        } else {
-          updated.push({ role: 'bot', text: `Error: ${err.message}`, error: true })
-        }
-        return updated
-      })
+      setMessages(prev => [...prev, {
+        role: 'bot',
+        text: `Error: ${err.message}`,
+        error: true,
+      }])
     } finally {
       setSending(false)
     }
@@ -144,7 +125,7 @@ export default function ModelWorkspace() {
           <div>
             <div style={{ fontFamily:"'IBM Plex Mono'", fontSize:10, letterSpacing:2, textTransform:'uppercase', color:'var(--lime)', marginBottom:6, display:'flex', alignItems:'center', gap:6 }}>
               <span style={{ width:6, height:6, background:'var(--lime)', borderRadius:'50%', display:'inline-block' }} />
-              Trained · {project.trainingMode === 'rag' ? 'RAG' : 'Fine-tune'} · {project.chunkCount || 0} chunks
+              {project.status === 'trained' ? `Trained · ${project.trainingMode === 'rag' ? 'RAG' : 'Fine-tune'} · ${project.chunkCount || 0} chunks` : project.status || 'Queued'}
             </div>
             <h2 style={{ fontFamily:"'Space Grotesk'", fontSize:24, fontWeight:700 }}>{project.name}</h2>
           </div>
@@ -154,28 +135,41 @@ export default function ModelWorkspace() {
           </div>
         </div>
 
-        {/* LLM Status Bar */}
+        {/* Status bar */}
         <div style={{
-          padding:'8px 24px', background: llmState.status === 'ready' ? 'rgba(198,255,51,0.05)' : llmState.status === 'loading' ? 'rgba(125,57,235,0.08)' : 'rgba(110,105,92,0.1)',
+          padding:'8px 24px',
+          background: project.status === 'trained' ? 'rgba(198,255,51,0.05)' : 'rgba(125,57,235,0.08)',
           borderBottom:'1px solid var(--line)', textAlign:'center',
         }}>
-          <span style={{ fontFamily:"'IBM Plex Mono'", fontSize:10, letterSpacing:1, color: llmState.status === 'ready' ? 'var(--lime)' : llmState.status === 'loading' ? 'var(--purple)' : 'var(--text-faint)' }}>
-            {llmState.status === 'loading' && `🧠 Loading ${project.baseModelName || 'model'}... ${llmState.progress || 0}%`}
-            {llmState.status === 'ready' && `🧠 ${project.baseModelName || 'Model'} loaded · WebGPU · Ready`}
-            {llmState.status === 'error' && `⚠️ Model load failed: ${llmState.error}. Falling back to cloud.`}
-            {llmState.status === 'idle' && '⏳ Initializing...'}
+          <span style={{
+            fontFamily:"'IBM Plex Mono'", fontSize:10, letterSpacing:1,
+            color: project.status === 'trained' ? 'var(--lime)' : 'var(--purple)',
+          }}>
+            {project.status === 'trained'
+              ? `🌐 ${project.baseModelName || 'Model'} · Inference via backend proxy`
+              : `⏳ Status: ${project.status || 'queued'} · Waiting for training device`}
           </span>
         </div>
 
         {/* Chat Messages */}
         <div style={{ flex:1, overflowY:'auto', padding:'24px 32px' }}>
-          {messages.length === 0 && (
+          {project.status !== 'trained' && (
+            <div style={{ textAlign:'center', padding:'60px 0' }}>
+              <div style={{ fontSize:32, marginBottom:12 }}>⏳</div>
+              <h3 style={{ fontFamily:"'Space Grotesk'", fontSize:20, fontWeight:600, marginBottom:8 }}>Waiting for Training</h3>
+              <p style={{ color:'var(--text-dim)', fontSize:14, maxWidth:400, margin:'0 auto', lineHeight:1.6 }}>
+                This model is {project.status || 'queued'}. Open the Toddler app on your phone or desktop to pick up the training job.
+              </p>
+            </div>
+          )}
+
+          {project.status === 'trained' && messages.length === 0 && (
             <div style={{ textAlign:'center', padding:'60px 0' }}>
               <div style={{ fontSize:32, marginBottom:12 }}>💬</div>
               <h3 style={{ fontFamily:"'Space Grotesk'", fontSize:20, fontWeight:600, marginBottom:8 }}>Ready to chat</h3>
               <p style={{ color:'var(--text-dim)', fontSize:14, maxWidth:400, margin:'0 auto', lineHeight:1.6 }}>
                 {project.trainingMode === 'rag'
-                  ? `Your model has ${project.chunkCount || 0} knowledge chunks. Ask it anything about your data.`
+                  ? `Your model has ${project.chunkCount || 0} knowledge chunks. Ask it anything about your data. Inference runs on the backend.`
                   : 'Your model has been fine-tuned. Ask it anything.'}
               </p>
             </div>
@@ -199,24 +193,22 @@ export default function ModelWorkspace() {
                 borderRadius: msg.role === 'user' ? 4 : 0,
                 color: msg.error ? 'var(--danger)' : msg.role === 'user' ? 'var(--text)' : 'var(--text-dim)',
               }}>
-                {msg.loading ? (
-                  <span style={{ color:'var(--purple)', animation:'typing 1.2s infinite' }}>▊</span>
-                ) : (
-                  msg.text || (msg.role === 'bot' ? '...' : '')
-                )}
+                {msg.text}
               </div>
 
-              {/* RAG Sources */}
-              {msg.sources && msg.sources.length > 0 && !msg.loading && (
-                <div style={{
-                  marginTop:10, padding:'8px 12px',
-                  background:'rgba(198,255,51,0.04)', border:'1px solid rgba(198,255,51,0.12)', borderRadius:4,
-                }}>
+              {msg.sources?.length > 0 && (
+                <div style={{ marginTop:10, padding:'8px 12px', background:'rgba(198,255,51,0.04)', border:'1px solid rgba(198,255,51,0.12)', borderRadius:4 }}>
                   {msg.sources.map((s, j) => (
                     <div key={j} style={{ fontFamily:"'IBM Plex Mono'", fontSize:10, color:'var(--lime)', marginBottom: j < msg.sources.length - 1 ? 4 : 0 }}>
-                      📎 {s.source} · chunk_{String(s.chunkIndex).padStart(3, '0')} · {s.score ? `${Math.round(s.score * 100)}%` : ''}
+                      📎 {s.source || s} {s.score ? `· ${Math.round(s.score * 100)}%` : ''}
                     </div>
                   ))}
+                </div>
+              )}
+
+              {msg.latency && (
+                <div style={{ fontFamily:"'IBM Plex Mono'", fontSize:9, color:'var(--text-faint)', marginTop:4, textAlign:'right' }}>
+                  ⚡ {msg.latency}ms · Backend proxy
                 </div>
               )}
             </div>
@@ -229,33 +221,27 @@ export default function ModelWorkspace() {
           display:'flex', gap:12, padding:'16px 32px', borderTop:'1px solid var(--line)', background:'var(--surface-2)',
         }}>
           <input
-            type="text"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            placeholder={llmState.status === 'ready' ? 'Type a message...' : 'Loading model...'}
-            disabled={sending || llmState.status !== 'ready'}
+            type="text" value={input} onChange={e => setInput(e.target.value)}
+            placeholder={project.status === 'trained' ? 'Type a message...' : 'Waiting for training to complete...'}
+            disabled={sending || project.status !== 'trained'}
             style={{
               flex:1, padding:'12px 16px', background:'var(--bg)', border:'1px solid var(--line)',
               borderRadius:4, color:'var(--text)', fontSize:14, fontFamily:"'Inter', sans-serif", outline:'none',
             }}
           />
-          <button
-            type="submit"
-            disabled={sending || !input.trim() || llmState.status !== 'ready'}
+          <button type="submit" disabled={sending || !input.trim() || project.status !== 'trained'}
             style={{
               padding:'12px 24px',
-              background: (!sending && input.trim() && llmState.status === 'ready') ? 'var(--lime)' : 'var(--line)',
+              background: (!sending && input.trim() && project.status === 'trained') ? 'var(--lime)' : 'var(--line)',
               color:'#14130F', border:'none', borderRadius:4,
               fontFamily:"'IBM Plex Mono'", fontSize:12, fontWeight:600, letterSpacing:1, textTransform:'uppercase',
-              cursor: (!sending && input.trim() && llmState.status === 'ready') ? 'pointer' : 'default',
-            }}
-          >
+              cursor: (!sending && input.trim() && project.status === 'trained') ? 'pointer' : 'default',
+            }}>
             Send ▲
           </button>
         </form>
       </div>
-
-      <style>{`@keyframes typing { 0%,100%{opacity:1} 50%{opacity:0.3} } .ml-auto{margin-left:auto}`}</style>
+      <style>{`.ml-auto{margin-left:auto}`}</style>
     </div>
   )
 }

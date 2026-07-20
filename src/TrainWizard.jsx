@@ -2,21 +2,25 @@ import React, { useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { auth, db } from './firebase'
 import { collection, addDoc, updateDoc } from 'firebase/firestore'
-import { chunkDocuments, storeChunks } from './rag'
+import { uploadDatasetToCloudinary } from './cloud'
 import Sidebar from './components/Sidebar'
 import toast from 'react-hot-toast'
 
+/**
+ * TrainWizard — Web control tower.
+ *
+ * Creates a training job in Firestore + backend queue.
+ * Does NOT train locally. A phone, desktop, or cloud worker picks it up.
+ */
 export default function TrainWizard() {
   const { modelId } = useParams()
   const navigate = useNavigate()
-  const [step, setStep] = useState(1) // 1: mode, 2: upload, 3: review, 4: training, 5: done
-  const [mode, setMode] = useState('rag') // 'rag' | 'lora'
+  const [step, setStep] = useState(1) // 1: name, 2: upload, 3: choose runner, 4: queued, 5: done
   const [projectName, setProjectName] = useState('')
   const [files, setFiles] = useState([])
-  const [chunks, setChunks] = useState([])
-  const [training, setTraining] = useState(false)
-  const [progress, setProgress] = useState(0)
+  const [uploading, setUploading] = useState(false)
   const [project, setProject] = useState(null)
+  const [runner, setRunner] = useState('auto')
   const fileRef = useRef()
 
   const MODEL_NAMES = {
@@ -28,28 +32,28 @@ export default function TrainWizard() {
     'mobilenet-v3': 'MobileNet V3',
     'yolov8-nano': 'YOLOv8 Nano',
   }
-
   const modelName = MODEL_NAMES[modelId] || modelId
 
-  const handleFileUpload = async (e) => {
+  const handleFileUpload = (e) => {
     const uploaded = Array.from(e.target.files)
     if (uploaded.length === 0) return
     setFiles(uploaded)
-    setStep(3)
   }
 
-  const handleTrain = async () => {
+  const handleSubmit = async () => {
     if (!projectName.trim()) { toast.error('Give your model a name.'); return }
-    setTraining(true)
-    setStep(4)
-    setProgress(10)
+    if (files.length === 0) { toast.error('Upload at least one file.'); return }
+
+    setUploading(true)
+    setStep(4) // Queued
 
     try {
-      // 1. Chunk documents
-      setProgress(20)
-      const allChunks = await chunkDocuments(files)
-      setChunks(allChunks)
-      setProgress(40)
+      // 1. Upload dataset to Cloudinary (signed)
+      const datasetUrls = []
+      for (const file of files) {
+        const url = await uploadDatasetToCloudinary(file)
+        datasetUrls.push({ name: file.name, url, size: file.size })
+      }
 
       // 2. Create Firestore project
       const projectData = {
@@ -57,38 +61,46 @@ export default function TrainWizard() {
         name: projectName,
         baseModelId: modelId,
         baseModelName: modelName,
-        trainingMode: mode,
-        status: 'training',
-        progress: 50,
-        chunkCount: allChunks.length,
+        trainingMode: 'rag',
+        status: 'queued',
+        progress: 0,
         fileCount: files.length,
+        datasetFiles: datasetUrls,
         createdAt: new Date(),
         version: 1,
       }
       const docRef = await addDoc(collection(db, 'projects'), projectData)
-      setProgress(60)
 
-      // 3. Store chunks locally in IndexedDB
-      await storeChunks(docRef.id, allChunks)
-      setProgress(80)
+      // 3. Queue training job on backend
+      const apiUrl = import.meta.env.VITE_API_URL
+      if (apiUrl) {
+        try {
+          const token = await auth.currentUser?.getIdToken()
+          const formData = new FormData()
+          formData.append('project_id', docRef.id)
+          formData.append('model_id', modelId)
+          formData.append('training_mode', 'rag')
+          formData.append('runner', runner)
+          formData.append('dataset_url', datasetUrls[0]?.url || '')
+          await fetch(`${apiUrl}/train`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData,
+          })
+        } catch (e) {
+          console.warn('Backend train queue failed (will rely on BYOC poll):', e.message)
+        }
+      }
 
-      // 4. Mark as trained
-      await updateDoc(docRef, {
-        status: 'trained',
-        progress: 100,
-        trainedAt: new Date(),
-      })
-      setProgress(100)
-
-      const finished = { id: docRef.id, ...projectData, status: 'trained', progress: 100 }
+      const finished = { id: docRef.id, ...projectData }
       setProject(finished)
       setStep(5)
-      toast.success('Model trained!')
+      toast.success('Training job queued!')
     } catch (err) {
-      toast.error(err.message || 'Training failed')
+      toast.error(err.message || 'Failed to queue training')
       setStep(3)
     } finally {
-      setTraining(false)
+      setUploading(false)
     }
   }
 
@@ -101,9 +113,9 @@ export default function TrainWizard() {
           ← Back
         </button>
 
-        {/* Progress bar */}
+        {/* Progress */}
         <div style={{ display:'flex', gap:4, marginBottom:40 }}>
-          {[1,2,3,4].map(i => (
+          {[1,2,3].map(i => (
             <div key={i} style={{ flex:1, height:3, borderRadius:2, background: i <= step ? (i === step ? 'var(--purple)' : 'var(--lime)') : 'var(--line)' }} />
           ))}
         </div>
@@ -113,106 +125,51 @@ export default function TrainWizard() {
           <div style={{ width:44, height:44, background:'var(--surface-2)', border:'1px solid var(--line)', borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>🧠</div>
           <div>
             <h3 style={{ fontFamily:"'Space Grotesk'", fontSize:18, fontWeight:600 }}>{modelName}</h3>
-            <div style={{ fontFamily:"'IBM Plex Mono'", fontSize:11, color:'var(--text-faint)' }}>{mode === 'rag' ? 'RAG mode' : 'Fine-tune mode'}</div>
+            <div style={{ fontFamily:"'IBM Plex Mono'", fontSize:11, color:'var(--text-faint)' }}>RAG training · Queued to your devices</div>
           </div>
         </div>
 
-        {/* Step 1: Choose Mode */}
+        {/* Step 1: Name */}
         {step === 1 && (
-          <div className="animate-in">
-            <h2 style={{ fontFamily:"'Space Grotesk'", fontSize:28, fontWeight:700, marginBottom:8 }}>Choose Training Mode</h2>
-            <p style={{ color:'var(--text-dim)', fontSize:14, marginBottom:24 }}>How do you want to train this model?</p>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:32 }}>
-              <div
-                onClick={() => setMode('rag')}
-                style={{
-                  background:'var(--surface-2)', border:`2px solid ${mode === 'rag' ? 'var(--lime)' : 'var(--line)'}`,
-                  padding:24, borderRadius:4, cursor:'pointer', transition:'all 0.2s',
-                }}
-              >
-                <div style={{ fontFamily:"'IBM Plex Mono'", fontSize:10, letterSpacing:2, textTransform:'uppercase', color:'var(--lime)', marginBottom:8 }}>📄 RAG Mode</div>
-                <h4 style={{ fontFamily:"'Space Grotesk'", fontSize:18, fontWeight:600, marginBottom:8 }}>Retrieval-Augmented</h4>
-                <p style={{ fontSize:13, color:'var(--text-dim)', lineHeight:1.6 }}>
-                  Upload your docs. Model reads them at chat time. Instant. No GPU needed. Works on any device.
-                </p>
-              </div>
-              <div
-                onClick={() => setMode('lora')}
-                style={{
-                  background:'var(--surface-2)', border:`2px solid ${mode === 'lora' ? 'var(--lime)' : 'var(--line)'}`,
-                  padding:24, borderRadius:4, cursor:'pointer', opacity:0.5,
-                }}
-              >
-                <div style={{ fontFamily:"'IBM Plex Mono'", fontSize:10, letterSpacing:2, textTransform:'uppercase', color:'var(--purple)', marginBottom:8 }}>🔧 Fine-Tune (LoRA)</div>
-                <h4 style={{ fontFamily:"'Space Grotesk'", fontSize:18, fontWeight:600, marginBottom:8 }}>Weight Updates</h4>
-                <p style={{ fontSize:13, color:'var(--text-dim)', lineHeight:1.6 }}>
-                  Upload prompt/completion pairs. Model actually learns. Needs GPU. Coming in Phase 3.
-                </p>
-                <div style={{ fontFamily:"'IBM Plex Mono'", fontSize:10, color:'var(--purple)', marginTop:8 }}>⚠️ Coming soon</div>
-              </div>
-            </div>
-            <button
-              onClick={() => setStep(2)}
-              style={{
-                width:'100%', padding:'14px', background:'var(--lime)', color:'#14130F', border:'none',
-                fontFamily:"'IBM Plex Mono'", fontSize:12, letterSpacing:2, textTransform:'uppercase', fontWeight:600, cursor:'pointer',
-              }}
-            >
-              Continue →
-            </button>
-          </div>
-        )}
-
-        {/* Step 2: Name + Upload */}
-        {step === 2 && (
           <div className="animate-in">
             <h2 style={{ fontFamily:"'Space Grotesk'", fontSize:28, fontWeight:700, marginBottom:8 }}>Name Your Model</h2>
             <p style={{ color:'var(--text-dim)', fontSize:14, marginBottom:24 }}>Give your model an identity.</p>
             <input
-              type="text"
-              placeholder="e.g. Medical FAQ Bot"
-              value={projectName}
-              onChange={e => setProjectName(e.target.value)}
-              autoFocus
-              onKeyDown={e => e.key === 'Enter' && projectName && setStep(3)}
+              type="text" placeholder="e.g. Medical FAQ Bot" autoFocus
+              value={projectName} onChange={e => setProjectName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && projectName && setStep(2)}
               style={{
                 width:'100%', padding:'14px 16px', background:'var(--surface-2)', border:'none',
                 borderBottom:'2px solid var(--lime)', color:'var(--text)', fontSize:20,
                 fontFamily:"'Space Grotesk'", fontWeight:600, outline:'none', marginBottom:32,
               }}
             />
-            <button
-              onClick={() => { if (projectName) setStep(3); else toast.error('Enter a name') }}
-              disabled={!projectName}
+            <button onClick={() => projectName ? setStep(2) : toast.error('Enter a name')} disabled={!projectName}
               style={{
                 width:'100%', padding:'14px', background: projectName ? 'var(--lime)' : 'var(--line)',
-                color:'#14130F', border:'none',
-                fontFamily:"'IBM Plex Mono'", fontSize:12, letterSpacing:2, textTransform:'uppercase', fontWeight:600,
+                color:'#14130F', border:'none', fontFamily:"'IBM Plex Mono'", fontSize:12,
+                letterSpacing:2, textTransform:'uppercase', fontWeight:600,
                 cursor: projectName ? 'pointer' : 'default',
-              }}
-            >
-              Next: Upload Documents →
-            </button>
+              }}>Continue →</button>
           </div>
         )}
 
-        {/* Step 3: Upload + Review */}
-        {step === 3 && (
+        {/* Step 2: Upload */}
+        {step === 2 && (
           <div className="animate-in">
             <h2 style={{ fontFamily:"'Space Grotesk'", fontSize:28, fontWeight:700, marginBottom:8 }}>Upload Your Knowledge</h2>
-            <p style={{ color:'var(--text-dim)', fontSize:14, marginBottom:24 }}>Drop your files. Toddler will chunk them and make them searchable at inference time.</p>
+            <p style={{ color:'var(--text-dim)', fontSize:14, marginBottom:24 }}>
+              Drop your files. They'll be uploaded to secure storage and sent to your training device.
+            </p>
 
-            {/* Upload zone */}
-            <div
-              onClick={() => fileRef.current?.click()}
+            <div onClick={() => fileRef.current?.click()}
               style={{
                 border:'2px dashed var(--line)', background:'var(--surface-2)', padding:48,
                 textAlign:'center', borderRadius:4, cursor:'pointer', marginBottom:24,
                 transition:'border-color 0.2s',
               }}
               onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--lime)'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--line)'}
-            >
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--line)'}>
               <div style={{ fontSize:32, marginBottom:12 }}>📄</div>
               <div style={{ fontFamily:"'IBM Plex Mono'", fontSize:13, color:'var(--lime)', marginBottom:8 }}>
                 {files.length > 0 ? 'Add more files' : 'Drop files here or click to browse'}
@@ -221,10 +178,9 @@ export default function TrainWizard() {
               <input ref={fileRef} type="file" multiple accept=".txt,.csv,.md,.json,.pdf" onChange={handleFileUpload} style={{ display:'none' }} />
             </div>
 
-            {/* File list */}
             {files.length > 0 && (
               <div style={{ background:'var(--surface-2)', border:'1px solid var(--line)', borderRadius:4, padding:16, marginBottom:24 }}>
-                <div style={{ fontFamily:"'IBM Plex Mono'", fontSize:10, letterSpacing:2, textTransform:'uppercase', color:'var(--lime)', marginBottom:12 }}>✓ {files.length} file{files.length > 1 ? 's' : ''} selected</div>
+                <div style={{ fontFamily:"'IBM Plex Mono'", fontSize:10, letterSpacing:2, textTransform:'uppercase', color:'var(--lime)', marginBottom:12 }}>✓ {files.length} file{files.length > 1 ? 's' : ''}</div>
                 {files.map((f, i) => (
                   <div key={i} style={{ display:'flex', justifyContent:'space-between', fontSize:13, padding:'8px 0', borderBottom: i < files.length - 1 ? '1px solid var(--line)' : 'none' }}>
                     <span style={{ color:'var(--text)' }}>{f.name}</span>
@@ -234,76 +190,123 @@ export default function TrainWizard() {
               </div>
             )}
 
-            {/* Train button */}
             <div style={{ display:'flex', gap:12 }}>
-              <button onClick={() => setStep(2)} style={{ padding:'14px', background:'transparent', border:'1px solid var(--line)', color:'var(--text-dim)', fontFamily:"'IBM Plex Mono'", fontSize:11, cursor:'pointer' }}>← Back</button>
-              <button
-                onClick={handleTrain}
-                disabled={files.length === 0}
+              <button onClick={() => setStep(1)} style={{ padding:'14px', background:'transparent', border:'1px solid var(--line)', color:'var(--text-dim)', fontFamily:"'IBM Plex Mono'", fontSize:11, cursor:'pointer' }}>← Back</button>
+              <button onClick={() => files.length > 0 ? setStep(3) : toast.error('Upload at least one file')} disabled={files.length === 0}
                 style={{
                   flex:1, padding:'14px', background: files.length > 0 ? 'var(--lime)' : 'var(--line)',
-                  color:'#14130F', border:'none',
-                  fontFamily:"'IBM Plex Mono'", fontSize:12, letterSpacing:2, textTransform:'uppercase', fontWeight:600,
+                  color:'#14130F', border:'none', fontFamily:"'IBM Plex Mono'", fontSize:12,
+                  letterSpacing:2, textTransform:'uppercase', fontWeight:600,
                   cursor: files.length > 0 ? 'pointer' : 'default',
-                }}
-              >
-                🚀 Start Training
-              </button>
+                }}>Next: Choose Runner →</button>
             </div>
           </div>
         )}
 
-        {/* Step 4: Training progress */}
+        {/* Step 3: Choose Runner */}
+        {step === 3 && (
+          <div className="animate-in">
+            <h2 style={{ fontFamily:"'Space Grotesk'", fontSize:28, fontWeight:700, marginBottom:8 }}>Where Should Training Run?</h2>
+            <p style={{ color:'var(--text-dim)', fontSize:14, marginBottom:24 }}>
+              Training happens on your devices — never on this web app. Pick a runner.
+            </p>
+
+            <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:32 }}>
+              {[
+                { id:'auto', icon:'⚡', name:'Auto (Recommended)', desc:'Routes to your fastest online device. Falls back to cloud if none available.', badge:'Best option' },
+                { id:'device_mobile', icon:'📱', name:'Your Phone', desc:'Train on your Android device. Data stays local. Needs the Toddler app open.', badge:'Private' },
+                { id:'device_desktop', icon:'💻', name:'Your Desktop', desc:'Train on your Mac/PC. Bigger models, faster training. Needs the desktop agent.', badge:'Powerful' },
+                { id:'cloud', icon:'☁️', name:'Cloud GPU', desc:'Train on remote GPU. Requires Pro plan. Fastest for large datasets.', badge:'Pro only', disabled: true },
+              ].map(r => (
+                <div key={r.id} onClick={() => !r.disabled && setRunner(r.id)}
+                  style={{
+                    background:'var(--surface-2)', padding:20, borderRadius:4, cursor: r.disabled ? 'default' : 'pointer',
+                    border: `2px solid ${runner === r.id ? 'var(--lime)' : 'var(--line)'}`,
+                    opacity: r.disabled ? 0.5 : 1, transition:'all 0.2s',
+                    display:'flex', gap:16, alignItems:'start',
+                  }}>
+                  <div style={{ fontSize:24, flexShrink:0 }}>{r.icon}</div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+                      <h4 style={{ fontFamily:"'Space Grotesk'", fontSize:15, fontWeight:600 }}>{r.name}</h4>
+                      <span style={{ fontFamily:"'IBM Plex Mono'", fontSize:9, padding:'2px 8px', borderRadius:4, background: runner === r.id ? 'rgba(198,255,51,0.1)' : 'rgba(110,105,92,0.15)', color: runner === r.id ? 'var(--lime)' : 'var(--text-faint)' }}>{r.badge}</span>
+                    </div>
+                    <p style={{ fontSize:12, color:'var(--text-dim)', lineHeight:1.5 }}>{r.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ background:'var(--surface)', border:'1px solid var(--line)', padding:16, borderRadius:4, marginBottom:24 }}>
+              <div style={{ fontFamily:"'IBM Plex Mono'", fontSize:10, letterSpacing:2, textTransform:'uppercase', color:'var(--text-faint)', marginBottom:8 }}>What happens next</div>
+              <ul style={{ listStyle:'none', padding:0, fontSize:13, color:'var(--text-dim)', lineHeight:1.8 }}>
+                <li>→ Your files are uploaded to secure storage</li>
+                <li>→ A training job is created in the queue</li>
+                <li>→ Your device picks up the job (or cloud, if Pro)</li>
+                <li>→ Device downloads your files, chunks them, stores locally</li>
+                <li>→ You get a notification when it's done</li>
+                <li>→ You come back here to chat with your model</li>
+              </ul>
+            </div>
+
+            <div style={{ display:'flex', gap:12 }}>
+              <button onClick={() => setStep(2)} style={{ padding:'14px', background:'transparent', border:'1px solid var(--line)', color:'var(--text-dim)', fontFamily:"'IBM Plex Mono'", fontSize:11, cursor:'pointer' }}>← Back</button>
+              <button onClick={handleSubmit}
+                style={{
+                  flex:1, padding:'14px', background:'var(--lime)', color:'#14130F', border:'none',
+                  fontFamily:"'IBM Plex Mono'", fontSize:12, letterSpacing:2, textTransform:'uppercase', fontWeight:600, cursor:'pointer',
+                }}>🚀 Queue Training Job</button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Queued (waiting) */}
         {step === 4 && (
           <div className="animate-in" style={{ textAlign:'center', padding:'60px 0' }}>
             <div style={{ width:80, height:80, border:'3px solid var(--line)', borderTopColor:'var(--purple)', borderRadius:'50%', margin:'0 auto 24px', animation:'spin 1.5s linear infinite' }} />
-            <h2 style={{ fontFamily:"'Space Grotesk'", fontSize:28, fontWeight:700, marginBottom:8 }}>Training {projectName}</h2>
-            <p style={{ fontFamily:"'IBM Plex Mono'", fontSize:12, color:'var(--purple)', marginBottom:24 }}>
-              {progress < 30 ? 'Parsing documents...' : progress < 50 ? 'Creating chunks...' : progress < 70 ? 'Storing knowledge base...' : progress < 90 ? 'Indexing for retrieval...' : 'Finalizing...'}
-            </p>
-            <div style={{ maxWidth:400, margin:'0 auto' }}>
-              <div style={{ width:'100%', height:6, background:'var(--line)', borderRadius:3, overflow:'hidden' }}>
-                <div style={{ width:`${progress}%`, height:'100%', background:'var(--purple)', borderRadius:3, transition:'width 0.5s' }} />
-              </div>
-              <div style={{ fontFamily:"'IBM Plex Mono'", fontSize:11, color:'var(--text-faint)', marginTop:8 }}>{progress}%</div>
-            </div>
+            <h2 style={{ fontFamily:"'Space Grotesk'", fontSize:28, fontWeight:700, marginBottom:8 }}>Uploading & Queuing</h2>
+            <p style={{ fontFamily:"'IBM Plex Mono'", fontSize:12, color:'var(--purple)', marginBottom:12 }}>Sending files to secure storage...</p>
+            <p style={{ fontSize:13, color:'var(--text-faint)' }}>Your training job will appear in the queue momentarily.</p>
           </div>
         )}
 
-        {/* Step 5: Done */}
+        {/* Step 5: Done — job queued */}
         {step === 5 && project && (
           <div className="animate-in" style={{ textAlign:'center', padding:'40px 0' }}>
-            <div style={{ fontSize:48, marginBottom:16 }}>✅</div>
-            <h2 style={{ fontFamily:"'Space Grotesk'", fontSize:28, fontWeight:700, marginBottom:8 }}>Training Complete!</h2>
+            <div style={{ fontSize:48, marginBottom:16 }}>📡</div>
+            <h2 style={{ fontFamily:"'Space Grotesk'", fontSize:28, fontWeight:700, marginBottom:8 }}>Job Queued!</h2>
             <p style={{ color:'var(--text-dim)', fontSize:14, marginBottom:8 }}>{projectName}</p>
-            <p style={{ fontFamily:"'IBM Plex Mono'", fontSize:12, color:'var(--lime)', marginBottom:32 }}>
-              {chunks.length} knowledge chunks from {files.length} file{files.length > 1 ? 's' : ''}
+            <p style={{ fontFamily:"'IBM Plex Mono'", fontSize:12, color:'var(--purple)', marginBottom:32 }}>
+              Waiting for a training device to pick it up.
             </p>
 
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, maxWidth:500, margin:'0 auto 32px' }}>
-              <button
-                onClick={() => navigate(`/models/${project.id}`)}
-                style={{ padding:'16px', background:'var(--lime)', color:'#14130F', border:'none', borderRadius:4, fontFamily:"'IBM Plex Mono'", fontSize:10, letterSpacing:2, textTransform:'uppercase', fontWeight:600, cursor:'pointer' }}
-              >
-                💬 Chat
-              </button>
-              <button
-                onClick={() => navigate('/models')}
-                style={{ padding:'16px', background:'var(--surface-2)', color:'var(--text)', border:'1px solid var(--line)', borderRadius:4, fontFamily:"'IBM Plex Mono'", fontSize:10, letterSpacing:2, textTransform:'uppercase', cursor:'pointer' }}
-              >
+            <div style={{ background:'var(--surface-2)', border:'1px solid var(--line)', padding:20, borderRadius:4, marginBottom:32, textAlign:'left' }}>
+              <div style={{ fontFamily:"'IBM Plex Mono'", fontSize:10, letterSpacing:2, textTransform:'uppercase', color:'var(--text-faint)', marginBottom:12 }}>Next steps</div>
+              <ul style={{ listStyle:'none', padding:0, fontSize:13, color:'var(--text-dim)', lineHeight:2 }}>
+                <li>📱 Open the Toddler app on your phone to pick up this job</li>
+                <li>💻 Or open the desktop agent on your laptop</li>
+                <li>🔔 You'll get a notification when training completes</li>
+                <li>💬 Come back here to chat with your trained model</li>
+              </ul>
+            </div>
+
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, maxWidth:500, margin:'0 auto' }}>
+              <button onClick={() => navigate('/models')}
+                style={{ padding:'16px', background:'var(--lime)', color:'#14130F', border:'none', borderRadius:4, fontFamily:"'IBM Plex Mono'", fontSize:10, letterSpacing:2, textTransform:'uppercase', fontWeight:600, cursor:'pointer' }}>
                 🧠 My Models
               </button>
-              <button
-                onClick={() => navigate('/zoo')}
-                style={{ padding:'16px', background:'var(--surface-2)', color:'var(--text)', border:'1px solid var(--line)', borderRadius:4, fontFamily:"'IBM Plex Mono'", fontSize:10, letterSpacing:2, textTransform:'uppercase', cursor:'pointer' }}
-              >
+              <button onClick={() => navigate('/zoo')}
+                style={{ padding:'16px', background:'var(--surface-2)', color:'var(--text)', border:'1px solid var(--line)', borderRadius:4, fontFamily:"'IBM Plex Mono'", fontSize:10, letterSpacing:2, textTransform:'uppercase', cursor:'pointer' }}>
                 🔍 Zoo
+              </button>
+              <button onClick={() => navigate('/devices')}
+                style={{ padding:'16px', background:'var(--surface-2)', color:'var(--text)', border:'1px solid var(--line)', borderRadius:4, fontFamily:"'IBM Plex Mono'", fontSize:10, letterSpacing:2, textTransform:'uppercase', cursor:'pointer' }}>
+                📱 Devices
               </button>
             </div>
           </div>
         )}
       </div>
-
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )

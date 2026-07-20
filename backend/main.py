@@ -25,7 +25,7 @@ def health_check():
 # Comma-separated list of allowed origins, e.g.
 #   CORS_ORIGINS=https://toddler.ai,https://app.toddler.ai
 # Defaults to "*" for local development; lock this down in production.
-_cors_env = os.getenv("CORS_ORIGINS", "http://localhost,capacitor://localhost")
+_cors_env = os.getenv("CORS_ORIGINS", "http://localhost,http://localhost:5173,http://localhost:4173,capacitor://localhost,https://toddler.ai,https://toddler-53xb.onrender.com")
 _cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
 if "*" in _cors_origins:
     raise RuntimeError("CORS_ORIGINS must list explicit origins; wildcard is forbidden")
@@ -402,7 +402,7 @@ def delete_account(authorization: str | None = Header(default=None)):
         return {"status": "deleted"}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Account deletion failed: {exc}")
-\n
+
 @app.post("/train")
 async def queue_training_job(
     project_id: str = Form(...),

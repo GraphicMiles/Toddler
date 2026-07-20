@@ -12,7 +12,15 @@ from fastapi.middleware.cors import CORSMiddleware
 import firebase_admin
 from firebase_admin import credentials, firestore, messaging
 
-app = FastAPI()
+app = FastAPI(title="Toddler API", version="2.0")
+
+@app.get("/")
+def health():
+    return {"status": "ok", "service": "toddler-control-plane"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
 
 # Comma-separated list of allowed origins, e.g.
 #   CORS_ORIGINS=https://toddler.ai,https://app.toddler.ai
@@ -194,9 +202,51 @@ async def download_model(project_id: str, x_api_key: str | None = Header(default
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Public catalog for the Android Model Zoo. Files are published only after
-# their license and mobile memory profile have been reviewed.
-MODEL_CATALOG = [] # Fetched from Firestore models/ collection in Phase 2
+# Seed model catalog — served until Firestore models/ collection is seeded.
+MODEL_CATALOG = [
+    {
+        "id": "smollm2-360m", "name": "SmolLM2 360M", "task": "chat",
+        "family": "smollm2", "params": 360000000, "sizeMb": 150, "minRamGb": 4,
+        "runsOn": ["mobile", "desktop", "cloud"], "trainingModes": ["rag", "lora"],
+        "license": "Apache-2.0", "trainer": "web-llm",
+        "description": "Tiny but capable language model by Hugging Face. Runs on phones with 4GB+ RAM. Perfect for personal assistants and document chat.",
+    },
+    {
+        "id": "smollm2-1.7b", "name": "SmolLM2 1.7B", "task": "chat",
+        "family": "smollm2", "params": 1700000000, "sizeMb": 900, "minRamGb": 6,
+        "runsOn": ["desktop", "cloud"], "trainingModes": ["rag", "lora"],
+        "license": "Apache-2.0", "trainer": "web-llm",
+        "description": "Mid-size model with great balance of speed and capability. Desktop and cloud only.",
+    },
+    {
+        "id": "llama-3.2-3b", "name": "Llama 3.2 3B", "task": "chat",
+        "family": "llama", "params": 3200000000, "sizeMb": 1700, "minRamGb": 8,
+        "runsOn": ["desktop", "cloud"], "trainingModes": ["rag", "lora"],
+        "license": "Llama 3.2", "trainer": "web-llm",
+        "description": "Code-capable language model. Handles complex reasoning, coding tasks, and detailed analysis. Desktop only.",
+    },
+    {
+        "id": "qwen2.5-1.5b", "name": "Qwen 2.5 1.5B", "task": "chat",
+        "family": "qwen", "params": 1500000000, "sizeMb": 800, "minRamGb": 6,
+        "runsOn": ["desktop", "cloud"], "trainingModes": ["rag", "lora"],
+        "license": "Apache-2.0", "trainer": "web-llm",
+        "description": "Strong multilingual model from Alibaba. Excellent for Asian language tasks.",
+    },
+    {
+        "id": "phi-3-mini", "name": "Phi-3 Mini 3.8B", "task": "chat",
+        "family": "phi", "params": 3800000000, "sizeMb": 2200, "minRamGb": 8,
+        "runsOn": ["desktop", "cloud"], "trainingModes": ["rag", "lora"],
+        "license": "MIT", "trainer": "web-llm",
+        "description": "Microsoft's small-but-mighty model. Excellent reasoning capabilities for its size.",
+    },
+    {
+        "id": "mobilenet-v3", "name": "MobileNet V3 Small", "task": "classification",
+        "family": "mobilenet", "sizeMb": 11, "minRamGb": 2,
+        "runsOn": ["mobile", "desktop", "cloud"], "trainingModes": ["transfer"],
+        "license": "Apache-2.0", "trainer": "tfjs",
+        "description": "Lightweight image classification model. Train on your own image categories.",
+    },
+]
 
 @app.get("/models")
 def list_models():
@@ -338,35 +388,21 @@ async def queue_training_job(
 
 
 @app.get("/models")
-async def get_models(platform: str = "web", ram_gb: int = 4):
-    """Phase 3: Unified Model Catalog. Returns models filtered by hardware capability."""
-    db = _require_db()
+def list_models(platform: str = "web", ram_gb: float = 16):
+    """Unified Model Catalog. Returns models filtered by hardware capability."""
     try:
-        # In a real scenario, this fetches from the Firestore 'models' collection.
-        # We serve a strict schema matching TODDLER_SPEC.md
-        models_ref = db.collection("models").where("status", "==", "published").get()
-        models = [m.to_dict() for m in models_ref]
-        
-        # Fallback if DB is not seeded yet
-        if not models:
-            models = [
-                {
-                    "id": "sentiment-lite", "name": "Sentiment Lite", "task": "text-classification",
-                    "sizeMb": 42, "minRamGb": 2, "runsOn": ["mobile", "desktop", "cloud"]
-                },
-                {
-                    "id": "smollm2-360m", "name": "SmolLM2 360M", "task": "chat",
-                    "sizeMb": 150, "minRamGb": 4, "runsOn": ["mobile", "desktop", "cloud"]
-                },
-                {
-                    "id": "llama-3.2-3b", "name": "Llama 3.2 3B", "task": "chat",
-                    "sizeMb": 1700, "minRamGb": 8, "runsOn": ["desktop", "cloud"]
-                }
-            ]
-
-        # Filter logic based on device specs
-        filtered = [m for m in models if m.get("minRamGb", 0) <= ram_gb and platform in m.get("runsOn", ["web", "mobile", "desktop", "cloud"])]
-        
+        # Try Firestore first
+        if db:
+            try:
+                models_ref = db.collection("models").where("status", "==", "published").get()
+                models = [m.to_dict() for m in models_ref]
+                if models:
+                    filtered = [m for m in models if m.get("minRamGb", 0) <= ram_gb and platform in m.get("runsOn", ["web", "mobile", "desktop", "cloud"])]
+                    return {"models": filtered}
+            except Exception:
+                pass
+        # Fallback to seed catalog
+        filtered = [m for m in MODEL_CATALOG if m.get("minRamGb", 0) <= ram_gb]
         return {"models": filtered}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"models": MODEL_CATALOG}

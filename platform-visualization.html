@@ -1,0 +1,2003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Toddler — Platform Visualization</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #14130F;
+    --surface: #1D1B16;
+    --surface-2: #26231C;
+    --line: #38352B;
+    --text: #F2EFE6;
+    --text-dim: #A8A296;
+    --text-faint: #6E695C;
+    --lime: #C6FF33;
+    --purple: #7D39EB;
+    --danger: #FF5C3E;
+    --blue: #3B82F6;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0A0908;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* ─── HERO ─── */
+  .hero-section {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-section::before {
+    content: '';
+    position: absolute;
+    top: -200px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 800px;
+    height: 800px;
+    background: radial-gradient(circle, rgba(198,255,51,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--lime);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .hero-badge .dot { width: 6px; height: 6px; background: var(--lime); border-radius: 50%; animation: pulse 2s infinite; }
+  .hero-section h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: clamp(40px, 6vw, 72px);
+    font-weight: 700;
+    line-height: 1.05;
+    max-width: 800px;
+    margin-bottom: 20px;
+  }
+  .hero-section h1 em { font-style: normal; color: var(--lime); }
+  .hero-section p { color: var(--text-dim); font-size: 18px; max-width: 520px; line-height: 1.6; margin-bottom: 40px; }
+  .hero-pills { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .pill {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    padding: 8px 16px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--text-dim);
+    border-radius: 100px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .pill.active { border-color: var(--lime); color: var(--lime); background: rgba(198,255,51,0.05); }
+
+  /* ─── SECTION HEADERS ─── */
+  .section-header {
+    text-align: center;
+    padding: 100px 20px 60px;
+  }
+  .section-header .label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--lime);
+    margin-bottom: 16px;
+  }
+  .section-header h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: clamp(28px, 4vw, 44px);
+    font-weight: 700;
+    max-width: 700px;
+    margin: 0 auto 12px;
+  }
+  .section-header p { color: var(--text-dim); font-size: 16px; max-width: 500px; margin: 0 auto; line-height: 1.6; }
+
+  /* ─── JOURNEY FLOW ─── */
+  .journey-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 20px 100px;
+  }
+  .journey-step {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    align-items: center;
+    margin-bottom: 120px;
+    position: relative;
+  }
+  .journey-step.reverse { direction: rtl; }
+  .journey-step.reverse > * { direction: ltr; }
+  .journey-step-number {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 120px;
+    font-weight: 700;
+    color: rgba(198,255,51,0.06);
+    position: absolute;
+    top: -40px;
+    left: -20px;
+    pointer-events: none;
+    line-height: 1;
+  }
+  .journey-step.reverse .journey-step-number { left: auto; right: -20px; }
+
+  .journey-content h3 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 16px;
+  }
+  .journey-content h3 .tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--lime);
+    background: rgba(198,255,51,0.1);
+    border: 1px solid rgba(198,255,51,0.2);
+    padding: 4px 10px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 12px;
+  }
+  .journey-content p { color: var(--text-dim); line-height: 1.7; margin-bottom: 16px; }
+  .journey-content ul { list-style: none; padding: 0; }
+  .journey-content li {
+    color: var(--text-dim);
+    padding: 8px 0;
+    padding-left: 24px;
+    position: relative;
+    font-size: 14px;
+    border-bottom: 1px solid rgba(56,53,43,0.5);
+  }
+  .journey-content li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--lime);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  /* ─── PHONE MOCKUP ─── */
+  .phone-frame {
+    width: 320px;
+    height: 640px;
+    background: var(--bg);
+    border: 3px solid var(--line);
+    border-radius: 36px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.03);
+    margin: 0 auto;
+  }
+  .phone-notch {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 28px;
+    background: #000;
+    border-radius: 0 0 18px 18px;
+    z-index: 10;
+  }
+  .phone-screen {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+  }
+  .phone-screen::-webkit-scrollbar { display: none; }
+
+  /* ─── BROWSER MOCKUP ─── */
+  .browser-frame {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+    margin: 0 auto;
+  }
+  .browser-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+  }
+  .browser-dots { display: flex; gap: 6px; }
+  .browser-dots span { width: 10px; height: 10px; border-radius: 50%; }
+  .browser-dots span:nth-child(1) { background: #FF5F57; }
+  .browser-dots span:nth-child(2) { background: #FEBC2E; }
+  .browser-dots span:nth-child(3) { background: #28C840; }
+  .browser-url {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-left: 8px;
+  }
+  .browser-content {
+    min-height: 500px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+  }
+
+  /* ─── SCREEN COMPONENTS ─── */
+  .s-status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 20px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .s-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .s-nav .logo {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: white;
+  }
+  .s-nav .logo-mark {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--lime);
+    display: inline-block;
+    position: relative;
+  }
+  .s-nav .logo-mark::before,
+  .s-nav .logo-mark::after {
+    content: '';
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    border-color: var(--lime);
+  }
+  .s-nav .logo-mark::before {
+    top: -2px;
+    left: -2px;
+    border-top: 2px solid var(--lime);
+    border-left: 2px solid var(--lime);
+  }
+  .s-nav .logo-mark::after {
+    bottom: -2px;
+    right: -2px;
+    border-bottom: 2px solid var(--lime);
+    border-right: 2px solid var(--lime);
+  }
+
+  .s-tab-bar {
+    display: flex;
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+    position: sticky;
+    bottom: 0;
+  }
+  .s-tab {
+    flex: 1;
+    text-align: center;
+    padding: 10px 4px 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    border-top: 2px solid transparent;
+    cursor: pointer;
+  }
+  .s-tab.active { color: var(--lime); border-top-color: var(--lime); }
+  .s-tab .tab-icon { font-size: 18px; margin-bottom: 2px; display: block; }
+
+  .s-section-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    padding: 16px 20px 8px;
+  }
+
+  .s-card {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    padding: 16px;
+    margin: 8px 16px;
+    border-radius: 4px;
+  }
+  .s-card-accent { border-color: var(--lime); }
+  .s-card-purple { border-color: var(--purple); }
+  .s-card h4 { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .s-card .meta { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-faint); }
+  .s-card .desc { font-size: 12px; color: var(--text-dim); margin: 8px 0; line-height: 1.5; }
+
+  .s-btn {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 8px 16px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    text-align: center;
+  }
+  .s-btn-lime {
+    background: var(--lime);
+    color: #14130F;
+    border-color: var(--lime);
+    font-weight: 600;
+  }
+  .s-btn-full { display: block; width: 100%; }
+
+  .s-chip {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: 100px;
+    color: var(--text-faint);
+    margin: 2px;
+  }
+  .s-chip.active { border-color: var(--lime); color: var(--lime); background: rgba(198,255,51,0.05); }
+
+  .s-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  .s-badge-lime { background: rgba(198,255,51,0.1); color: var(--lime); }
+  .s-badge-purple { background: rgba(125,57,235,0.15); color: var(--purple); }
+  .s-badge-danger { background: rgba(255,92,62,0.1); color: var(--danger); }
+
+  .s-progress-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--bg);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 8px 0;
+  }
+  .s-progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 1s ease;
+  }
+  .s-progress-fill.lime { background: var(--lime); }
+  .s-progress-fill.purple { background: var(--purple); }
+
+  .s-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 16px; }
+  .s-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 8px 16px; }
+
+  .s-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 16px;
+    padding: 10px 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+
+  .s-msg {
+    padding: 12px 16px;
+    margin: 4px 16px;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .s-msg-user {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    margin-left: 40px;
+  }
+  .s-msg-bot {
+    background: transparent;
+    color: var(--text-dim);
+    border-left: 2px solid var(--purple);
+    padding-left: 14px;
+  }
+  .s-msg-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .s-msg-label.user { color: var(--text-dim); }
+  .s-msg-label.bot { color: var(--purple); }
+
+  .s-input-bar {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--line);
+    background: var(--surface-2);
+  }
+  .s-input-bar input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-size: 12px;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+  }
+
+  .s-star { color: #FBBF24; }
+
+  .s-divider {
+    height: 1px;
+    background: var(--line);
+    margin: 0 16px;
+  }
+
+  /* ─── WEB SIDEBAR ─── */
+  .web-sidebar {
+    width: 240px;
+    background: var(--surface);
+    border-right: 1px solid var(--line);
+    padding: 0;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 500px;
+  }
+  .web-sidebar-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .web-sidebar-nav { flex: 1; padding: 12px; }
+  .web-sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--text-dim);
+    border-radius: 4px;
+    cursor: pointer;
+    margin-bottom: 2px;
+  }
+  .web-sidebar-item:hover { background: var(--surface-2); color: var(--text); }
+  .web-sidebar-item.active { background: rgba(198,255,51,0.08); color: var(--lime); }
+  .web-sidebar-item .icon { font-size: 16px; width: 20px; text-align: center; }
+
+  .web-layout { display: flex; min-height: 500px; }
+  .web-main { flex: 1; overflow-y: auto; }
+
+  /* ─── WEB NAV TABS ─── */
+  .web-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg);
+    padding: 0 24px;
+  }
+  .web-tab {
+    padding: 14px 20px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+  }
+  .web-tab.active { color: var(--lime); border-bottom-color: var(--lime); }
+
+  /* ─── MODEL CARDS ─── */
+  .model-card {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    padding: 20px;
+    border-radius: 4px;
+    transition: border-color 0.2s;
+  }
+  .model-card:hover { border-color: var(--lime); }
+  .model-card h4 { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .model-card .model-meta { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-faint); margin-bottom: 10px; }
+  .model-card .model-desc { font-size: 13px; color: var(--text-dim); line-height: 1.5; margin-bottom: 12px; }
+  .model-card .model-specs { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .model-card .model-spec {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-faint);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* ─── WEB ZOO GRID ─── */
+  .zoo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    padding: 24px;
+  }
+
+  /* ─── MARKETPLACE CARDS ─── */
+  .mp-card {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    padding: 20px;
+    border-radius: 4px;
+    position: relative;
+  }
+  .mp-card .mp-creator {
+    font-size: 12px;
+    color: var(--text-faint);
+    margin-bottom: 4px;
+  }
+  .mp-card .mp-stats {
+    display: flex;
+    gap: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-faint);
+    margin-top: 12px;
+  }
+
+  /* ─── CHAT PANEL ─── */
+  .chat-container { display: flex; flex-direction: column; height: 500px; }
+  .chat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .chat-messages { flex: 1; overflow-y: auto; padding: 24px; }
+  .chat-input-bar {
+    display: flex;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--line);
+    background: var(--surface-2);
+  }
+  .chat-input-bar input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 12px 16px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+  }
+
+  .web-msg {
+    margin-bottom: 20px;
+    max-width: 80%;
+  }
+  .web-msg-user { margin-left: auto; }
+  .web-msg .msg-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .web-msg .msg-text { font-size: 14px; line-height: 1.7; }
+  .web-msg .msg-source {
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: rgba(198,255,51,0.05);
+    border: 1px solid rgba(198,255,51,0.15);
+    border-radius: 4px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--lime);
+  }
+
+  /* ─── TRAINING WIZARD ─── */
+  .wizard-container { padding: 32px; max-width: 600px; margin: 0 auto; }
+  .wizard-progress {
+    display: flex;
+    gap: 0;
+    margin-bottom: 40px;
+  }
+  .wizard-step {
+    flex: 1;
+    height: 3px;
+    background: var(--line);
+  }
+  .wizard-step.done { background: var(--lime); }
+  .wizard-step.current { background: var(--purple); }
+
+  .mode-card {
+    background: var(--surface-2);
+    border: 2px solid var(--line);
+    padding: 24px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .mode-card.selected { border-color: var(--lime); background: rgba(198,255,51,0.03); }
+  .mode-card h4 { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .mode-card p { font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+  .mode-card .mode-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--lime);
+    margin-bottom: 8px;
+  }
+
+  /* ─── DEVICE CARDS ─── */
+  .device-card {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    padding: 16px 20px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .device-icon { font-size: 28px; }
+  .device-info { flex: 1; }
+  .device-info h4 { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .device-info .device-meta { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-faint); }
+  .device-status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+  .device-status.online { background: var(--lime); box-shadow: 0 0 8px rgba(198,255,51,0.4); }
+  .device-status.offline { background: var(--text-faint); }
+
+  /* ─── ANIMATIONS ─── */
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  @keyframes typing {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes progressPulse {
+    0% { opacity: 0.7; }
+    50% { opacity: 1; }
+    100% { opacity: 0.7; }
+  }
+
+  .animate-in { animation: slideUp 0.4s ease forwards; }
+  .typing-indicator {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--purple);
+    animation: typing 1.2s infinite;
+  }
+
+  /* ─── FLOW CONNECTOR ─── */
+  .flow-connector {
+    text-align: center;
+    padding: 40px 0;
+  }
+  .flow-connector .arrow {
+    width: 2px;
+    height: 60px;
+    background: linear-gradient(to bottom, var(--lime), transparent);
+    margin: 0 auto 12px;
+  }
+  .flow-connector .label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 900px) {
+    .journey-step { grid-template-columns: 1fr; gap: 40px; }
+    .journey-step.reverse { direction: ltr; }
+    .journey-step-number { font-size: 80px; }
+    .web-layout { flex-direction: column; }
+    .web-sidebar { width: 100%; min-height: auto; border-right: none; border-bottom: 1px solid var(--line); }
+  }
+
+  /* ─── TRAINING PROGRESS ANIMATION ─── */
+  .training-progress-anim {
+    padding: 24px;
+    text-align: center;
+  }
+  .training-progress-anim .ring {
+    width: 80px;
+    height: 80px;
+    border: 3px solid var(--line);
+    border-top-color: var(--purple);
+    border-radius: 50%;
+    animation: spin 1.5s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* ─── FOOTER ─── */
+  .footer {
+    text-align: center;
+    padding: 60px 20px;
+    border-top: 1px solid var(--line);
+  }
+  .footer p { color: var(--text-faint); font-size: 13px; }
+  .footer .logo-text {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     HERO
+     ═══════════════════════════════════════════════════════════════ -->
+<section class="hero-section">
+  <div class="hero-badge"><span class="dot"></span> Platform Visualization · v2</div>
+  <h1>Train your own AI.<br>Own it. <em>Sell it.</em></h1>
+  <p>Browse the Model Zoo, pick an open-source LLM or vision model, train it on your own device, and list it on the Marketplace.</p>
+  <div class="hero-pills">
+    <span class="pill active">Model Zoo</span>
+    <span class="pill active">On-Device Training</span>
+    <span class="pill active">RAG + LoRA</span>
+    <span class="pill active">Marketplace</span>
+    <span class="pill">Device-Limited</span>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN 1 — LANDING PAGE
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="label">01 — Landing Page</div>
+  <h2>First impressions</h2>
+  <p>What a visitor sees at toddler.ai before signing up.</p>
+</div>
+
+<div class="journey-container">
+  <div class="browser-frame" style="max-width: 1100px;">
+    <div class="browser-bar">
+      <div class="browser-dots"><span></span><span></span><span></span></div>
+      <div class="browser-url">🔒 toddler.ai</div>
+    </div>
+    <div class="browser-content" style="background: var(--bg);">
+      <!-- Nav -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 32px;border-bottom:1px solid var(--line);background:var(--surface);">
+        <div style="display:flex;align-items:center;gap:24px;">
+          <span style="font-family:'Space Grotesk';font-weight:700;font-size:18px;display:flex;align-items:center;gap:8px;">
+            <span style="width:18px;height:18px;border:2px solid var(--lime);display:inline-block;position:relative;">
+              <span style="position:absolute;top:-2px;left:-2px;width:5px;height:5px;border-top:2px solid var(--lime);border-left:2px solid var(--lime);"></span>
+              <span style="position:absolute;bottom:-2px;right:-2px;width:5px;height:5px;border-bottom:2px solid var(--lime);border-right:2px solid var(--lime);"></span>
+            </span>
+            TODDLER
+          </span>
+          <span style="font-size:13px;color:var(--text-dim);cursor:pointer;">How it works</span>
+          <span style="font-size:13px;color:var(--text-dim);cursor:pointer;">Zoo</span>
+          <span style="font-size:13px;color:var(--text-dim);cursor:pointer;">Marketplace</span>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <span class="s-btn" style="padding:8px 20px;">Log in</span>
+          <span class="s-btn s-btn-lime" style="padding:8px 20px;">Get started</span>
+        </div>
+      </div>
+
+      <!-- Hero -->
+      <div style="padding:80px 32px;text-align:center;">
+        <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--lime);margin-bottom:20px;display:flex;align-items:center;gap:8px;justify-content:center;">
+          <span style="width:6px;height:6px;background:var(--lime);border-radius:50%;"></span>
+          Model Zoo · Open Source · Device-First
+        </div>
+        <h1 style="font-family:'Space Grotesk';font-size:48px;font-weight:700;line-height:1.1;max-width:700px;margin:0 auto 20px;">
+          Train your own AI.<br><span style="color:var(--lime);">Own it. Sell it.</span>
+        </h1>
+        <p style="color:var(--text-dim);font-size:16px;max-width:480px;margin:0 auto 36px;line-height:1.6;">
+          Browse open-source LLMs. Train them on your data — right on your device. List your creation on the Marketplace for others to use.
+        </p>
+        <div style="display:flex;gap:12px;justify-content:center;">
+          <span class="s-btn s-btn-lime" style="padding:12px 28px;font-size:11px;">Browse the Zoo →</span>
+          <span class="s-btn" style="padding:12px 28px;font-size:11px;">See Marketplace</span>
+        </div>
+
+        <!-- Feature Grid -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;max-width:900px;margin:60px auto 0;text-align:left;">
+          <div style="padding:24px;background:var(--surface);border:1px solid var(--line);border-radius:4px;">
+            <div style="font-size:24px;margin-bottom:12px;">🔍</div>
+            <div style="font-family:'Space Grotesk';font-weight:600;margin-bottom:8px;">Model Zoo</div>
+            <div style="font-size:13px;color:var(--text-dim);line-height:1.5;">Curated open-source models filtered by what your device can handle.</div>
+          </div>
+          <div style="padding:24px;background:var(--surface);border:1px solid var(--line);border-radius:4px;">
+            <div style="font-size:24px;margin-bottom:12px;">🧠</div>
+            <div style="font-family:'Space Grotesk';font-weight:600;margin-bottom:8px;">Train on Device</div>
+            <div style="font-size:13px;color:var(--text-dim);line-height:1.5;">RAG or LoRA fine-tuning. Your data never leaves your phone or laptop.</div>
+          </div>
+          <div style="padding:24px;background:var(--surface);border:1px solid var(--line);border-radius:4px;">
+            <div style="font-size:24px;margin-bottom:12px;">💬</div>
+            <div style="font-family:'Space Grotesk';font-weight:600;margin-bottom:8px;">Chat & API</div>
+            <div style="font-size:13px;color:var(--text-dim);line-height:1.5;">Talk to your model instantly. Get an API key to integrate anywhere.</div>
+          </div>
+          <div style="padding:24px;background:var(--surface);border:1px solid var(--line);border-radius:4px;">
+            <div style="font-size:24px;margin-bottom:12px;">🏪</div>
+            <div style="font-family:'Space Grotesk';font-weight:600;margin-bottom:8px;">Marketplace</div>
+            <div style="font-size:13px;color:var(--text-dim);line-height:1.5;">Publish your model. Others discover, clone, and use it. Free in v1.</div>
+          </div>
+        </div>
+
+        <!-- Pricing -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:600px;margin:60px auto 0;text-align:left;">
+          <div style="padding:28px;background:var(--surface);border:1px solid var(--line);border-radius:4px;">
+            <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);margin-bottom:8px;">Standard</div>
+            <div style="font-family:'Space Grotesk';font-size:36px;font-weight:700;">$0<span style="font-size:14px;color:var(--text-faint);font-weight:400;">/mo</span></div>
+            <ul style="list-style:none;padding:0;margin:16px 0;font-size:13px;color:var(--text-dim);">
+              <li style="padding:6px 0;border-bottom:1px solid var(--line);">✓ Full Model Zoo access</li>
+              <li style="padding:6px 0;border-bottom:1px solid var(--line);">✓ Train on your device</li>
+              <li style="padding:6px 0;border-bottom:1px solid var(--line);">✓ RAG mode (unlimited)</li>
+              <li style="padding:6px 0;">✓ Publish to Marketplace</li>
+            </ul>
+            <span class="s-btn s-btn-full" style="padding:10px;">Get started</span>
+          </div>
+          <div style="padding:28px;background:var(--surface);border:2px solid var(--lime);border-radius:4px;">
+            <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--lime);margin-bottom:8px;">Pro</div>
+            <div style="font-family:'Space Grotesk';font-size:36px;font-weight:700;">$49<span style="font-size:14px;color:var(--text-faint);font-weight:400;">/mo</span></div>
+            <ul style="list-style:none;padding:0;margin:16px 0;font-size:13px;color:var(--text-dim);">
+              <li style="padding:6px 0;border-bottom:1px solid var(--line);">✓ Everything in Standard</li>
+              <li style="padding:6px 0;border-bottom:1px solid var(--line);">✓ LoRA fine-tuning</li>
+              <li style="padding:6px 0;border-bottom:1px solid var(--line);">✓ Cloud GPU training</li>
+              <li style="padding:6px 0;">✓ Larger models (Llama 8B)</li>
+            </ul>
+            <span class="s-btn s-btn-lime s-btn-full" style="padding:10px;">Upgrade to Pro</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     FLOW CONNECTOR
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="flow-connector">
+  <div class="arrow"></div>
+  <div class="label">User signs up → enters the Zoo</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN 2 — MODEL ZOO (WEB)
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="label">02 — Model Zoo</div>
+  <h2>Browse. Filter. Pick one.</h2>
+  <p>The homepage of Toddler. Every model filtered by what your device can handle.</p>
+</div>
+
+<div class="journey-container">
+  <div class="browser-frame" style="max-width: 1100px;">
+    <div class="browser-bar">
+      <div class="browser-dots"><span></span><span></span><span></span></div>
+      <div class="browser-url">🔒 toddler.ai/zoo</div>
+    </div>
+    <div class="browser-content">
+      <div class="web-layout">
+        <!-- Sidebar -->
+        <div class="web-sidebar">
+          <div class="web-sidebar-header">
+            <span style="font-family:'Space Grotesk';font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px;">
+              <span style="width:16px;height:16px;border:2px solid var(--lime);display:inline-block;position:relative;">
+                <span style="position:absolute;top:-2px;left:-2px;width:4px;height:4px;border-top:2px solid var(--lime);border-left:2px solid var(--lime);"></span>
+                <span style="position:absolute;bottom:-2px;right:-2px;width:4px;height:4px;border-bottom:2px solid var(--lime);border-right:2px solid var(--lime);"></span>
+              </span>
+              TODDLER
+            </span>
+          </div>
+          <div class="web-sidebar-nav">
+            <div class="web-sidebar-item active"><span class="icon">🔍</span> Model Zoo</div>
+            <div class="web-sidebar-item"><span class="icon">🧠</span> My Models <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10px;color:var(--text-faint);">3</span></div>
+            <div class="web-sidebar-item"><span class="icon">🏪</span> Marketplace</div>
+            <div class="web-sidebar-item"><span class="icon">📱</span> Devices <span style="margin-left:auto;width:6px;height:6px;background:var(--lime);border-radius:50%;display:inline-block;"></span></div>
+          </div>
+          <div style="padding:12px;border-top:1px solid var(--line);">
+            <div style="font-size:12px;color:var(--text-faint);padding:8px;">farouq@gmail.com</div>
+          </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="web-main" style="background:var(--bg);">
+          <!-- Search + Filters -->
+          <div style="padding:24px 24px 0;">
+            <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;">
+              <div style="flex:1;display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--surface-2);border:1px solid var(--line);border-radius:4px;font-family:'IBM Plex Mono';font-size:12px;color:var(--text-faint);">
+                🔍 Search models...
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <span class="s-chip active">All</span>
+              <span class="s-chip">LLM</span>
+              <span class="s-chip">Vision</span>
+              <span class="s-chip">Fits My Device</span>
+              <span class="s-chip">Trending</span>
+              <span class="s-chip">Community</span>
+            </div>
+          </div>
+
+          <!-- Trending Section -->
+          <div style="padding:24px;">
+            <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);margin-bottom:16px;">🔥 Trending</div>
+            <div class="zoo-grid" style="padding:0;">
+              <!-- Model Card 1 -->
+              <div class="model-card">
+                <div style="display:flex;justify-content:space-between;align-items:start;">
+                  <h4>SmolLM2 360M</h4>
+                  <span class="s-badge s-badge-lime">📱💻☁️</span>
+                </div>
+                <div class="model-meta">Chat · 360M params · 150MB · Apache-2.0</div>
+                <div class="model-desc">Tiny but capable language model. Runs on phones with 4GB+ RAM. Perfect for personal assistants and doc chat.</div>
+                <div class="model-specs">
+                  <span class="model-spec">⚡ 4GB RAM</span>
+                  <span class="model-spec">📦 150MB</span>
+                  <span class="model-spec">🎯 RAG + LoRA</span>
+                </div>
+                <div style="display:flex;gap:8px;">
+                  <span class="s-btn s-btn-lime" style="flex:1;padding:8px;font-size:9px;">Train</span>
+                  <span class="s-btn" style="padding:8px;font-size:9px;">Demo</span>
+                </div>
+              </div>
+
+              <!-- Model Card 2 -->
+              <div class="model-card">
+                <div style="display:flex;justify-content:space-between;align-items:start;">
+                  <h4>Llama 3.2 3B</h4>
+                  <span class="s-badge s-badge-purple">💻☁️</span>
+                </div>
+                <div class="model-meta">Chat + Code · 3.2B params · 1.7GB · Llama 3.2</div>
+                <div class="model-desc">Code-capable language model. Handles complex reasoning, coding tasks, and detailed analysis. Desktop only.</div>
+                <div class="model-specs">
+                  <span class="model-spec">⚡ 8GB RAM</span>
+                  <span class="model-spec">📦 1.7GB</span>
+                  <span class="model-spec">🎯 RAG + LoRA</span>
+                </div>
+                <div style="display:flex;gap:8px;">
+                  <span class="s-btn s-btn-lime" style="flex:1;padding:8px;font-size:9px;">Train</span>
+                  <span class="s-btn" style="padding:8px;font-size:9px;">Demo</span>
+                </div>
+              </div>
+
+              <!-- Model Card 3 -->
+              <div class="model-card">
+                <div style="display:flex;justify-content:space-between;align-items:start;">
+                  <h4>SmolLM2 1.7B</h4>
+                  <span class="s-badge s-badge-purple">💻☁️</span>
+                </div>
+                <div class="model-meta">Chat · 1.7B params · 900MB · Apache-2.0</div>
+                <div class="model-desc">Mid-size model. Great balance of speed and capability. Needs 6GB+ RAM. Desktop and cloud only.</div>
+                <div class="model-specs">
+                  <span class="model-spec">⚡ 6GB RAM</span>
+                  <span class="model-spec">📦 900MB</span>
+                  <span class="model-spec">🎯 RAG + LoRA</span>
+                </div>
+                <div style="display:flex;gap:8px;">
+                  <span class="s-btn s-btn-lime" style="flex:1;padding:8px;font-size:9px;">Train</span>
+                  <span class="s-btn" style="padding:8px;font-size:9px;">Demo</span>
+                </div>
+              </div>
+
+              <!-- Model Card 4 -->
+              <div class="model-card">
+                <div style="display:flex;justify-content:space-between;align-items:start;">
+                  <h4>Phi-3 Mini 3.8B</h4>
+                  <span class="s-badge s-badge-purple">💻☁️</span>
+                </div>
+                <div class="model-meta">Chat · 3.8B params · 2.2GB · MIT</div>
+                <div class="model-desc">Microsoft's small-but-mighty model. Excellent reasoning. Needs 8GB+ RAM.</div>
+                <div class="model-specs">
+                  <span class="model-spec">⚡ 8GB RAM</span>
+                  <span class="model-spec">📦 2.2GB</span>
+                  <span class="model-spec">🎯 RAG + LoRA</span>
+                </div>
+                <div style="display:flex;gap:8px;">
+                  <span class="s-btn s-btn-lime" style="flex:1;padding:8px;font-size:9px;">Train</span>
+                  <span class="s-btn" style="padding:8px;font-size:9px;">Demo</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Community Models -->
+            <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);margin:32px 0 16px;">🏪 Community Models</div>
+            <div class="zoo-grid" style="padding:0;">
+              <div class="mp-card">
+                <div style="display:flex;justify-content:space-between;align-items:start;">
+                  <div>
+                    <h4 style="font-family:'Space Grotesk';font-size:16px;font-weight:600;">Medical FAQ Bot</h4>
+                    <div class="mp-creator">by @dr_smith · SmolLM2 360M</div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:14px;">⭐ 4.8</div>
+                    <div style="font-family:'IBM Plex Mono';font-size:10px;color:var(--text-faint);">142 ratings</div>
+                  </div>
+                </div>
+                <div style="font-size:13px;color:var(--text-dim);margin:10px 0;line-height:1.5;">Medical FAQ chatbot trained on public health documents. Answers common health questions.</div>
+                <div style="display:flex;gap:8px;align-items:center;margin-top:12px;">
+                  <span class="s-badge s-badge-lime">2.1K uses</span>
+                  <span class="s-badge s-badge-lime">340 clones</span>
+                  <span style="margin-left:auto;">
+                    <span class="s-btn" style="padding:6px 14px;font-size:9px;">Clone</span>
+                  </span>
+                </div>
+              </div>
+
+              <div class="mp-card">
+                <div style="display:flex;justify-content:space-between;align-items:start;">
+                  <div>
+                    <h4 style="font-family:'Space Grotesk';font-size:16px;font-weight:600;">Recipe Chef</h4>
+                    <div class="mp-creator">by @chef_maria · Llama 3.2 3B</div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:14px;">⭐ 4.9</div>
+                    <div style="font-family:'IBM Plex Mono';font-size:10px;color:var(--text-faint);">287 ratings</div>
+                  </div>
+                </div>
+                <div style="font-size:13px;color:var(--text-dim);margin:10px 0;line-height:1.5;">Creative recipe generator. Suggests meals based on ingredients you have at home.</div>
+                <div style="display:flex;gap:8px;align-items:center;margin-top:12px;">
+                  <span class="s-badge s-badge-lime">5.3K uses</span>
+                  <span class="s-badge s-badge-lime">1.2K clones</span>
+                  <span style="margin-left:auto;">
+                    <span class="s-btn" style="padding:6px 14px;font-size:9px;">Clone</span>
+                  </span>
+                </div>
+              </div>
+
+              <div class="mp-card">
+                <div style="display:flex;justify-content:space-between;align-items:start;">
+                  <div>
+                    <h4 style="font-family:'Space Grotesk';font-size:16px;font-weight:600;">Python Helper</h4>
+                    <div class="mp-creator">by @dev_alex · Llama 3.2 3B</div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:14px;">⭐ 4.7</div>
+                    <div style="font-family:'IBM Plex Mono';font-size:10px;color:var(--text-faint);">198 ratings</div>
+                  </div>
+                </div>
+                <div style="font-size:13px;color:var(--text-dim);margin:10px 0;line-height:1.5;">Code assistant specialized in Python. Debugs, explains, and writes code from natural language.</div>
+                <div style="display:flex;gap:8px;align-items:center;margin-top:12px;">
+                  <span class="s-badge s-badge-lime">1.8K uses</span>
+                  <span class="s-badge s-badge-lime">620 clones</span>
+                  <span style="margin-left:auto;">
+                    <span class="s-btn" style="padding:6px 14px;font-size:9px;">Clone</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     FLOW CONNECTOR
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="flow-connector">
+  <div class="arrow"></div>
+  <div class="label">User picks SmolLM2 360M → clicks "Train"</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN 3 — TRAINING WIZARD (WEB)
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="label">03 — Training Wizard</div>
+  <h2>Choose your mode. Upload your data. Train.</h2>
+  <p>RAG for instant knowledge. LoRA for deep learning. Your device, your choice.</p>
+</div>
+
+<div class="journey-container">
+  <div class="browser-frame" style="max-width: 1100px;">
+    <div class="browser-bar">
+      <div class="browser-dots"><span></span><span></span><span></span></div>
+      <div class="browser-url">🔒 toddler.ai/zoo/smollm2-360m/train</div>
+    </div>
+    <div class="browser-content">
+      <div class="web-layout">
+        <div class="web-sidebar">
+          <div class="web-sidebar-header">
+            <span style="font-family:'Space Grotesk';font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px;">
+              <span style="width:16px;height:16px;border:2px solid var(--lime);display:inline-block;position:relative;">
+                <span style="position:absolute;top:-2px;left:-2px;width:4px;height:4px;border-top:2px solid var(--lime);border-left:2px solid var(--lime);"></span>
+                <span style="position:absolute;bottom:-2px;right:-2px;width:4px;height:4px;border-bottom:2px solid var(--lime);border-right:2px solid var(--lime);"></span>
+              </span>
+              TODDLER
+            </span>
+          </div>
+          <div class="web-sidebar-nav">
+            <div class="web-sidebar-item active"><span class="icon">🔍</span> Model Zoo</div>
+            <div class="web-sidebar-item"><span class="icon">🧠</span> My Models</div>
+            <div class="web-sidebar-item"><span class="icon">🏪</span> Marketplace</div>
+            <div class="web-sidebar-item"><span class="icon">📱</span> Devices</div>
+          </div>
+        </div>
+
+        <div class="web-main" style="background:var(--bg);padding:40px;">
+          <div class="wizard-container" style="max-width:700px;">
+            <!-- Progress -->
+            <div class="wizard-progress">
+              <div class="wizard-step done"></div>
+              <div class="wizard-step done"></div>
+              <div class="wizard-step current"></div>
+              <div class="wizard-step"></div>
+            </div>
+
+            <!-- Model Info -->
+            <div style="display:flex;align-items:center;gap:16px;margin-bottom:32px;">
+              <div style="width:48px;height:48px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;">🧠</div>
+              <div>
+                <h3 style="font-family:'Space Grotesk';font-size:20px;font-weight:700;">SmolLM2 360M</h3>
+                <div style="font-family:'IBM Plex Mono';font-size:11px;color:var(--text-faint);">Chat · 360M params · 150MB · RAG mode selected</div>
+              </div>
+            </div>
+
+            <h3 style="font-family:'Space Grotesk';font-size:24px;font-weight:700;margin-bottom:8px;">Upload Your Knowledge</h3>
+            <p style="color:var(--text-dim);font-size:14px;margin-bottom:24px;">Drop your files. Toddler will chunk them and inject them into the model's context at inference time.</p>
+
+            <!-- Upload Zone -->
+            <div style="border:2px dashed var(--line);background:var(--surface-2);padding:48px;text-align:center;border-radius:4px;margin-bottom:24px;">
+              <div style="font-size:32px;margin-bottom:12px;">📄</div>
+              <div style="font-family:'IBM Plex Mono';font-size:13px;color:var(--lime);margin-bottom:8px;">Drop files here or click to browse</div>
+              <div style="font-size:12px;color:var(--text-faint);">.txt · .csv · .md · .json · .pdf · Max 200 chunks</div>
+            </div>
+
+            <!-- Simulated uploaded files -->
+            <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:4px;padding:16px;margin-bottom:24px;">
+              <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--lime);margin-bottom:12px;">✓ 3 files uploaded</div>
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;justify-content:space-between;font-size:13px;padding:8px 0;border-bottom:1px solid var(--line);">
+                  <span style="color:var(--text);">medical_faq_database.txt</span>
+                  <span style="font-family:'IBM Plex Mono';font-size:11px;color:var(--text-faint);">142 chunks</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:13px;padding:8px 0;border-bottom:1px solid var(--line);">
+                  <span style="color:var(--text);">health_guidelines_2024.md</span>
+                  <span style="font-family:'IBM Plex Mono';font-size:11px;color:var(--text-faint);">78 chunks</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:13px;padding:8px 0;">
+                  <span style="color:var(--text);">symptom_checker_data.csv</span>
+                  <span style="font-family:'IBM Plex Mono';font-size:11px;color:var(--text-faint);">27 chunks</span>
+                </div>
+              </div>
+              <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;justify-content:space-between;">
+                <span style="font-family:'IBM Plex Mono';font-size:11px;color:var(--text-dim);">Total: 247 chunks</span>
+                <span style="font-family:'IBM Plex Mono';font-size:11px;color:var(--lime);">Ready to train</span>
+              </div>
+            </div>
+
+            <!-- Runner Selection -->
+            <div style="margin-bottom:24px;">
+              <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);margin-bottom:12px;">Choose Runner</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                <div style="background:var(--surface-2);border:2px solid var(--lime);padding:16px;border-radius:4px;text-align:center;">
+                  <div style="font-size:24px;margin-bottom:8px;">📱</div>
+                  <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Pixel 8</div>
+                  <div style="font-family:'IBM Plex Mono';font-size:10px;color:var(--lime);">✅ RAG: instant</div>
+                </div>
+                <div style="background:var(--surface-2);border:1px solid var(--line);padding:16px;border-radius:4px;text-align:center;">
+                  <div style="font-size:24px;margin-bottom:8px;">💻</div>
+                  <div style="font-size:13px;font-weight:600;margin-bottom:4px;">MacBook Air</div>
+                  <div style="font-family:'IBM Plex Mono';font-size:10px;color:var(--lime);">✅ RAG: instant</div>
+                </div>
+                <div style="background:var(--surface-2);border:1px solid var(--line);padding:16px;border-radius:4px;text-align:center;opacity:0.5;">
+                  <div style="font-size:24px;margin-bottom:8px;">☁️</div>
+                  <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Cloud GPU</div>
+                  <div style="font-family:'IBM Plex Mono';font-size:10px;color:var(--text-faint);">Pro only</div>
+                </div>
+              </div>
+            </div>
+
+            <span class="s-btn s-btn-lime s-btn-full" style="padding:14px;font-size:12px;">🚀 Start Training</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     FLOW CONNECTOR
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="flow-connector">
+  <div class="arrow"></div>
+  <div class="label">RAG training complete (instant) → Model appears in "My Models"</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN 4 — MY MODELS + CHAT (WEB)
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="label">04 — Chat with Your Model</div>
+  <h2>Talk to your AI. It knows your data.</h2>
+  <p>The model answers using your uploaded documents as context. Every response comes with source attribution.</p>
+</div>
+
+<div class="journey-container">
+  <div class="browser-frame" style="max-width: 1100px;">
+    <div class="browser-bar">
+      <div class="browser-dots"><span></span><span></span><span></span></div>
+      <div class="browser-url">🔒 toddler.ai/models/medical-faq-bot</div>
+    </div>
+    <div class="browser-content">
+      <div class="web-layout">
+        <div class="web-sidebar">
+          <div class="web-sidebar-header">
+            <span style="font-family:'Space Grotesk';font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px;">
+              <span style="width:16px;height:16px;border:2px solid var(--lime);display:inline-block;position:relative;">
+                <span style="position:absolute;top:-2px;left:-2px;width:4px;height:4px;border-top:2px solid var(--lime);border-left:2px solid var(--lime);"></span>
+                <span style="position:absolute;bottom:-2px;right:-2px;width:4px;height:4px;border-bottom:2px solid var(--lime);border-right:2px solid var(--lime);"></span>
+              </span>
+              TODDLER
+            </span>
+          </div>
+          <div class="web-sidebar-nav">
+            <div class="web-sidebar-item"><span class="icon">🔍</span> Model Zoo</div>
+            <div class="web-sidebar-item active"><span class="icon">🧠</span> My Models</div>
+            <div class="web-sidebar-item"><span class="icon">🏪</span> Marketplace</div>
+            <div class="web-sidebar-item"><span class="icon">📱</span> Devices</div>
+          </div>
+          <div style="padding:12px;border-top:1px solid var(--line);">
+            <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);margin-bottom:8px;padding:0 8px;">Projects</div>
+            <div style="padding:10px 12px;background:rgba(198,255,51,0.08);border:1px solid var(--lime);border-radius:4px;margin-bottom:6px;">
+              <div style="font-size:13px;font-weight:600;">Medical FAQ Bot</div>
+              <div style="font-family:'IBM Plex Mono';font-size:10px;color:var(--lime);">Published · ⭐ 4.8</div>
+            </div>
+            <div style="padding:10px 12px;background:var(--surface-2);border:1px solid var(--line);border-radius:4px;margin-bottom:6px;">
+              <div style="font-size:13px;font-weight:600;">Customer Support v3</div>
+              <div style="font-family:'IBM Plex Mono';font-size:10px;color:var(--text-faint);">Private</div>
+            </div>
+            <div style="padding:10px 12px;background:var(--surface-2);border:1px solid var(--line);border-radius:4px;">
+              <div style="font-size:13px;font-weight:600;">Recipe Advisor</div>
+              <div style="font-family:'IBM Plex Mono';font-size:10px;color:var(--lime);">Published · ⭐ 4.9</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="web-main" style="background:var(--bg);">
+          <!-- Header -->
+          <div style="padding:24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--lime);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                <span style="width:6px;height:6px;background:var(--lime);border-radius:50%;"></span>
+                Trained · RAG Mode · 247 chunks
+              </div>
+              <h2 style="font-family:'Space Grotesk';font-size:28px;font-weight:700;">Medical FAQ Bot</h2>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <span class="s-btn" style="padding:8px 16px;font-size:10px;">🔑 API Key</span>
+              <span class="s-btn" style="padding:8px 16px;font-size:10px;">📥 Export</span>
+              <span class="s-btn" style="padding:8px 16px;font-size:10px;">🏪 Publish</span>
+            </div>
+          </div>
+
+          <!-- Tabs -->
+          <div class="web-tabs">
+            <div class="web-tab active">💬 Chat</div>
+            <div class="web-tab">📊 Overview</div>
+            <div class="web-tab">🔑 API</div>
+            <div class="web-tab">🏪 Marketplace</div>
+          </div>
+
+          <!-- Chat -->
+          <div class="chat-container">
+            <div class="chat-messages" style="padding:24px;">
+              <!-- System -->
+              <div style="text-align:center;margin-bottom:20px;">
+                <span style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);background:var(--surface);padding:6px 14px;border:1px solid var(--line);border-radius:100px;">
+                  Model loaded · 247 knowledge chunks active · SmolLM2 360M
+                </span>
+              </div>
+
+              <!-- User message -->
+              <div class="web-msg web-msg-user" style="margin-bottom:20px;">
+                <div class="msg-label" style="color:var(--text-dim);text-align:right;">USER</div>
+                <div style="background:var(--surface-2);border:1px solid var(--line);padding:14px 18px;border-radius:4px;font-size:14px;line-height:1.6;">
+                  What are the early symptoms of diabetes?
+                </div>
+              </div>
+
+              <!-- Bot message -->
+              <div class="web-msg" style="margin-bottom:20px;">
+                <div class="msg-label" style="color:var(--purple);">TODDLER</div>
+                <div style="font-size:14px;line-height:1.7;color:var(--text-dim);">
+                  Based on the medical documentation, early symptoms of diabetes include:<br><br>
+                  1. <strong style="color:var(--text);">Increased thirst</strong> (polydipsia)<br>
+                  2. <strong style="color:var(--text);">Frequent urination</strong> (polyuria)<br>
+                  3. <strong style="color:var(--text);">Unexplained weight loss</strong><br>
+                  4. <strong style="color:var(--text);">Fatigue</strong> and low energy<br>
+                  5. <strong style="color:var(--text);">Blurred vision</strong><br><br>
+                  If you experience these symptoms, consult a healthcare professional for proper diagnosis.
+                </div>
+                <div class="msg-source">
+                  📎 Source: medical_faq_database.txt · chunk_042 · confidence: 94%
+                </div>
+              </div>
+
+              <!-- User message 2 -->
+              <div class="web-msg web-msg-user" style="margin-bottom:20px;">
+                <div class="msg-label" style="color:var(--text-dim);text-align:right;">USER</div>
+                <div style="background:var(--surface-2);border:1px solid var(--line);padding:14px 18px;border-radius:4px;font-size:14px;line-height:1.6;">
+                  How is it diagnosed?
+                </div>
+              </div>
+
+              <!-- Bot typing -->
+              <div class="web-msg" style="margin-bottom:20px;">
+                <div class="msg-label" style="color:var(--purple);">TODDLER</div>
+                <div class="typing-indicator">Generating response...</div>
+              </div>
+            </div>
+
+            <div class="chat-input-bar">
+              <input type="text" placeholder="Type a message..." disabled>
+              <span class="s-btn s-btn-lime" style="padding:10px 20px;">Send ▲</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     FLOW CONNECTOR
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="flow-connector">
+  <div class="arrow"></div>
+  <div class="label">Same experience on Android — fully on-device</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN 5 — ANDROID: ZOO
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="label">05 — Android App · Model Zoo</div>
+  <h2>The Zoo in your pocket</h2>
+  <p>Filtered to show only models that fit your phone's RAM. Download, train, chat — all offline.</p>
+</div>
+
+<div class="journey-container">
+  <div style="display:flex;justify-content:center;gap:80px;flex-wrap:wrap;">
+    <!-- Phone 1: Zoo -->
+    <div>
+      <div style="text-align:center;margin-bottom:16px;">
+        <span style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);">Model Zoo</span>
+      </div>
+      <div class="phone-frame">
+        <div class="phone-notch"></div>
+        <div class="phone-screen" style="padding-top:32px;">
+          <!-- Status bar -->
+          <div class="s-status-bar">
+            <span>9:41</span>
+            <span>⚡ 87%</span>
+          </div>
+
+          <!-- Header -->
+          <div style="padding:12px 20px;border-bottom:1px solid var(--line);background:var(--surface);">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="width:14px;height:14px;border:2px solid var(--lime);display:inline-block;position:relative;">
+                <span style="position:absolute;top:-2px;left:-2px;width:3px;height:3px;border-top:2px solid var(--lime);border-left:2px solid var(--lime);"></span>
+                <span style="position:absolute;bottom:-2px;right:-2px;width:3px;height:3px;border-bottom:2px solid var(--lime);border-right:2px solid var(--lime);"></span>
+              </span>
+              <span style="font-family:'Space Grotesk';font-weight:700;font-size:15px;">TODDLER</span>
+            </div>
+            <div style="font-family:'IBM Plex Mono';font-size:9px;color:var(--lime);margin-top:4px;display:flex;align-items:center;gap:4px;">
+              <span style="width:5px;height:5px;background:var(--lime);border-radius:50%;"></span>
+              Pixel 8 · 4GB RAM · Online
+            </div>
+          </div>
+
+          <!-- Search -->
+          <div class="s-search">🔍 Search models...</div>
+
+          <!-- Chips -->
+          <div style="padding:0 16px;display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
+            <span class="s-chip active">All</span>
+            <span class="s-chip">LLM</span>
+            <span class="s-chip">Vision</span>
+            <span class="s-chip">Downloaded</span>
+          </div>
+
+          <div class="s-section-title">Fits Your Device</div>
+
+          <!-- SmolLM2 360M Card -->
+          <div class="s-card s-card-accent">
+            <h4>SmolLM2 360M</h4>
+            <div class="meta">Chat · 360M params · 150MB · Apache-2.0</div>
+            <div class="desc">Tiny but capable. Runs on your Pixel 8 with 4GB RAM.</div>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+              <span class="s-badge s-badge-lime">✅ Fits your device</span>
+            </div>
+            <div style="margin-top:12px;">
+              <span class="s-btn s-btn-lime s-btn-full" style="padding:8px;font-size:9px;">Train This Model</span>
+            </div>
+          </div>
+
+          <!-- Downloaded model -->
+          <div class="s-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <h4>SmolLM2 360M</h4>
+              <span class="s-badge s-badge-lime">Downloaded</span>
+            </div>
+            <div class="meta">Medical FAQ Bot · RAG · 247 chunks</div>
+            <div style="margin-top:12px;display:flex;gap:8px;">
+              <span class="s-btn s-btn-lime" style="flex:1;padding:8px;font-size:9px;">💬 Chat</span>
+              <span class="s-btn" style="padding:8px;font-size:9px;">⚙️</span>
+            </div>
+          </div>
+
+          <div class="s-section-title" style="color:var(--text-faint);">⚠️ Needs More RAM</div>
+
+          <div class="s-card" style="opacity:0.5;">
+            <h4>Llama 3.2 3B</h4>
+            <div class="meta">Chat + Code · 3.2B params · 1.7GB</div>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+              <span class="s-badge s-badge-danger">⚠️ Needs 8GB RAM</span>
+            </div>
+          </div>
+
+          <!-- Bottom Tab Bar -->
+          <div style="height:20px;"></div>
+          <div class="s-tab-bar">
+            <div class="s-tab active"><span class="tab-icon">🔍</span>Zoo</div>
+            <div class="s-tab"><span class="tab-icon">🧠</span>My AI</div>
+            <div class="s-tab"><span class="tab-icon">⚡</span>Train</div>
+            <div class="s-tab"><span class="tab-icon">👤</span>Profile</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phone 2: Chat -->
+    <div>
+      <div style="text-align:center;margin-bottom:16px;">
+        <span style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);">On-Device Chat</span>
+      </div>
+      <div class="phone-frame">
+        <div class="phone-notch"></div>
+        <div class="phone-screen" style="padding-top:32px;">
+          <div class="s-status-bar">
+            <span>9:41</span>
+            <span>⚡ 87%</span>
+          </div>
+
+          <!-- Chat Header -->
+          <div style="padding:12px 20px;border-bottom:1px solid var(--line);background:var(--surface);display:flex;align-items:center;gap:12px;">
+            <span style="font-size:16px;">←</span>
+            <div>
+              <div style="font-family:'Space Grotesk';font-weight:600;font-size:14px;">Medical FAQ Bot</div>
+              <div style="font-family:'IBM Plex Mono';font-size:9px;color:var(--lime);">SmolLM2 360M · 247 chunks · On-device</div>
+            </div>
+          </div>
+
+          <!-- Model Loading -->
+          <div style="padding:8px 16px;background:rgba(125,57,235,0.1);border-bottom:1px solid var(--line);text-align:center;">
+            <div style="font-family:'IBM Plex Mono';font-size:9px;color:var(--purple);">🧠 Model loaded in 2.3s · WebGPU · 150MB in cache</div>
+          </div>
+
+          <!-- Messages -->
+          <div style="flex:1;overflow-y:auto;padding:16px;">
+            <!-- System -->
+            <div style="text-align:center;margin-bottom:16px;">
+              <span style="font-family:'IBM Plex Mono';font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--text-faint);background:var(--surface);padding:4px 10px;border-radius:100px;">
+                247 knowledge chunks active
+              </span>
+            </div>
+
+            <!-- User msg -->
+            <div style="margin-bottom:14px;">
+              <div class="s-msg-label user" style="text-align:right;">USER</div>
+              <div class="s-msg s-msg-user" style="margin-left:40px;">What are the symptoms of flu?</div>
+            </div>
+
+            <!-- Bot msg -->
+            <div style="margin-bottom:14px;">
+              <div class="s-msg-label bot">TODDLER</div>
+              <div class="s-msg s-msg-bot">
+                Common flu symptoms include:<br><br>
+                • <strong>Fever</strong> (100.4°F+)<br>
+                • <strong>Cough</strong> (usually dry)<br>
+                • <strong>Body aches</strong><br>
+                • <strong>Fatigue</strong><br>
+                • <strong>Sore throat</strong><br>
+                • <strong>Headache</strong><br><br>
+                Rest and hydration are key. See a doctor if symptoms worsen.
+              </div>
+              <div style="margin:6px 16px;padding:6px 10px;background:rgba(198,255,51,0.05);border:1px solid rgba(198,255,51,0.15);border-radius:4px;font-family:'IBM Plex Mono';font-size:8px;color:var(--lime);">
+                📎 Source: health_guidelines_2024.md · chunk_018 · 92%
+              </div>
+            </div>
+
+            <!-- Latency -->
+            <div style="text-align:center;margin-bottom:14px;">
+              <span style="font-family:'IBM Plex Mono';font-size:8px;color:var(--text-faint);">⚡ 1.2s · 847 tokens · On-device</span>
+            </div>
+
+            <!-- User msg 2 -->
+            <div style="margin-bottom:14px;">
+              <div class="s-msg-label user" style="text-align:right;">USER</div>
+              <div class="s-msg s-msg-user" style="margin-left:40px;">And for covid?</div>
+            </div>
+
+            <!-- Bot typing -->
+            <div style="margin-bottom:14px;">
+              <div class="s-msg-label bot">TODDLER</div>
+              <div style="padding:12px 16px;margin-left:0;">
+                <div class="typing-indicator" style="color:var(--purple);">▊</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Input -->
+          <div class="s-input-bar">
+            <input type="text" placeholder="Type a message..." disabled>
+            <span class="s-btn s-btn-lime" style="padding:8px 12px;font-size:10px;">▲</span>
+          </div>
+
+          <!-- Bottom Tab Bar -->
+          <div class="s-tab-bar">
+            <div class="s-tab"><span class="tab-icon">🔍</span>Zoo</div>
+            <div class="s-tab active"><span class="tab-icon">🧠</span>My AI</div>
+            <div class="s-tab"><span class="tab-icon">⚡</span>Train</div>
+            <div class="s-tab"><span class="tab-icon">👤</span>Profile</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phone 3: Training -->
+    <div>
+      <div style="text-align:center;margin-bottom:16px;">
+        <span style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);">Training</span>
+      </div>
+      <div class="phone-frame">
+        <div class="phone-notch"></div>
+        <div class="phone-screen" style="padding-top:32px;">
+          <div class="s-status-bar">
+            <span>9:41</span>
+            <span>⚡ 72%</span>
+          </div>
+
+          <!-- Header -->
+          <div style="padding:12px 20px;border-bottom:1px solid var(--line);background:var(--surface);">
+            <div style="font-family:'Space Grotesk';font-weight:700;font-size:15px;">Training</div>
+          </div>
+
+          <!-- Active Training -->
+          <div class="s-section-title" style="color:var(--purple);">Currently Training</div>
+
+          <div class="s-card s-card-purple">
+            <h4>Customer Support Bot</h4>
+            <div class="meta">SmolLM2 360M · Fine-tune · Epoch 3/5</div>
+            <div class="s-progress-bar">
+              <div class="s-progress-fill purple" style="width:62%;"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono';font-size:9px;color:var(--text-faint);margin-top:4px;">
+              <span>62% · Loss: 0.34</span>
+              <span>ETA: ~4 min</span>
+            </div>
+            <div style="margin-top:8px;padding:8px;background:var(--bg);border:1px solid var(--line);border-radius:4px;">
+              <div style="font-family:'IBM Plex Mono';font-size:9px;color:var(--purple);">
+                ⚡ Foreground service active · Wake lock held
+              </div>
+            </div>
+          </div>
+
+          <!-- Completed -->
+          <div class="s-section-title">Completed</div>
+
+          <div class="s-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <h4>Medical FAQ Bot</h4>
+              <span class="s-badge s-badge-lime">✅ Done</span>
+            </div>
+            <div class="meta">SmolLM2 360M · RAG · 247 chunks</div>
+            <div style="margin-top:10px;">
+              <span class="s-btn" style="padding:6px 12px;font-size:9px;">💬 Open Chat</span>
+            </div>
+          </div>
+
+          <div class="s-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <h4>Recipe Advisor</h4>
+              <span class="s-badge s-badge-lime">✅ Done</span>
+            </div>
+            <div class="meta">SmolLM2 360M · RAG · 186 chunks</div>
+            <div style="margin-top:10px;">
+              <span class="s-btn" style="padding:6px 12px;font-size:9px;">💬 Open Chat</span>
+            </div>
+          </div>
+
+          <!-- Bottom Tab Bar -->
+          <div style="height:20px;"></div>
+          <div class="s-tab-bar">
+            <div class="s-tab"><span class="tab-icon">🔍</span>Zoo</div>
+            <div class="s-tab"><span class="tab-icon">🧠</span>My AI</div>
+            <div class="s-tab active"><span class="tab-icon">⚡</span>Train</div>
+            <div class="s-tab"><span class="tab-icon">👤</span>Profile</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     FLOW CONNECTOR
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="flow-connector">
+  <div class="arrow"></div>
+  <div class="label">User publishes model to the Marketplace</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCREEN 6 — MARKETPLACE (WEB)
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="label">06 — Marketplace</div>
+  <h2>Discover community models</h2>
+  <p>Models trained by real users on real data. Clone one, retrain it with your own data, make it yours.</p>
+</div>
+
+<div class="journey-container">
+  <div class="browser-frame" style="max-width: 1100px;">
+    <div class="browser-bar">
+      <div class="browser-dots"><span></span><span></span><span></span></div>
+      <div class="browser-url">🔒 toddler.ai/marketplace</div>
+    </div>
+    <div class="browser-content">
+      <div class="web-layout">
+        <div class="web-sidebar">
+          <div class="web-sidebar-header">
+            <span style="font-family:'Space Grotesk';font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px;">
+              <span style="width:16px;height:16px;border:2px solid var(--lime);display:inline-block;position:relative;">
+                <span style="position:absolute;top:-2px;left:-2px;width:4px;height:4px;border-top:2px solid var(--lime);border-left:2px solid var(--lime);"></span>
+                <span style="position:absolute;bottom:-2px;right:-2px;width:4px;height:4px;border-bottom:2px solid var(--lime);border-right:2px solid var(--lime);"></span>
+              </span>
+              TODDLER
+            </span>
+          </div>
+          <div class="web-sidebar-nav">
+            <div class="web-sidebar-item"><span class="icon">🔍</span> Model Zoo</div>
+            <div class="web-sidebar-item"><span class="icon">🧠</span> My Models</div>
+            <div class="web-sidebar-item active"><span class="icon">🏪</span> Marketplace</div>
+            <div class="web-sidebar-item"><span class="icon">📱</span> Devices</div>
+          </div>
+        </div>
+
+        <div class="web-main" style="background:var(--bg);padding:32px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+            <div>
+              <h2 style="font-family:'Space Grotesk';font-size:28px;font-weight:700;">🏪 Marketplace</h2>
+              <p style="color:var(--text-dim);font-size:14px;">Models trained by the Toddler community</p>
+            </div>
+            <span class="s-btn s-btn-lime" style="padding:10px 20px;font-size:10px;">Publish Your Model</span>
+          </div>
+
+          <!-- Categories -->
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px;">
+            <span class="s-chip active">All</span>
+            <span class="s-chip">Medical</span>
+            <span class="s-chip">Legal</span>
+            <span class="s-chip">Customer Support</span>
+            <span class="s-chip">Education</span>
+            <span class="s-chip">Finance</span>
+            <span class="s-chip">Programming</span>
+            <span class="s-chip">Creative</span>
+          </div>
+
+          <!-- Trending -->
+          <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);margin-bottom:16px;">🔥 Trending This Week</div>
+
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+            <!-- Card 1 -->
+            <div style="background:var(--surface-2);border:1px solid var(--line);padding:24px;border-radius:4px;">
+              <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">
+                <div>
+                  <h4 style="font-family:'Space Grotesk';font-size:16px;font-weight:600;">Medical FAQ Bot</h4>
+                  <div style="font-size:12px;color:var(--text-faint);">by @dr_smith · SmolLM2 360M</div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:16px;">⭐ 4.8</div>
+                </div>
+              </div>
+              <div style="font-size:13px;color:var(--text-dim);line-height:1.5;margin:12px 0;">Medical FAQ chatbot trained on public health documents. Answers common health questions with source references.</div>
+              <div style="display:flex;gap:8px;margin-bottom:16px;">
+                <span class="s-badge s-badge-lime">Medical</span>
+                <span class="s-badge s-badge-lime">RAG</span>
+              </div>
+              <div style="display:flex;gap:12px;font-family:'IBM Plex Mono';font-size:10px;color:var(--text-faint);margin-bottom:16px;">
+                <span>2.1K uses</span>
+                <span>340 clones</span>
+                <span>142 ratings</span>
+              </div>
+              <div style="display:flex;gap:8px;">
+                <span class="s-btn s-btn-lime" style="flex:1;padding:8px;font-size:9px;">Clone & Train</span>
+                <span class="s-btn" style="padding:8px;font-size:9px;">Demo</span>
+              </div>
+            </div>
+
+            <!-- Card 2 -->
+            <div style="background:var(--surface-2);border:1px solid var(--line);padding:24px;border-radius:4px;">
+              <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">
+                <div>
+                  <h4 style="font-family:'Space Grotesk';font-size:16px;font-weight:600;">Recipe Chef</h4>
+                  <div style="font-size:12px;color:var(--text-faint);">by @chef_maria · Llama 3.2 3B</div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:16px;">⭐ 4.9</div>
+                </div>
+              </div>
+              <div style="font-size:13px;color:var(--text-dim);line-height:1.5;margin:12px 0;">Creative recipe generator. Suggests meals based on ingredients you have at home.</div>
+              <div style="display:flex;gap:8px;margin-bottom:16px;">
+                <span class="s-badge s-badge-lime">Food</span>
+                <span class="s-badge s-badge-lime">RAG</span>
+              </div>
+              <div style="display:flex;gap:12px;font-family:'IBM Plex Mono';font-size:10px;color:var(--text-faint);margin-bottom:16px;">
+                <span>5.3K uses</span>
+                <span>1.2K clones</span>
+                <span>287 ratings</span>
+              </div>
+              <div style="display:flex;gap:8px;">
+                <span class="s-btn s-btn-lime" style="flex:1;padding:8px;font-size:9px;">Clone & Train</span>
+                <span class="s-btn" style="padding:8px;font-size:9px;">Demo</span>
+              </div>
+            </div>
+
+            <!-- Card 3 -->
+            <div style="background:var(--surface-2);border:1px solid var(--line);padding:24px;border-radius:4px;">
+              <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">
+                <div>
+                  <h4 style="font-family:'Space Grotesk';font-size:16px;font-weight:600;">Python Helper</h4>
+                  <div style="font-size:12px;color:var(--text-faint);">by @dev_alex · Llama 3.2 3B</div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:16px;">⭐ 4.7</div>
+                </div>
+              </div>
+              <div style="font-size:13px;color:var(--text-dim);line-height:1.5;margin:12px 0;">Code assistant specialized in Python. Debugs, explains, and writes code from natural language.</div>
+              <div style="display:flex;gap:8px;margin-bottom:16px;">
+                <span class="s-badge s-badge-lime">Programming</span>
+                <span class="s-badge s-badge-lime">LoRA</span>
+              </div>
+              <div style="display:flex;gap:12px;font-family:'IBM Plex Mono';font-size:10px;color:var(--text-faint);margin-bottom:16px;">
+                <span>1.8K uses</span>
+                <span>620 clones</span>
+                <span>198 ratings</span>
+              </div>
+              <div style="display:flex;gap:8px;">
+                <span class="s-btn s-btn-lime" style="flex:1;padding:8px;font-size:9px;">Clone & Train</span>
+                <span class="s-btn" style="padding:8px;font-size:9px;">Demo</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- More rows -->
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px;">
+            <div style="background:var(--surface-2);border:1px solid var(--line);padding:24px;border-radius:4px;">
+              <h4 style="font-family:'Space Grotesk';font-size:16px;font-weight:600;">Legal Analyzer</h4>
+              <div style="font-size:12px;color:var(--text-faint);">by @law_pro · SmolLM2 1.7B</div>
+              <div style="font-size:13px;color:var(--text-dim);line-height:1.5;margin:10px 0;">Analyzes contracts and legal documents. Highlights key clauses and risks.</div>
+              <div style="display:flex;gap:8px;margin-bottom:12px;">
+                <span class="s-badge s-badge-lime">Legal</span>
+                <span class="s-badge s-badge-lime">LoRA</span>
+              </div>
+              <div style="display:flex;gap:8px;">
+                <span class="s-btn s-btn-lime" style="flex:1;padding:8px;font-size:9px;">Clone & Train</span>
+                <span class="s-btn" style="padding:8px;font-size:9px;">Demo</span>
+              </div>
+            </div>
+
+            <div style="background:var(--surface-2);border:1px solid var(--line);padding:24px;border-radius:4px;">
+              <h4 style="font-family:'Space Grotesk';font-size:16px;font-weight:600;">Study Buddy</h4>
+              <div style="font-size:12px;color:var(--text-faint);">by @teacher_jane · SmolLM2 360M</div>
+              <div style="font-size:13px;color:var(--text-dim);line-height:1.5;margin:10px 0;">Quiz generator and study assistant. Creates flashcards from your notes.</div>
+              <div style="display:flex;gap:8px;margin-bottom:12px;">
+                <span class="s-badge s-badge-lime">Education</span>
+                <span class="s-badge s-badge-lime">RAG</span>
+              </div>
+              <div style="display:flex;gap:8px;">
+                <span class="s-btn s-btn-lime" style="flex:1;padding:8px;font-size:9px;">Clone & Train</span>
+                <span class="s-btn" style="padding:8px;font-size:9px;">Demo</span>
+              </div>
+            </div>
+
+            <div style="background:var(--surface-2);border:1px solid var(--line);padding:24px;border-radius:4px;">
+              <h4 style="font-family:'Space Grotesk';font-size:16px;font-weight:600;">Finance Advisor</h4>
+              <div style="font-size:12px;color:var(--text-faint);">by @money_guru · Phi-3 Mini</div>
+              <div style="font-size:13px;color:var(--text-dim);line-height:1.5;margin:10px 0;">Personal finance assistant. Budget tips, investment basics, expense tracking.</div>
+              <div style="display:flex;gap:8px;margin-bottom:12px;">
+                <span class="s-badge s-badge-lime">Finance</span>
+                <span class="s-badge s-badge-lime">LoRA</span>
+              </div>
+              <div style="display:flex;gap:8px;">
+                <span class="s-btn s-btn-lime" style="flex:1;padding:8px;font-size:9px;">Clone & Train</span>
+                <span class="s-btn" style="padding:8px;font-size:9px;">Demo</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     FLOW CONNECTOR
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="flow-connector">
+  <div class="arrow"></div>
+  <div class="label">End-to-end: Zoo → Train → Chat → Publish → Marketplace</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     ARCHITECTURE OVERVIEW
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="label">07 — Architecture</div>
+  <h2>How it all connects</h2>
+  <p>Web is the control tower. Phone trains small models. Desktop trains big ones. Cloud is the Pro escape hatch.</p>
+</div>
+
+<div class="journey-container" style="max-width:900px;">
+  <div style="background:var(--surface);border:1px solid var(--line);padding:40px;border-radius:8px;">
+    <!-- Architecture Diagram -->
+    <div style="text-align:center;margin-bottom:32px;">
+      <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--lime);margin-bottom:12px;">System Architecture</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:24px;align-items:center;">
+      <!-- Web -->
+      <div style="background:var(--surface-2);border:2px solid var(--lime);padding:20px 40px;border-radius:4px;text-align:center;min-width:400px;">
+        <div style="font-size:20px;margin-bottom:4px;">🌐</div>
+        <div style="font-family:'Space Grotesk';font-weight:700;font-size:16px;">toddler.ai</div>
+        <div style="font-family:'IBM Plex Mono';font-size:10px;color:var(--text-faint);">Zoo · My Models · Marketplace · Devices</div>
+        <div style="font-family:'IBM Plex Mono';font-size:9px;color:var(--lime);margin-top:4px;">Control Tower — Never Trains</div>
+      </div>
+
+      <!-- Arrow down -->
+      <div style="width:2px;height:30px;background:var(--line);"></div>
+
+      <!-- Backend -->
+      <div style="background:var(--surface-2);border:1px solid var(--line);padding:20px 40px;border-radius:4px;text-align:center;min-width:400px;">
+        <div style="font-size:20px;margin-bottom:4px;">⚙️</div>
+        <div style="font-family:'Space Grotesk';font-weight:700;font-size:16px;">FastAPI Backend</div>
+        <div style="font-family:'IBM Plex Mono';font-size:10px;color:var(--text-faint);">Job Queue · Model Catalog · Auth · Marketplace API</div>
+      </div>
+
+      <!-- Three arrows -->
+      <div style="display:flex;gap:60px;align-items:start;">
+        <div style="width:2px;height:30px;background:var(--line);"></div>
+        <div style="width:2px;height:30px;background:var(--line);"></div>
+        <div style="width:2px;height:30px;background:var(--line);"></div>
+      </div>
+
+      <!-- Three runners -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;width:100%;">
+        <div style="background:var(--surface-2);border:1px solid var(--lime);padding:20px;border-radius:4px;text-align:center;">
+          <div style="font-size:24px;margin-bottom:8px;">📱</div>
+          <div style="font-family:'Space Grotesk';font-weight:700;font-size:14px;">Phone</div>
+          <div style="font-family:'IBM Plex Mono';font-size:10px;color:var(--text-faint);margin:8px 0;">SmolLM2 360M/1.7B</div>
+          <div style="font-size:11px;color:var(--text-dim);line-height:1.4;">RAG + Chat<br>Web Worker + FG Service</div>
+          <div style="margin-top:8px;">
+            <span class="s-badge s-badge-lime">4GB+ RAM</span>
+          </div>
+        </div>
+
+        <div style="background:var(--surface-2);border:1px solid var(--purple);padding:20px;border-radius:4px;text-align:center;">
+          <div style="font-size:24px;margin-bottom:8px;">💻</div>
+          <div style="font-family:'Space Grotesk';font-weight:700;font-size:14px;">Desktop</div>
+          <div style="font-family:'IBM Plex Mono';font-size:10px;color:var(--text-faint);margin:8px 0;">Llama 3.2 3B · LoRA</div>
+          <div style="font-size:11px;color:var(--text-dim);line-height:1.4;">Fine-tuning + RAG<br>Tauri + Python sidecar</div>
+          <div style="margin-top:8px;">
+            <span class="s-badge s-badge-purple">8GB+ RAM</span>
+          </div>
+        </div>
+
+        <div style="background:var(--surface-2);border:1px solid var(--blue);padding:20px;border-radius:4px;text-align:center;">
+          <div style="font-size:24px;margin-bottom:8px;">☁️</div>
+          <div style="font-family:'Space Grotesk';font-weight:700;font-size:14px;">Cloud (Pro)</div>
+          <div style="font-family:'IBM Plex Mono';font-size:10px;color:var(--text-faint);margin:8px 0;">Llama 8B · ViT-Large</div>
+          <div style="font-size:11px;color:var(--text-dim);line-height:1.4;">Anything in catalog<br>Modal/RunPod GPU</div>
+          <div style="margin-top:8px;">
+            <span class="s-badge" style="background:rgba(59,130,246,0.1);color:var(--blue);">$49/mo</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom: Storage -->
+      <div style="display:flex;gap:16px;width:100%;margin-top:16px;">
+        <div style="flex:1;background:var(--bg);border:1px solid var(--line);padding:16px;border-radius:4px;text-align:center;">
+          <div style="font-size:16px;margin-bottom:4px;">🔥</div>
+          <div style="font-family:'IBM Plex Mono';font-size:10px;color:var(--text-dim);">Firebase</div>
+          <div style="font-family:'IBM Plex Mono';font-size:9px;color:var(--text-faint);">Auth · Firestore · FCM</div>
+        </div>
+        <div style="flex:1;background:var(--bg);border:1px solid var(--line);padding:16px;border-radius:4px;text-align:center;">
+          <div style="font-size:16px;margin-bottom:4px;">☁️</div>
+          <div style="font-family:'IBM Plex Mono';font-size:10px;color:var(--text-dim);">Cloudinary</div>
+          <div style="font-family:'IBM Plex Mono';font-size:9px;color:var(--text-faint);">Signed uploads · Artifacts</div>
+        </div>
+        <div style="flex:1;background:var(--bg);border:1px solid var(--line);padding:16px;border-radius:4px;text-align:center;">
+          <div style="font-size:16px;margin-bottom:4px;">💾</div>
+          <div style="font-family:'IBM Plex Mono';font-size:10px;color:var(--text-dim);">IndexedDB</div>
+          <div style="font-family:'IBM Plex Mono';font-size:9px;color:var(--text-faint);">Local RAG chunks · Model cache</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     FOOTER
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="footer">
+  <div class="logo-text">TODDLER</div>
+  <p>Train your own AI. Own it. Sell it.<br>Handcrafted in Lagos, NG. · © 2026</p>
+</div>
+
+</body>
+</html>

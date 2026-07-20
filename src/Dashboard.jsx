@@ -202,7 +202,7 @@ function ZooTab({ projects, devices, isMobile }) {
   const [filter, setFilter] = useState('all')
 
   useEffect(() => {
-    const apiUrl = import.meta.env.VITE_API_URL
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://toddler-53xb.onrender.com'
     if (!apiUrl) { setLoading(false); return }
     fetch(`${apiUrl}/models`).then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.models) setModels(data.models) })
@@ -317,7 +317,7 @@ function SandboxTab({ projects, isMobile }) {
     setMessages(prev => [...prev, { role: 'user', text }])
     setSending(true)
     try {
-      const apiUrl = import.meta.env.VITE_API_URL
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://toddler-53xb.onrender.com'
       if (!apiUrl) throw new Error('API URL not configured')
       const token = await auth.currentUser?.getIdToken()
       const formData = new FormData()
@@ -444,7 +444,7 @@ function ApisTab({ projects, isMobile }) {
     </div>
   )
 
-  const baseUrl = import.meta.env.VITE_API_URL || ''
+  const baseUrl = import.meta.env.VITE_API_URL || 'https://toddler-53xb.onrender.com'
   const curlCode = `curl -X POST ${baseUrl}/predict \\\n  -H "X-API-Key: ${selected?.api_key || 'YOUR_KEY'}" \\\n  -F "project_id=${selected?.id || 'PROJECT_ID'}" \\\n  -F "text=your text here"`
   const pyCode = `import requests\n\nres = requests.post(\n    "${baseUrl}/predict",\n    headers={"X-API-Key": "${selected?.api_key || 'YOUR_KEY'}"},\n    data={"project_id": "${selected?.id || 'PROJECT_ID'}", "text": "your text here"}\n)\nprint(res.json())`
 

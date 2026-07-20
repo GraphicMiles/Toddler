@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
 
 :root {
   --bg: #14130F;
@@ -148,6 +149,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-ser
 /* ─── SVG Icon Helper ─── */
 .icon { width: 16px; height: 16px; flex-shrink: 0; }
 .icon * { vector-effect: non-scaling-stroke; }
+
+/* ─── Spin animation ─── */
+.animate-spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ─── Mobile ─── */
 .dash-mobile-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 90; }

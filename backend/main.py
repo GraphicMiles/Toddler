@@ -480,6 +480,80 @@ async def queue_training_job(
     return {"job_id": job_ref.id, "status": "queued"}
 
 
+# ─── Devices ─────────────────────────────────────────────────────
+
+@app.post("/devices/register")
+async def register_device(payload: dict, authorization: str | None = Header(default=None)):
+    """Register a new device (phone/desktop) to the user's account."""
+    user = verify_bearer_token(authorization)
+    database = _require_db()
+    device_id = payload.get("device_id") or payload.get("platform", "unknown") + "_" + str(int(__import__("time").time()))
+    data = {
+        "platform": payload.get("platform", "unknown"),
+        "name": payload.get("name", "Unknown Device"),
+        "os": payload.get("os", ""),
+        "ramGb": payload.get("ram_gb", 0),
+        "storageMb": payload.get("storage_mb", 0),
+        "hasGpu": payload.get("has_gpu", False),
+        "gpuName": payload.get("gpu_name"),
+        "fcmToken": payload.get("fcm_token"),
+        "status": "online",
+        "byocEnabled": True,
+        "lastSeen": firestore.SERVER_TIMESTAMP,
+        "registeredAt": firestore.SERVER_TIMESTAMP,
+    }
+    ref = database.collection("users").document(user["uid"]).collection("devices").document(device_id)
+    ref.set(data, merge=True)
+    return {"device_id": device_id, "status": "registered"}
+
+
+@app.post("/devices/pair")
+async def pair_device(payload: dict, authorization: str | None = Header(default=None)):
+    """Pair a device using the 6-digit code from the web dashboard.
+    The code is the first 6 chars of the user's UID, uppercase.
+    The device sends this code + its own metadata."""
+    user = verify_bearer_token(authorization)
+    database = _require_db()
+    code = payload.get("code", "").upper()
+    expected = user["uid"][:6].upper()
+    if code != expected:
+        raise HTTPException(status_code=400, detail="Invalid pairing code")
+    device_id = payload.get("platform", "android") + "_" + str(int(__import__("time").time()))
+    data = {
+        "platform": payload.get("platform", "android"),
+        "name": payload.get("name", "Android Device"),
+        "os": payload.get("os", ""),
+        "ramGb": payload.get("ram_gb", 0),
+        "storageMb": payload.get("storage_mb", 0),
+        "hasGpu": payload.get("has_gpu", False),
+        "fcmToken": payload.get("fcm_token"),
+        "status": "online",
+        "byocEnabled": True,
+        "lastSeen": firestore.SERVER_TIMESTAMP,
+        "registeredAt": firestore.SERVER_TIMESTAMP,
+    }
+    ref = database.collection("users").document(user["uid"]).collection("devices").document(device_id)
+    ref.set(data)
+    return {"device_id": device_id, "status": "paired"}
+
+
+@app.post("/devices/heartbeat")
+async def device_heartbeat(payload: dict, authorization: str | None = Header(default=None)):
+    """Device sends heartbeat every 60s to stay marked online."""
+    user = verify_bearer_token(authorization)
+    database = _require_db()
+    device_id = payload.get("device_id")
+    if not device_id:
+        raise HTTPException(status_code=400, detail="device_id required")
+    ref = database.collection("users").document(user["uid"]).collection("devices").document(device_id)
+    ref.update({
+        "status": "online",
+        "lastSeen": firestore.SERVER_TIMESTAMP,
+        "currentJobId": payload.get("current_job_id"),
+    })
+    return {"status": "ok"}
+
+
 # ─── Projects ─────────────────────────────────────────────────────
 
 @app.delete("/projects/{project_id}")

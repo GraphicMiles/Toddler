@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LandingPage from './LandingPage'
 import Auth from './Auth'
 import Dashboard from './Dashboard'
+import MobileApp from './MobileApp'
 import { auth } from './firebase'
 import { onAuthStateChanged } from 'firebase/auth'
 import { Capacitor } from '@capacitor/core'
@@ -23,10 +24,20 @@ function App() {
     </div>
   )
 
+  // Native Android/iOS → MobileApp (pair → train → dashboard)
+  if (Capacitor.isNativePlatform()) {
+    return (
+      <>
+        <Toaster position="top-center" toastOptions={{ style: { background: '#1D1B16', color: '#F2EFE6', border: '1px solid #38352B', borderRadius: 0, fontFamily: '"IBM Plex Mono"', fontSize: 12 } }} />
+        <MobileApp />
+      </>
+    )
+  }
+
+  // Web → Landing + Auth + Dashboard
   return (
     <>
-      <Toaster position={Capacitor.isNativePlatform() ? 'top-center' : 'bottom-right'}
-        toastOptions={{ style: { background: '#1D1B16', color: '#F2EFE6', border: '1px solid #38352B', borderRadius: 0, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 } }} />
+      <Toaster position="bottom-right" toastOptions={{ style: { background: '#1D1B16', color: '#F2EFE6', border: '1px solid #38352B', borderRadius: 0, fontFamily: '"IBM Plex Mono"', fontSize: 12 } }} />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={user ? <Navigate to="/dashboard" /> : <LandingPage />} />

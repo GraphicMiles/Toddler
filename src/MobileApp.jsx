@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { auth, db } from './firebase'
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
+import { auth, db, googleProvider } from './firebase'
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithCredential, GoogleAuthProvider } from 'firebase/auth'
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication'
 import { collection, query, where, getDocs, getDoc, doc, deleteDoc, updateDoc } from 'firebase/firestore'
 import { toast } from 'react-hot-toast'
 import { Capacitor } from '@capacitor/core'
@@ -143,36 +144,83 @@ function AuthScreen({ mode, setMode, onSuccess }) {
     finally { setLoading(false) }
   }
 
+  const handleGoogle = async () => {
+    if (loading) return
+    setError('')
+    setLoading(true)
+    try {
+      const result = await FirebaseAuthentication.signInWithGoogle({ useCredentialManager: false })
+      const idToken = result.credential?.idToken
+      if (!idToken) throw new Error('Google did not return an ID token.')
+      await signInWithCredential(auth, GoogleAuthProvider.credential(idToken))
+      onSuccess()
+    } catch (err) {
+      if (err.code !== 'auth/cancelled-popup-request' && err.code !== 'auth/popup-closed-by-user') {
+        setError(err.message)
+      }
+    } finally { setLoading(false) }
+  }
+
   return (
-    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px 24px', color: S.text, fontFamily: "'Inter', sans-serif", boxSizing: 'border-box' }}>
-      <div style={{ width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{ marginBottom: 28, textAlign: 'center' }}>
+    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '56px 20px 24px', color: S.text, fontFamily: "'Inter', sans-serif", boxSizing: 'border-box' }}>
+      <div style={{ width: '100%', maxWidth: 340, margin: '0 auto' }}>
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <I name="logo" size={28} />
           <div style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 18, marginTop: 10, color: S.text }}>TODDLER</div>
         </div>
+
+        {/* Title */}
         <h1 style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 20, color: S.text, marginBottom: 4, textAlign: 'center' }}>
-          {mode === 'login' ? 'Sign in' : 'Create account'}
+          {mode === 'login' ? 'Sign in to Toddler' : 'Create your workspace'}
         </h1>
-        <p style={{ color: S.dim, fontSize: 12, marginBottom: 24, textAlign: 'center' }}>
+        <p style={{ color: S.dim, fontSize: 12, marginBottom: 22, textAlign: 'center' }}>
           {mode === 'login' ? 'Welcome back.' : 'No credit card required.'}
         </p>
-        {error && <div style={{ width: '100%', marginBottom: 14, padding: 10, background: 'rgba(255,92,62,0.1)', border: `1px solid ${S.danger}`, borderRadius: 6, color: S.danger, fontSize: 11, fontFamily: "'IBM Plex Mono'", textAlign: 'center' }}>{error}</div>}
-        <form onSubmit={handleAuth} style={{ width: '100%' }}>
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontFamily: "'IBM Plex Mono'", fontSize: 9, color: S.faint, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 4 }}>Email</label>
-            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" style={{ width: '100%', padding: '10px 12px', background: S.surface2, border: `1px solid ${S.line}`, borderRadius: 6, color: S.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
+
+        {/* Google button */}
+        <button onClick={handleGoogle} disabled={loading} style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          padding: '10px 0', border: `1px solid ${S.line}`, background: 'transparent',
+          color: S.text, fontFamily: "'IBM Plex Mono'", fontSize: 11, letterSpacing: 1, textTransform: 'uppercase',
+          cursor: 'pointer', marginBottom: 16, borderRadius: 6,
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          Continue with Google
+        </button>
+
+        {/* Divider */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          <div style={{ flex: 1, height: 1, background: S.line }} />
+          <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 8, color: S.faint, textTransform: 'uppercase', letterSpacing: 1 }}>or email</span>
+          <div style={{ flex: 1, height: 1, background: S.line }} />
+        </div>
+
+        {/* Error */}
+        {error && <div style={{ marginBottom: 12, padding: 8, background: 'rgba(255,92,62,0.1)', border: `1px solid ${S.danger}`, borderRadius: 6, color: S.danger, fontSize: 11, fontFamily: "'IBM Plex Mono'", textAlign: 'center' }}>{error}</div>}
+
+        {/* Form */}
+        <form onSubmit={handleAuth}>
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ fontFamily: "'IBM Plex Mono'", fontSize: 9, color: S.faint, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 4 }}>Email address</label>
+            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" style={{ width: '100%', padding: '10px 12px', background: S.bg, border: `1px solid ${S.line}`, borderRadius: 6, color: S.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
           </div>
-          <div style={{ marginBottom: 18 }}>
+          <div style={{ marginBottom: 16 }}>
             <label style={{ fontFamily: "'IBM Plex Mono'", fontSize: 9, color: S.faint, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 4 }}>Password</label>
-            <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" style={{ width: '100%', padding: '10px 12px', background: S.surface2, border: `1px solid ${S.line}`, borderRadius: 6, color: S.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
+            <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" style={{ width: '100%', padding: '10px 12px', background: S.bg, border: `1px solid ${S.line}`, borderRadius: 6, color: S.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
           </div>
-          <button type="submit" disabled={loading} style={{ width: '100%', padding: 11, background: S.lime, color: S.bg, border: 'none', borderRadius: 6, fontFamily: "'IBM Plex Mono'", fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600, cursor: loading ? 'default' : 'pointer' }}>
+          <button type="submit" disabled={loading} style={{
+            width: '100%', padding: 11, background: S.lime, color: S.bg, border: 'none', borderRadius: 6,
+            fontFamily: "'IBM Plex Mono'", fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600,
+            cursor: loading ? 'default' : 'pointer',
+          }}>
             {loading ? 'Processing...' : mode === 'login' ? 'Sign In' : 'Create Account'}
           </button>
         </form>
+
         <div style={{ marginTop: 14, textAlign: 'center' }}>
-          <span style={{ fontSize: 11, color: S.faint }}>
-            {mode === 'login' ? <>New? <span style={{ color: S.lime, cursor: 'pointer' }} onClick={() => setMode('signup')}>Sign up</span></> : <>Have an account? <span style={{ color: S.lime, cursor: 'pointer' }} onClick={() => setMode('login')}>Log in</span></>}
+          <span style={{ fontSize: 12, color: S.faint }}>
+            {mode === 'login' ? <>New to Toddler? <span style={{ color: S.lime, cursor: 'pointer' }} onClick={() => setMode('signup')}>Sign up</span></> : <>Already have an account? <span style={{ color: S.lime, cursor: 'pointer' }} onClick={() => setMode('login')}>Log in</span></>}
           </span>
         </div>
       </div>

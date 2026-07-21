@@ -4,6 +4,7 @@ import { collection, query, where, getDocs, doc, deleteDoc, addDoc, updateDoc } 
 import { toast } from 'react-hot-toast'
 import { Capacitor } from '@capacitor/core'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
+import { startBYOC, stopBYOC } from './byoc'
 
 const vibrate = (s = ImpactStyle.Light) => {
   if (Capacitor.isNativePlatform()) Haptics.impact({ style: s }).catch(() => {})
@@ -55,6 +56,12 @@ export default function Dashboard() {
     if (!auth.currentUser) return
     getDocs(query(collection(db, 'users', auth.currentUser.uid, 'devices')))
       .then(s => setDevices(s.docs.map(x => ({ id: x.id, ...x.data() })))).catch(() => {})
+  }, [])
+
+  // Start BYOC worker — polls for queued training jobs every 30s
+  useEffect(() => {
+    startBYOC()
+    return () => stopBYOC()
   }, [])
 
   const nav = [

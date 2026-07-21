@@ -555,6 +555,113 @@ async def device_heartbeat(payload: dict, authorization: str | None = Header(def
     return {"status": "ok"}
 
 
+# ─── Jobs (BYOC) ─────────────────────────────────────────────────
+
+@app.post("/jobs/claim")
+async def claim_job(authorization: str | None = Header(default=None)):
+    """BYOC device claims the next queued training job."""
+    user = verify_bearer_token(authorization)
+    database = _require_db()
+
+    jobs = database.collection("training_jobs").where("status", "==", "queued").limit(5).get()
+    for job_doc in jobs:
+        txn = database.transaction()
+
+        @firestore.transactional
+        def _claim(t, ref):
+            snap = t.get(ref)
+            if not snap.exists:
+                return None
+            data = snap.to_dict() or {}
+            if data.get("status") != "queued":
+                return None
+            t.update(ref, {
+                "status": "claimed",
+                "claimed_by": user["uid"],
+                "claimedAt": firestore.SERVER_TIMESTAMP,
+            })
+            return data
+
+        claimed = _claim(txn, job_doc.reference)
+        if claimed:
+            return {"job": {**claimed, "job_id": job_doc.id, "id": job_doc.id}}
+
+    return {"job": None}
+
+
+@app.post("/jobs/{job_id}/complete")
+async def complete_job(
+    job_id: str,
+    chunk_count: int = Form(0),
+    chunks_json: str = Form(""),
+    authorization: str | None = Header(default=None),
+):
+    """Mark a training job as complete. Stores RAG chunks in the project."""
+    user = verify_bearer_token(authorization)
+    database = _require_db()
+    ref = database.collection("training_jobs").document(job_id)
+    doc = ref.get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    data = doc.to_dict()
+    project_id = data.get("project_id")
+
+    ref.update({"status": "completed", "progress": 100, "completedAt": firestore.SERVER_TIMESTAMP})
+
+    # Update the project with trained status and RAG chunks
+    if project_id:
+        proj_update = {
+            "status": "trained",
+            "progress": 100,
+            "trainedAt": firestore.SERVER_TIMESTAMP,
+            "chunkCount": chunk_count,
+        }
+        if chunks_json:
+            try:
+                import json as _json
+                proj_update["ragChunks"] = _json.loads(chunks_json)
+            except Exception:
+                pass
+
+        # Generate API key if not present
+        proj_ref = database.collection("projects").document(project_id)
+        proj_snap = proj_ref.get()
+        if proj_snap.exists and not proj_snap.to_dict().get("api_key"):
+            proj_update["api_key"] = generate_api_key()
+
+        proj_ref.update(proj_update)
+
+    return {"status": "completed"}
+
+
+@app.post("/jobs/{job_id}/fail")
+async def fail_job(job_id: str, authorization: str | None = Header(default=None)):
+    """Mark a training job as failed."""
+    user = verify_bearer_token(authorization)
+    database = _require_db()
+    ref = database.collection("training_jobs").document(job_id)
+    doc = ref.get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Job not found")
+    ref.update({"status": "failed", "error": "Training failed on device", "failedAt": firestore.SERVER_TIMESTAMP})
+    return {"status": "failed"}
+
+
+@app.post("/jobs/{job_id}/progress")
+async def update_job_progress(
+    job_id: str,
+    progress: int = Form(0),
+    authorization: str | None = Header(default=None),
+):
+    """Update training job progress."""
+    user = verify_bearer_token(authorization)
+    database = _require_db()
+    ref = database.collection("training_jobs").document(job_id)
+    ref.update({"progress": progress})
+    return {"status": "ok", "progress": progress}
+
+
 # ─── Projects ─────────────────────────────────────────────────────
 
 @app.delete("/projects/{project_id}")

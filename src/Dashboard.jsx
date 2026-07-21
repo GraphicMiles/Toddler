@@ -49,16 +49,15 @@ export default function Dashboard() {
     if (!auth.currentUser) return
     const pid = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'not set'
     const uid = auth.currentUser.uid
-    // Try a test write
     import('firebase/firestore').then(({ doc, setDoc, deleteDoc: dd }) => {
-      const testRef = doc(db, '__debug_test__', 'test_' + Date.now())
-      setDoc(testRef, { test: true, ts: Date.now() })
+      const testRef = doc(db, 'test', uid)
+      setDoc(testRef, { ok: true })
         .then(() => {
           dd(testRef).catch(() => {})
           setDebugInfo({ status: 'ok', projectId: pid, uid: uid.slice(0, 8) + '...' })
         })
         .catch(err => {
-          setDebugInfo({ status: 'fail', code: err.code, projectId: pid, uid: uid.slice(0, 8) + '...' })
+          setDebugInfo({ status: 'fail', code: err.code, message: err.message, projectId: pid, uid: uid.slice(0, 8) + '...' })
         })
     })
   }, [])
@@ -182,7 +181,7 @@ export default function Dashboard() {
           </div>
           {debugInfo && debugInfo.status === 'fail' && (
             <div style={{padding:'8px 16px',background:'rgba(255,92,62,0.1)',borderBottom:'1px solid rgba(255,92,62,0.3)',fontFamily:"'IBM Plex Mono'",fontSize:10,color:'#FF5C3E',lineHeight:1.6}}>
-              Firestore error [{debugInfo.code}] on project "{debugInfo.projectId}" (uid: {debugInfo.uid}) — Go to Firebase Console → {debugInfo.projectId} → Firestore → Rules → Publish
+              [{debugInfo.code}] {debugInfo.message || ''} — project: {debugInfo.projectId} — uid: {debugInfo.uid}
             </div>
           )}
           {debugInfo && debugInfo.status === 'ok' && (

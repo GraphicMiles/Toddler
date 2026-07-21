@@ -83,23 +83,47 @@ const Auth = ({ mode = 'login' }) => {
 
   if (Capacitor.isNativePlatform()) {
     return (
-      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-6 text-[var(--text)] font-sans">
-        <div className="w-full max-w-sm panel bg-[var(--surface-2)] p-8">
-          <div className="text-center mb-8">
-            <div className="w-12 h-12 bg-[var(--surface)] border border-[var(--line)] mx-auto mb-6 flex items-center justify-center rounded-full">
-              <span className="w-4 h-4 bg-[var(--accent-lime)] rounded-full animate-pulse"></span>
+      <div style={{ minHeight: '100vh', background: '#14130F', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, color: '#F2EFE6', fontFamily: "'Inter', sans-serif" }}>
+        <div style={{ width: '100%', maxWidth: 360 }}>
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <div style={{ width: 48, height: 48, background: '#1D1B16', border: '1px solid #38352B', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <div style={{ width: 14, height: 14, background: '#C6FF33', borderRadius: '50%', animation: 'pulse 2s infinite' }} />
             </div>
-            <h1 className="text-2xl font-display font-bold mb-3">Link this Device</h1>
-            <p className="text-[var(--text-dim)] text-sm leading-relaxed">Enter the 6-digit code shown on your web dashboard to connect this phone's compute power.</p>
+            <h1 style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 24, color: '#F2EFE6', marginBottom: 8 }}>Sign in to Toddler</h1>
+            <p style={{ color: '#A8A296', fontSize: 13, lineHeight: 1.5 }}>Use the same account as your web dashboard.</p>
           </div>
-          <div className="flex gap-2 justify-center mb-8">
-            {[0,1,2,3,4,5].map(i => (
-              <input key={i} type="text" maxLength={1} className="w-10 h-12 text-center font-mono text-xl bg-[var(--bg)] border border-[var(--line)] focus:border-[var(--accent-lime)] focus:ring-1 focus:ring-[var(--accent-lime)] text-white rounded-sm outline-none transition-colors" />
-            ))}
-          </div>
-          <button className="btn btn-solid w-full tracking-widest text-xs" onClick={() => toast.error('Backend pairing API pending Phase 3')}>
-            PAIR DEVICE
+
+          <button onClick={handleGoogle} disabled={loading} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '12px 0', border: '1px solid #38352B', background: 'transparent', color: '#F2EFE6', fontFamily: "'IBM Plex Mono'", fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer', marginBottom: 20, borderRadius: 4 }}>
+            Continue with Google
           </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+            <div style={{ flex: 1, height: 1, background: '#38352B' }} />
+            <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 9, color: '#6E695C', textTransform: 'uppercase', letterSpacing: 1 }}>or email</span>
+            <div style={{ flex: 1, height: 1, background: '#38352B' }} />
+          </div>
+
+          {error && <div style={{ marginBottom: 16, padding: 12, border: '1px solid #FF5C3E', background: 'rgba(255,92,62,0.1)', color: '#FF5C3E', fontSize: 12, fontFamily: "'IBM Plex Mono'", borderRadius: 4 }}>{error}</div>}
+
+          <form onSubmit={handleAuth}>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#6E695C', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 4 }}>Email</label>
+              <input type="email" required placeholder="you@company.com" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: '10px 14px', background: '#14130F', border: '1px solid #38352B', borderRadius: 4, color: '#F2EFE6', fontSize: 14, fontFamily: "'Inter'", outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#6E695C', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 4 }}>Password</label>
+              <input type="password" required placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: '10px 14px', background: '#14130F', border: '1px solid #38352B', borderRadius: 4, color: '#F2EFE6', fontSize: 14, fontFamily: "'Inter'", outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+            <button type="submit" disabled={loading} style={{ width: '100%', padding: 12, background: '#C6FF33', color: '#14130F', border: 'none', borderRadius: 4, fontFamily: "'IBM Plex Mono'", fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600, cursor: loading ? 'default' : 'pointer' }}>
+              {loading ? 'Processing...' : 'Sign In'}
+            </button>
+          </form>
+
+          <div style={{ textAlign: 'center', marginTop: 16 }}>
+            <span style={{ fontSize: 12, color: '#6E695C' }}>
+              {mode === 'login' ? <>New? <span style={{ color: '#C6FF33', cursor: 'pointer' }} onClick={() => navigate('/signup')}>Sign up</span></> : <>Have an account? <span style={{ color: '#C6FF33', cursor: 'pointer' }} onClick={() => navigate('/login')}>Log in</span></>}
+            </span>
+          </div>
         </div>
       </div>
     );

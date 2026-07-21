@@ -495,20 +495,22 @@ async def queue_training_job(
 # ─── Devices ─────────────────────────────────────────────────────
 
 @app.post("/devices/register")
-async def register_device(payload: dict, authorization: str | None = Header(default=None)):
+async def register_device(
+    platform: str = Form("unknown"),
+    name: str = Form("Unknown Device"),
+    ram_gb: float = Form(0),
+    os: str = Form(""),
+    authorization: str | None = Header(default=None),
+):
     """Register a new device (phone/desktop) to the user's account."""
     user = verify_bearer_token(authorization)
     database = _require_db()
-    device_id = payload.get("device_id") or payload.get("platform", "unknown") + "_" + str(int(__import__("time").time()))
+    device_id = platform + "_" + str(int(__import__("time").time()))
     data = {
-        "platform": payload.get("platform", "unknown"),
-        "name": payload.get("name", "Unknown Device"),
-        "os": payload.get("os", ""),
-        "ramGb": payload.get("ram_gb", 0),
-        "storageMb": payload.get("storage_mb", 0),
-        "hasGpu": payload.get("has_gpu", False),
-        "gpuName": payload.get("gpu_name"),
-        "fcmToken": payload.get("fcm_token"),
+        "platform": platform,
+        "name": name,
+        "os": os,
+        "ramGb": ram_gb,
         "status": "online",
         "byocEnabled": True,
         "lastSeen": firestore.SERVER_TIMESTAMP,

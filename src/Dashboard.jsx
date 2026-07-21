@@ -6,6 +6,7 @@ import { Capacitor } from '@capacitor/core'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
 import { startBYOC, stopBYOC } from './byoc'
 import { uploadDatasetToCloudinary } from './cloud'
+import { startTrainingService, stopTrainingService } from './nativeBridge'
 
 const vibrate = (s = ImpactStyle.Light) => {
   if (Capacitor.isNativePlatform()) Haptics.impact({ style: s }).catch(() => {})
@@ -66,6 +67,24 @@ export default function Dashboard() {
       startBYOC()
       return () => stopBYOC()
     }
+  }, [])
+
+  // Register this device on native (saves to Firestore via backend)
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || !auth.currentUser) return
+    const token = auth.currentUser.getIdToken()
+    const ram = navigator.deviceMemory ? Math.round(navigator.deviceMemory) : 4
+    token.then(t => {
+      const fd = new FormData()
+      fd.append('platform', Capacitor.getPlatform())
+      fd.append('name', `${Capacitor.getPlatform()} device`)
+      fd.append('ram_gb', String(ram))
+      fetch(`${API}/devices/register`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${t}` },
+        body: fd,
+      }).catch(() => {})
+    })
   }, [])
 
   const hasDevice = devices.length > 0

@@ -5,6 +5,7 @@ import { toast } from 'react-hot-toast'
 import { Capacitor } from '@capacitor/core'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
 import { startBYOC, stopBYOC } from './byoc'
+import { uploadDatasetToCloudinary } from './cloud'
 
 const vibrate = (s = ImpactStyle.Light) => {
   if (Capacitor.isNativePlatform()) Haptics.impact({ style: s }).catch(() => {})
@@ -368,9 +369,8 @@ function TrainWizard({ model, onClose }) {
   const handleTrain = async () => {
     if (!name.trim()) { toast.error('Enter a model name'); return }
     if (files.length === 0) { toast.error('Upload at least one file'); return }
-    setUploading(true)
+      setUploading(true)
     try {
-      const { uploadDatasetToCloudinary } = await import('./cloud')
       const urls = []
       for (const f of files) {
         const url = await uploadDatasetToCloudinary(f)

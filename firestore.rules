@@ -1,0 +1,49 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Projects — owner can do everything
+    match /projects/{projectId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Training jobs — backend only (Admin SDK bypasses rules)
+    match /training_jobs/{jobId} {
+      allow read, write: if false;
+    }
+
+    // Per-user data — own data only
+    match /users/{userId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+      match /{document=**} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+    }
+
+    // Model catalog — public read
+    match /models/{modelId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Marketplace — public read, auth write
+    match /marketplace/{modelId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

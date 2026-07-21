@@ -129,5 +129,18 @@ footer { border-top: 1px solid var(--line); padding: 40px 0; }
 .input-label { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
 
 @media(prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* Spinner + Pulse */
+.animate-spin { animation: spin 1s linear infinite; }
+.animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* Auth mobile layout */
+.auth-mobile-shell { padding: 32px 20px; display: flex; flex-direction: column; min-height: 100vh; }
+.auth-mobile-logo { display: flex; justify-content: center; margin: 40px auto 24px; }
+.auth-mobile-form { margin-top: 0; width: 100%; }
+@media(min-width: 768px) { .auth-mobile-shell { padding: 64px; } }
+
 @media(min-width:640px) { .hero h1 { font-size: 52px; } }
 @media(min-width:900px) { .hero h1 { font-size: 60px; } }

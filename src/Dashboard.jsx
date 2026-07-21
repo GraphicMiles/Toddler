@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { auth, db } from './firebase'
-import { collection, query, where, getDocs, doc, deleteDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, deleteDoc, addDoc, updateDoc } from 'firebase/firestore'
 import { toast } from 'react-hot-toast'
 import { Capacitor } from '@capacitor/core'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
@@ -36,6 +36,7 @@ export default function Dashboard() {
   const [mob, setMob] = useState(false)
   const [projects, setProjects] = useState([])
   const [devices, setDevices] = useState([])
+  const [trainModel, setTrainModel] = useState(null) // { id, name } or null
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 839px)')
@@ -126,10 +127,14 @@ export default function Dashboard() {
             {tab==='zoo' && devices.length>0 && <span style={{fontFamily:"'IBM Plex Mono'",fontSize:10,color:'#6E695C'}}>fit: {devices[0]?.name} / {devices[0]?.ramGb}GB</span>}
           </div>
           <div className="dash-content">
-            {tab==='zoo' && <ZooTab devices={devices} />}
-            {tab==='sandbox' && <SandboxTab projects={projects} />}
-            {tab==='apis' && <ApisTab projects={projects} />}
-            {tab==='devices' && <DevicesTab devices={devices} setDevices={setDevices} />}
+            {trainModel ? <TrainWizard model={trainModel} onClose={() => setTrainModel(null)} /> : (
+              <>
+                {tab==='zoo' && <ZooTab devices={devices} onTrain={m => setTrainModel(m)} />}
+                {tab==='sandbox' && <SandboxTab projects={projects} />}
+                {tab==='apis' && <ApisTab projects={projects} />}
+                {tab==='devices' && <DevicesTab devices={devices} setDevices={setDevices} />}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -137,7 +142,7 @@ export default function Dashboard() {
   )
 }
 
-function ZooTab({ devices }) {
+function ZooTab({ devices, onTrain }) {
   const [models, setModels] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
@@ -180,7 +185,7 @@ function ZooTab({ devices }) {
               </div>
               <div style={{fontFamily:"'IBM Plex Mono'",fontSize:10,color:'#6E695C'}}>{m.task==='chat'?'LLM':m.task} / {m.sizeMb} MB / {m.minRamGb||2} GB RAM</div>
               <div style={{fontSize:12,color:'#A8A296',lineHeight:1.5}}>{m.description || `${m.name} for on-device use.`}</div>
-              <button style={{marginTop:'auto',fontFamily:"'IBM Plex Mono'",fontSize:9,letterSpacing:1,textTransform:'uppercase',fontWeight:600,padding:'8px 12px',borderRadius:6,cursor:'pointer',width:'100%',background:'transparent',border:'1px solid #38352B',color:'#A8A296',transition:'all 0.15s'}}
+              <button onClick={() => onTrain?.({ id: m.id, name: m.name })} style={{marginTop:'auto',fontFamily:"'IBM Plex Mono'",fontSize:9,letterSpacing:1,textTransform:'uppercase',fontWeight:600,padding:'8px 12px',borderRadius:6,cursor:'pointer',width:'100%',background:'transparent',border:'1px solid #38352B',color:'#A8A296',transition:'all 0.15s'}}
                 onMouseEnter={e=>{e.currentTarget.style.borderColor='#6E695C';e.currentTarget.style.color='#F2EFE6'}}
                 onMouseLeave={e=>{e.currentTarget.style.borderColor='#38352B';e.currentTarget.style.color='#A8A296'}}>Train this model</button>
             </div>
@@ -333,6 +338,137 @@ function DevicesTab({ devices, setDevices }) {
               <div style={{fontFamily:"'IBM Plex Mono'",fontSize:24,letterSpacing:8,color:'#F2EFE6',paddingLeft:8}}>{code}</div>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TrainWizard({ model, onClose }) {
+  const [step, setStep] = useState(1)
+  const [name, setName] = useState('')
+  const [files, setFiles] = useState([])
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef()
+
+  const handleFiles = (e) => {
+    const picked = Array.from(e.target.files)
+    if (picked.length > 0) setFiles(picked)
+  }
+
+  const handleTrain = async () => {
+    if (!name.trim()) { toast.error('Enter a model name'); return }
+    if (files.length === 0) { toast.error('Upload at least one file'); return }
+    setUploading(true)
+    try {
+      const { uploadDatasetToCloudinary } = await import('./cloud')
+      const urls = []
+      for (const f of files) {
+        const url = await uploadDatasetToCloudinary(f)
+        urls.push({ name: f.name, url, size: f.size })
+      }
+      const projectData = {
+        ownerUid: auth.currentUser.uid,
+        name: name,
+        baseModelId: model.id,
+        baseModelName: model.name,
+        trainingMode: 'rag',
+        status: 'queued',
+        progress: 0,
+        chunkCount: 0,
+        fileCount: files.length,
+        datasetFiles: urls,
+        createdAt: new Date(),
+        version: 1,
+      }
+      const docRef = await addDoc(collection(db, 'projects'), projectData)
+      const token = await auth.currentUser?.getIdToken()
+      const fd = new FormData()
+      fd.append('project_id', docRef.id)
+      fd.append('dataset_url', urls[0]?.url || '')
+      fd.append('model_id', model.id)
+      fd.append('training_mode', 'rag')
+      fd.append('runner', 'auto')
+      await fetch(`${API}/train`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: fd }).catch(() => {})
+      setStep(4)
+      toast.success('Training job queued')
+    } catch (err) {
+      toast.error(err.message || 'Failed to queue training')
+    } finally { setUploading(false) }
+  }
+
+  const S = { bg: '#14130F', surface: '#1D1B16', surface2: '#26231C', line: '#38352B', text: '#F2EFE6', dim: '#A8A296', faint: '#6E695C', lime: '#C6FF33', purple: '#7D39EB' }
+  const mono = { fontFamily: "'IBM Plex Mono', monospace" }
+  const display = { fontFamily: "'Space Grotesk', sans-serif" }
+
+  return (
+    <div style={{ padding: 24, maxWidth: 500, margin: '0 auto' }}>
+      <button onClick={onClose} style={{ background: 'none', border: 'none', color: S.faint, cursor: 'pointer', ...mono, fontSize: 11, marginBottom: 16, padding: 0 }}>{'\u2190 Back to Zoo'}</button>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 24 }}>
+        {[1, 2, 3].map(i => <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= step ? (i === step ? S.purple : S.lime) : S.line }} />)}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+        <div style={{ width: 40, height: 40, background: S.surface2, border: `1px solid ${S.line}`, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', ...display, fontWeight: 700, fontSize: 14, color: S.lime }}>{(model.name || 'M').charAt(0)}</div>
+        <div>
+          <div style={{ ...display, fontWeight: 600, fontSize: 16, color: S.text }}>{model.name}</div>
+          <div style={{ ...mono, fontSize: 10, color: S.faint }}>RAG training</div>
+        </div>
+      </div>
+
+      {step === 1 && (
+        <div>
+          <div style={{ ...display, fontWeight: 600, fontSize: 20, color: S.text, marginBottom: 6 }}>Name your model</div>
+          <div style={{ fontSize: 13, color: S.dim, marginBottom: 20 }}>Give it a name that describes what it does.</div>
+          <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && name && setStep(2)} placeholder="e.g. Medical FAQ Bot" autoFocus style={{ width: '100%', padding: '12px 16px', background: S.surface2, border: 'none', borderBottom: `2px solid ${S.lime}`, color: S.text, fontSize: 18, ...display, fontWeight: 600, outline: 'none', marginBottom: 24 }} />
+          <button onClick={() => name ? setStep(2) : toast.error('Enter a name')} style={{ width: '100%', padding: 12, background: name ? S.lime : S.line, color: S.bg, border: 'none', borderRadius: 6, ...mono, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600, cursor: name ? 'pointer' : 'default' }}>Continue</button>
+        </div>
+      )}
+
+      {step === 2 && (
+        <div>
+          <div style={{ ...display, fontWeight: 600, fontSize: 20, color: S.text, marginBottom: 6 }}>Upload your data</div>
+          <div style={{ fontSize: 13, color: S.dim, marginBottom: 20 }}>The model reads these at inference time.</div>
+          <div onClick={() => fileRef.current?.click()} style={{ border: `1.5px dashed ${S.line}`, borderRadius: 10, padding: '28px 16px', textAlign: 'center', cursor: 'pointer', marginBottom: 16 }}>
+            <div style={{ ...mono, fontSize: 12, color: S.lime, marginBottom: 4 }}>{files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''} selected` : 'Drop files here or click'}</div>
+            <div style={{ ...mono, fontSize: 10, color: S.faint }}>.txt .csv .md .json .pdf</div>
+            <input ref={fileRef} type="file" multiple accept=".txt,.csv,.md,.json,.pdf" onChange={handleFiles} style={{ display: 'none' }} />
+          </div>
+          {files.length > 0 && files.map((f, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '8px 12px', background: S.surface, border: `1px solid ${S.line}`, borderRadius: 4, marginBottom: 4 }}>
+              <span style={{ color: S.text }}>{f.name}</span>
+              <span style={{ ...mono, fontSize: 10, color: S.faint }}>{(f.size / 1024).toFixed(1)} KB</span>
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+            <button onClick={() => setStep(1)} style={{ padding: 12, background: 'transparent', border: `1px solid ${S.line}`, color: S.dim, ...mono, fontSize: 10, borderRadius: 6, cursor: 'pointer' }}>{'\u2190 Back'}</button>
+            <button onClick={() => files.length > 0 ? setStep(3) : toast.error('Upload at least one file')} style={{ flex: 1, padding: 12, background: files.length > 0 ? S.lime : S.line, color: S.bg, border: 'none', borderRadius: 6, ...mono, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600, cursor: files.length > 0 ? 'pointer' : 'default' }}>Next</button>
+          </div>
+        </div>
+      )}
+
+      {step === 3 && (
+        <div>
+          <div style={{ ...display, fontWeight: 600, fontSize: 20, color: S.text, marginBottom: 16 }}>Ready to train</div>
+          <div style={{ background: S.surface, border: `1px solid ${S.line}`, borderRadius: 6, padding: 14, marginBottom: 16 }}>
+            {[['Model', model.name], ['Name', name], ['Files', files.length], ['Mode', 'RAG']].map(([k, v]) => (
+              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0' }}>
+                <span style={{ color: S.dim }}>{k}</span>
+                <span style={{ color: k === 'Mode' ? S.lime : S.text }}>{v}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setStep(2)} style={{ padding: 12, background: 'transparent', border: `1px solid ${S.line}`, color: S.dim, ...mono, fontSize: 10, borderRadius: 6, cursor: 'pointer' }}>{'\u2190 Back'}</button>
+            <button onClick={handleTrain} disabled={uploading} style={{ flex: 1, padding: 12, background: uploading ? S.line : S.lime, color: S.bg, border: 'none', borderRadius: 6, ...mono, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600, cursor: uploading ? 'default' : 'pointer' }}>{uploading ? 'Uploading...' : 'Queue Training'}</button>
+          </div>
+        </div>
+      )}
+
+      {step === 4 && (
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <div style={{ ...display, fontWeight: 600, fontSize: 20, color: S.text, marginBottom: 6 }}>Job Queued</div>
+          <div style={{ fontSize: 13, color: S.dim, marginBottom: 24 }}>Open the Toddler app on your phone to pick up the training job.</div>
+          <button onClick={onClose} style={{ padding: '10px 20px', background: S.lime, color: S.bg, border: 'none', borderRadius: 6, ...mono, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600, cursor: 'pointer' }}>Back to Zoo</button>
         </div>
       )}
     </div>

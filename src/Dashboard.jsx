@@ -58,10 +58,12 @@ export default function Dashboard() {
       .then(s => setDevices(s.docs.map(x => ({ id: x.id, ...x.data() })))).catch(() => {})
   }, [])
 
-  // Start BYOC worker — polls for queued training jobs every 30s
+  // Start BYOC worker on Android only — web is control tower, never trains
   useEffect(() => {
-    startBYOC()
-    return () => stopBYOC()
+    if (Capacitor.isNativePlatform()) {
+      startBYOC()
+      return () => stopBYOC()
+    }
   }, [])
 
   const nav = [

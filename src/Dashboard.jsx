@@ -28,6 +28,7 @@ function I({ name, size = 16 }) {
     refresh: <><path d="M3 12a9 9 0 0115-6.7L21 8M21 3v5h-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/><path d="M21 12a9 9 0 01-15 6.7L3 16M3 21v-5h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/></>,
     menu: <><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="3" y1="18" x2="21" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></>,
     close: <><line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></>,
+    cloud: <><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z" stroke="currentColor" strokeWidth="1.5" fill="none"/></>,
   }
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{flexShrink:0,display:'block'}}>{p[name]}</svg>
 }
@@ -38,7 +39,8 @@ export default function Dashboard() {
   const [mob, setMob] = useState(false)
   const [projects, setProjects] = useState([])
   const [devices, setDevices] = useState([])
-  const [trainModel, setTrainModel] = useState(null) // { id, name } or null
+  const [trainModel, setTrainModel] = useState(null)
+  const [useCloud, setUseCloud] = useState(false)
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 839px)')
@@ -59,13 +61,15 @@ export default function Dashboard() {
       .then(s => setDevices(s.docs.map(x => ({ id: x.id, ...x.data() })))).catch(() => {})
   }, [])
 
-  // Start BYOC worker on Android only — web is control tower, never trains
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
       startBYOC()
       return () => stopBYOC()
     }
   }, [])
+
+  const hasDevice = devices.length > 0
+  const canTrain = hasDevice || useCloud
 
   const nav = [
     { id: 'zoo', icon: 'zoo', label: 'Model Zoo' },
@@ -91,6 +95,7 @@ export default function Dashboard() {
         .dash-chip.on { background:#2E2A20; border-color:#38352B; color:#F2EFE6; }
         .dash-card { background:#1D1B16; border:1px solid #38352B; padding:16px; border-radius:8px; display:flex; flex-direction:column; gap:6px; transition:border-color 0.15s,transform 0.15s; }
         .dash-card:hover { border-color:#6E695C; transform:translateY(-1px); }
+        .dash-card.disabled { opacity:0.4; pointer-events:none; }
         .dash-grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); }
         .dash-device-card { background:#1D1B16; border:1px solid #38352B; padding:12px; border-radius:8px; display:flex; align-items:center; gap:12px; }
         .dash-code-card { background:#1D1B16; border:1px solid #38352B; border-radius:7px; overflow:hidden; margin-bottom:8px; }
@@ -134,12 +139,12 @@ export default function Dashboard() {
               {mob && <button onClick={() => setOpen(true)} style={{background:'none',border:'none',color:'#A8A296',cursor:'pointer',padding:4}}><I name="menu" size={20} /></button>}
               <span style={{fontFamily:"'Space Grotesk'",fontWeight:600,fontSize:14,color:'#F2EFE6'}}>{nav.find(n=>n.id===tab)?.label}</span>
             </div>
-            {tab==='zoo' && devices.length>0 && <span style={{fontFamily:"'IBM Plex Mono'",fontSize:10,color:'#6E695C'}}>fit: {devices[0]?.name} / {devices[0]?.ramGb}GB</span>}
+            {tab==='zoo' && hasDevice && <span style={{fontFamily:"'IBM Plex Mono'",fontSize:10,color:'#6E695C'}}>fit: {devices[0]?.name} / {devices[0]?.ramGb}GB</span>}
           </div>
           <div className="dash-content">
             {trainModel ? <TrainWizard model={trainModel} onClose={() => setTrainModel(null)} /> : (
               <>
-                {tab==='zoo' && <ZooTab devices={devices} onTrain={m => setTrainModel(m)} />}
+                {tab==='zoo' && <ZooTab devices={devices} canTrain={canTrain} useCloud={useCloud} setUseCloud={setUseCloud} onTrain={m => setTrainModel(m)} onGoDevices={() => setTab('devices')} />}
                 {tab==='sandbox' && <SandboxTab projects={projects} />}
                 {tab==='apis' && <ApisTab projects={projects} />}
                 {tab==='devices' && <DevicesTab devices={devices} setDevices={setDevices} />}
@@ -152,7 +157,7 @@ export default function Dashboard() {
   )
 }
 
-function ZooTab({ devices, onTrain }) {
+function ZooTab({ devices, canTrain, useCloud, setUseCloud, onTrain, onGoDevices }) {
   const [models, setModels] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
@@ -171,33 +176,66 @@ function ZooTab({ devices, onTrain }) {
     if (filter === 'vision') return m.task !== 'chat'
     return true
   })
+
   const maxRam = devices.reduce((mx, d) => Math.max(mx, d.ramGb || 0), 0)
+  const hasDevice = devices.length > 0
 
   if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',padding:64}}><div style={{width:20,height:20,border:'2px solid #38352B',borderTopColor:'#C6FF33',borderRadius:'50%',animation:'spin 1s linear infinite'}} /></div>
   if (error) return <div style={{textAlign:'center',padding:64,maxWidth:300,margin:'0 auto'}}><div style={{fontFamily:"'Space Grotesk'",fontWeight:600,fontSize:15,color:'#F2EFE6',marginBottom:6}}>Failed to load</div><div style={{fontSize:12,color:'#6E695C'}}>{error}</div></div>
-  if (filtered.length===0) return <div style={{textAlign:'center',padding:64,maxWidth:300,margin:'0 auto'}}><div style={{fontFamily:"'Space Grotesk'",fontWeight:600,fontSize:15,color:'#F2EFE6',marginBottom:6}}>No models</div><div style={{fontSize:12,color:'#6E695C'}}>No models match this filter.</div></div>
 
   return (
     <div style={{padding:16}}>
+      {/* No device banner */}
+      {!hasDevice && !useCloud && (
+        <div style={{background:'#1D1B16',border:'1px solid #38352B',borderRadius:8,padding:20,marginBottom:20,textAlign:'center'}}>
+          <div style={{fontFamily:"'Space Grotesk'",fontWeight:600,fontSize:16,color:'#F2EFE6',marginBottom:6}}>Connect a device to start training</div>
+          <div style={{fontSize:13,color:'#A8A296',marginBottom:16,lineHeight:1.6}}>Pair your phone or desktop to train models, or use cloud training.</div>
+          <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap'}}>
+            <button onClick={onGoDevices} style={{fontFamily:"'IBM Plex Mono'",fontSize:10,letterSpacing:1,textTransform:'uppercase',fontWeight:600,padding:'10px 18px',borderRadius:6,cursor:'pointer',background:'#C6FF33',color:'#14130F',border:'none'}}>Pair a device</button>
+            <button onClick={() => setUseCloud(true)} style={{fontFamily:"'IBM Plex Mono'",fontSize:10,letterSpacing:1,textTransform:'uppercase',fontWeight:600,padding:'10px 18px',borderRadius:6,cursor:'pointer',background:'transparent',color:'#A8A296',border:'1px solid #38352B',display:'flex',alignItems:'center',gap:6}}><I name="cloud" size={14} /> Use cloud</button>
+          </div>
+        </div>
+      )}
+
+      {/* Cloud mode banner */}
+      {useCloud && !hasDevice && (
+        <div style={{background:'rgba(125,57,235,0.08)',border:'1px solid rgba(125,57,235,0.3)',borderRadius:8,padding:'10px 16px',marginBottom:16,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <span style={{fontFamily:"'IBM Plex Mono'",fontSize:10,color:'#B79CF2'}}>Cloud training enabled (Pro)</span>
+          <button onClick={() => setUseCloud(false)} style={{background:'none',border:'none',color:'#6E695C',cursor:'pointer',fontFamily:"'IBM Plex Mono'",fontSize:10}}>Disable</button>
+        </div>
+      )}
+
+      {/* Filters */}
       <div style={{display:'flex',gap:6,marginBottom:16,flexWrap:'wrap'}}>
         {[{id:'all',label:'All models'},{id:'llm',label:'Language'},{id:'vision',label:'Vision'}].map(f => (
           <span key={f.id} className={`dash-chip${filter===f.id?' on':''}`} onClick={() => setFilter(f.id)}>{f.label}</span>
         ))}
       </div>
+
+      {filtered.length===0 && <div style={{textAlign:'center',padding:64,maxWidth:300,margin:'0 auto'}}><div style={{fontFamily:"'Space Grotesk'",fontWeight:600,fontSize:15,color:'#F2EFE6',marginBottom:6}}>No models</div><div style={{fontSize:12,color:'#6E695C'}}>No models match this filter.</div></div>}
+
       <div className="dash-grid">
         {filtered.map(m => {
-          const ok = maxRam > 0 ? (m.minRamGb||2) <= maxRam : false
+          const fits = hasDevice ? (m.minRamGb || 2) <= maxRam : false
+          const isDisabled = !canTrain || (!fits && !useCloud)
           return (
-            <div key={m.id} className="dash-card">
+            <div key={m.id} className={`dash-card${isDisabled ? ' disabled' : ''}`}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
                 <h4 style={{fontFamily:"'Space Grotesk'",fontSize:14,fontWeight:600,color:'#F2EFE6',margin:0}}>{m.name}</h4>
-                <span style={{fontFamily:"'IBM Plex Mono'",fontSize:9,letterSpacing:1,textTransform:'uppercase',padding:'3px 9px',borderRadius:20,whiteSpace:'nowrap',flexShrink:0,background:ok?'rgba(198,255,51,0.10)':'#26231C',color:ok?'#C6FF33':'#6E695C',border:`1px solid ${ok?'rgba(198,255,51,0.3)':'#38352B'}`}}>{ok?'✓ Fits':`Needs ${m.minRamGb||2}GB`}</span>
+                {hasDevice && (
+                  <span style={{fontFamily:"'IBM Plex Mono'",fontSize:9,letterSpacing:1,textTransform:'uppercase',padding:'3px 9px',borderRadius:20,whiteSpace:'nowrap',flexShrink:0,background:fits?'rgba(198,255,51,0.10)':'#26231C',color:fits?'#C6FF33':'#6E695C',border:`1px solid ${fits?'rgba(198,255,51,0.3)':'#38352B'}`}}>{fits?'Fits':'Needs '+((m.minRamGb||2))+'GB'}</span>
+                )}
+                {!hasDevice && useCloud && (
+                  <span style={{fontFamily:"'IBM Plex Mono'",fontSize:9,letterSpacing:1,textTransform:'uppercase',padding:'3px 9px',borderRadius:20,whiteSpace:'nowrap',flexShrink:0,background:'rgba(125,57,235,0.15)',color:'#B79CF2',border:'1px solid rgba(125,57,235,0.3)'}}>Cloud</span>
+                )}
               </div>
               <div style={{fontFamily:"'IBM Plex Mono'",fontSize:10,color:'#6E695C'}}>{m.task==='chat'?'LLM':m.task} / {m.sizeMb} MB / {m.minRamGb||2} GB RAM</div>
               <div style={{fontSize:12,color:'#A8A296',lineHeight:1.5}}>{m.description || `${m.name} for on-device use.`}</div>
-              <button onClick={() => onTrain?.({ id: m.id, name: m.name })} style={{marginTop:'auto',fontFamily:"'IBM Plex Mono'",fontSize:9,letterSpacing:1,textTransform:'uppercase',fontWeight:600,padding:'8px 12px',borderRadius:6,cursor:'pointer',width:'100%',background:'transparent',border:'1px solid #38352B',color:'#A8A296',transition:'all 0.15s'}}
-                onMouseEnter={e=>{e.currentTarget.style.borderColor='#6E695C';e.currentTarget.style.color='#F2EFE6'}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor='#38352B';e.currentTarget.style.color='#A8A296'}}>Train this model</button>
+              <button onClick={() => !isDisabled && onTrain?.({ id: m.id, name: m.name })} style={{marginTop:'auto',fontFamily:"'IBM Plex Mono'",fontSize:9,letterSpacing:1,textTransform:'uppercase',fontWeight:600,padding:'8px 12px',borderRadius:6,cursor:isDisabled?'default':'pointer',width:'100%',background:'transparent',border:`1px solid ${isDisabled?'#26231C':'#38352B'}`,color:isDisabled?'#38352B':'#A8A296',transition:'all 0.15s'}}
+                onMouseEnter={e=>{if(!isDisabled){e.currentTarget.style.borderColor='#6E695C';e.currentTarget.style.color='#F2EFE6'}}}
+                onMouseLeave={e=>{if(!isDisabled){e.currentTarget.style.borderColor='#38352B';e.currentTarget.style.color='#A8A296'}}}>
+                {!canTrain ? 'Connect device first' : isDisabled ? 'Needs more RAM' : 'Train this model'}
+              </button>
             </div>
           )
         })}
@@ -312,44 +350,47 @@ function DevicesTab({ devices, setDevices }) {
   }
 
   return (
-    <div style={{padding:16}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-        <span style={{fontFamily:"'Space Grotesk'",fontWeight:600,fontSize:14,color:'#F2EFE6'}}>Devices</span>
-        <button style={{fontFamily:"'IBM Plex Mono'",fontSize:9,letterSpacing:1,textTransform:'uppercase',fontWeight:600,padding:'7px 12px',borderRadius:6,cursor:'pointer',background:'#C6FF33',color:'#14130F',border:'none'}}>Pair a device</button>
-      </div>
-      {devices.length===0 ? (
-        <div style={{display:'flex',gap:24,flexWrap:'wrap',alignItems:'start'}}>
-          <div style={{maxWidth:280}}>
-            <div style={{fontFamily:"'Space Grotesk'",fontWeight:600,fontSize:15,color:'#F2EFE6',marginBottom:6}}>No devices</div>
-            <div style={{fontSize:12,color:'#6E695C',lineHeight:1.6}}>Install the Toddler app on your phone and enter this code to pair.</div>
-          </div>
-          <div className="dash-pair-box">
-            <div style={{fontFamily:"'IBM Plex Mono'",fontSize:10,letterSpacing:2,textTransform:'uppercase',color:'#6E695C',marginBottom:10}}>Your pairing code</div>
-            <div style={{fontFamily:"'IBM Plex Mono'",fontSize:28,letterSpacing:10,color:'#F2EFE6',paddingLeft:10}}>{code}</div>
-          </div>
+    <div style={{padding:16,display:'flex',flexDirection:'column',alignItems:'center'}}>
+      <div style={{width:'100%',maxWidth:500}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+          <span style={{fontFamily:"'Space Grotesk'",fontWeight:600,fontSize:14,color:'#F2EFE6'}}>Devices</span>
+          <button style={{fontFamily:"'IBM Plex Mono'",fontSize:9,letterSpacing:1,textTransform:'uppercase',fontWeight:600,padding:'7px 12px',borderRadius:6,cursor:'pointer',background:'#C6FF33',color:'#14130F',border:'none'}}>Pair a device</button>
         </div>
-      ) : (
-        <div style={{display:'flex',flexDirection:'column',gap:8,maxWidth:420}}>
-          {devices.map(d => (
-            <div key={d.id} className="dash-device-card">
-              <div style={{width:32,height:32,background:'#26231C',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><I name="device" size={16} /></div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontWeight:500,fontSize:12,color:'#F2EFE6',marginBottom:1}}>{d.name||d.platform||'Device'}</div>
-                <div style={{fontFamily:"'IBM Plex Mono'",fontSize:10,color:'#6E695C'}}>{d.platform||'unknown'} / {d.ramGb||'?'} GB / {d.status||'offline'}</div>
+
+        {devices.length===0 ? (
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:24,padding:'20px 0'}}>
+            <div style={{textAlign:'center'}}>
+              <div style={{fontFamily:"'Space Grotesk'",fontWeight:600,fontSize:16,color:'#F2EFE6',marginBottom:6}}>No devices connected</div>
+              <div style={{fontSize:13,color:'#6E695C',lineHeight:1.6,maxWidth:320}}>Install the Toddler app on your phone or desktop and enter the code below to pair.</div>
+            </div>
+            <div className="dash-pair-box" style={{width:'100%'}}>
+              <div style={{fontFamily:"'IBM Plex Mono'",fontSize:10,letterSpacing:2,textTransform:'uppercase',color:'#6E695C',marginBottom:12}}>Your pairing code</div>
+              <div style={{fontFamily:"'IBM Plex Mono'",fontSize:32,letterSpacing:12,color:'#F2EFE6'}}>{code}</div>
+            </div>
+          </div>
+        ) : (
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {devices.map(d => (
+              <div key={d.id} className="dash-device-card">
+                <div style={{width:32,height:32,background:'#26231C',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><I name="device" size={16} /></div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:500,fontSize:12,color:'#F2EFE6',marginBottom:1}}>{d.name||d.platform||'Device'}</div>
+                  <div style={{fontFamily:"'IBM Plex Mono'",fontSize:10,color:'#6E695C'}}>{d.platform||'unknown'} / {d.ramGb||'?'} GB / {d.status||'offline'}</div>
+                </div>
+                <div style={{width:6,height:6,borderRadius:'50%',flexShrink:0,background:d.status==='online'?'#C6FF33':'#6E695C',boxShadow:d.status==='online'?'0 0 6px rgba(198,255,51,0.4)':'none'}} />
+                <div onClick={() => unpair(d.id)} style={{padding:5,background:'transparent',border:'1px solid #38352B',borderRadius:5,cursor:'pointer',display:'flex',alignItems:'center',flexShrink:0,color:'#6E695C'}}><I name="unlink" size={12} /></div>
               </div>
-              <div style={{width:6,height:6,borderRadius:'50%',flexShrink:0,background:d.status==='online'?'#C6FF33':'#6E695C',boxShadow:d.status==='online'?'0 0 6px rgba(198,255,51,0.4)':'none'}} />
-              <div onClick={() => unpair(d.id)} style={{padding:5,background:'transparent',border:'1px solid #38352B',borderRadius:5,cursor:'pointer',display:'flex',alignItems:'center',flexShrink:0,color:'#6E695C'}}><I name="unlink" size={12} /></div>
-            </div>
-          ))}
-          <div style={{marginTop:12}}>
-            <div style={{fontFamily:"'IBM Plex Mono'",fontSize:10,color:'#6E695C',marginBottom:8}}>Pair another device</div>
-            <div className="dash-pair-box" style={{maxWidth:260}}>
-              <div style={{fontFamily:"'IBM Plex Mono'",fontSize:10,letterSpacing:2,textTransform:'uppercase',color:'#6E695C',marginBottom:10}}>Your pairing code</div>
-              <div style={{fontFamily:"'IBM Plex Mono'",fontSize:24,letterSpacing:8,color:'#F2EFE6',paddingLeft:8}}>{code}</div>
+            ))}
+            <div style={{marginTop:16,display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
+              <div style={{fontFamily:"'IBM Plex Mono'",fontSize:10,color:'#6E695C'}}>Pair another device</div>
+              <div className="dash-pair-box" style={{width:'100%'}}>
+                <div style={{fontFamily:"'IBM Plex Mono'",fontSize:10,letterSpacing:2,textTransform:'uppercase',color:'#6E695C',marginBottom:10}}>Your pairing code</div>
+                <div style={{fontFamily:"'IBM Plex Mono'",fontSize:28,letterSpacing:10,color:'#F2EFE6'}}>{code}</div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
@@ -369,7 +410,7 @@ function TrainWizard({ model, onClose }) {
   const handleTrain = async () => {
     if (!name.trim()) { toast.error('Enter a model name'); return }
     if (files.length === 0) { toast.error('Upload at least one file'); return }
-      setUploading(true)
+    setUploading(true)
     try {
       const urls = []
       for (const f of files) {

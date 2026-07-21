@@ -46,19 +46,34 @@ export default function Dashboard() {
 
   // Debug: test Firestore write on mount
   useEffect(() => {
-    if (!auth.currentUser) return
+    if (!auth.currentUser) {
+      setDebugInfo({ status: 'fail', code: 'no-auth', message: 'auth.currentUser is null', projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'not set' })
+      return
+    }
     const pid = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'not set'
     const uid = auth.currentUser.uid
-    import('firebase/firestore').then(({ doc, setDoc, deleteDoc: dd }) => {
-      const testRef = doc(db, 'test', uid)
-      setDoc(testRef, { ok: true })
+
+    // Log full details to console
+    console.log('[Toddler Debug] Firebase project:', pid)
+    console.log('[Toddler Debug] Auth uid:', uid)
+    console.log('[Toddler Debug] Auth email:', auth.currentUser.email)
+
+    import('firebase/firestore').then(firestore => {
+      const testRef = firestore.doc(db, 'test', 'ping')
+      console.log('[Toddler Debug] Writing to:', testRef.path)
+      firestore.setDoc(testRef, { v: 1 })
         .then(() => {
-          dd(testRef).catch(() => {})
+          firestore.deleteDoc(testRef).catch(() => {})
           setDebugInfo({ status: 'ok', projectId: pid, uid: uid.slice(0, 8) + '...' })
+          console.log('[Toddler Debug] Firestore write OK')
         })
         .catch(err => {
+          console.error('[Toddler Debug] Firestore write FAILED:', err)
           setDebugInfo({ status: 'fail', code: err.code, message: err.message, projectId: pid, uid: uid.slice(0, 8) + '...' })
         })
+    }).catch(err => {
+      console.error('[Toddler Debug] Dynamic import failed:', err)
+      setDebugInfo({ status: 'fail', code: 'import-error', message: err.message, projectId: pid })
     })
   }, [])
 

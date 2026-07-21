@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { auth, db } from './firebase'
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
-import { collection, query, where, getDocs, doc, deleteDoc, updateDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, getDoc, doc, deleteDoc, updateDoc } from 'firebase/firestore'
 import { toast } from 'react-hot-toast'
 import { Capacitor } from '@capacitor/core'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'

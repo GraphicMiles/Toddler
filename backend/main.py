@@ -522,25 +522,25 @@ async def register_device(
 
 
 @app.post("/devices/pair")
-async def pair_device(payload: dict, authorization: str | None = Header(default=None)):
-    """Pair a device using the 6-digit code from the web dashboard.
-    The code is the first 6 chars of the user's UID, uppercase.
-    The device sends this code + its own metadata."""
+async def pair_device(
+    code: str = Form(""),
+    platform: str = Form("android"),
+    name: str = Form("Android Device"),
+    ram_gb: float = Form(0),
+    os: str = Form(""),
+    authorization: str | None = Header(default=None),
+):
+    """Pair a device using the 6-digit code from the web dashboard."""
     user = verify_bearer_token(authorization)
     database = _require_db()
-    code = payload.get("code", "").upper()
-    expected = user["uid"][:6].upper()
-    if code != expected:
+    if code.upper() != user["uid"][:6].upper():
         raise HTTPException(status_code=400, detail="Invalid pairing code")
-    device_id = payload.get("platform", "android") + "_" + str(int(__import__("time").time()))
+    device_id = platform + "_" + str(int(__import__("time").time()))
     data = {
-        "platform": payload.get("platform", "android"),
-        "name": payload.get("name", "Android Device"),
-        "os": payload.get("os", ""),
-        "ramGb": payload.get("ram_gb", 0),
-        "storageMb": payload.get("storage_mb", 0),
-        "hasGpu": payload.get("has_gpu", False),
-        "fcmToken": payload.get("fcm_token"),
+        "platform": platform,
+        "name": name,
+        "os": os,
+        "ramGb": ram_gb,
         "status": "online",
         "byocEnabled": True,
         "lastSeen": firestore.SERVER_TIMESTAMP,

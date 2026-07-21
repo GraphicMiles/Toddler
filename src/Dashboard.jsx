@@ -450,7 +450,14 @@ function TrainWizard({ model, onClose }) {
         createdAt: new Date(),
         version: 1,
       }
-      const docRef = await addDoc(collection(db, 'projects'), projectData)
+      let docRef
+      try {
+        docRef = await addDoc(collection(db, 'projects'), projectData)
+      } catch (fsErr) {
+        console.error('Firestore error:', fsErr.code, fsErr.message)
+        const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'unknown'
+        throw new Error(`[${fsErr.code}] Project: ${projectId} — Go to Firebase Console → this project → Firestore → Rules → Publish`)
+      }
       const token = await auth.currentUser?.getIdToken()
       const fd = new FormData()
       fd.append('project_id', docRef.id)

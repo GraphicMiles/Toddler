@@ -399,14 +399,25 @@ def list_datasets(authorization: str | None = Header(default=None)):
 @app.post("/uploads/sign")
 def sign_cloudinary_upload(resource_type: str = "raw", authorization: str | None = Header(default=None)):
     user = verify_bearer_token(authorization)
+
+    cloud_name = os.environ.get("CLOUDINARY_CLOUD_NAME")
+    api_key = os.environ.get("CLOUDINARY_API_KEY")
+    api_secret = os.environ.get("CLOUDINARY_API_SECRET")
+
+    if not cloud_name or not api_key or not api_secret:
+        raise HTTPException(
+            status_code=500,
+            detail="Cloudinary not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET on Render."
+        )
+
     import cloudinary
     import cloudinary.utils
     import time
 
     cloudinary.config(
-        cloud_name=os.environ["CLOUDINARY_CLOUD_NAME"],
-        api_key=os.environ["CLOUDINARY_API_KEY"],
-        api_secret=os.environ["CLOUDINARY_API_SECRET"],
+        cloud_name=cloud_name,
+        api_key=api_key,
+        api_secret=api_secret,
         secure=True,
     )
     timestamp = int(time.time())
@@ -417,9 +428,9 @@ def sign_cloudinary_upload(resource_type: str = "raw", authorization: str | None
         params["upload_preset"] = preset
     return {
         "timestamp": timestamp,
-        "signature": cloudinary.utils.api_sign_request(params, os.environ["CLOUDINARY_API_SECRET"]),
-        "apiKey": os.environ["CLOUDINARY_API_KEY"],
-        "cloudName": os.environ["CLOUDINARY_CLOUD_NAME"],
+        "signature": cloudinary.utils.api_sign_request(params, api_secret),
+        "apiKey": api_key,
+        "cloudName": cloud_name,
         "folder": folder,
         "uploadPreset": preset,
     }

@@ -50,7 +50,6 @@ export default function MobileApp() {
   useEffect(() => {
     const unsub = auth.onAuthStateChanged(user => {
       if (!user) { setView('auth'); return }
-      // Check if device is paired
       const q = query(collection(db, 'users', user.uid, 'devices'))
       getDocs(q).then(snap => {
         const devs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
@@ -145,42 +144,34 @@ function AuthScreen({ mode, setMode, onSuccess }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, color: S.text, fontFamily: "'Inter', sans-serif" }}>
-      <div style={{ width: '100%', maxWidth: 340, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        {/* Logo */}
-        <div style={{ marginBottom: 32, textAlign: 'center' }}>
-          <I name="logo" size={32} />
-          <div style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 20, marginTop: 12, color: S.text }}>TODDLER</div>
+    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px 24px', color: S.text, fontFamily: "'Inter', sans-serif", boxSizing: 'border-box' }}>
+      <div style={{ width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{ marginBottom: 28, textAlign: 'center' }}>
+          <I name="logo" size={28} />
+          <div style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 18, marginTop: 10, color: S.text }}>TODDLER</div>
         </div>
-
-        {/* Title */}
-        <h1 style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 22, color: S.text, marginBottom: 6, textAlign: 'center' }}>
+        <h1 style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 20, color: S.text, marginBottom: 4, textAlign: 'center' }}>
           {mode === 'login' ? 'Sign in' : 'Create account'}
         </h1>
-        <p style={{ color: S.dim, fontSize: 13, marginBottom: 28, textAlign: 'center' }}>
+        <p style={{ color: S.dim, fontSize: 12, marginBottom: 24, textAlign: 'center' }}>
           {mode === 'login' ? 'Welcome back.' : 'No credit card required.'}
         </p>
-
-        {/* Error */}
-        {error && <div style={{ width: '100%', marginBottom: 16, padding: 10, background: 'rgba(255,92,62,0.1)', border: `1px solid ${S.danger}`, borderRadius: 6, color: S.danger, fontSize: 12, fontFamily: "'IBM Plex Mono'", textAlign: 'center' }}>{error}</div>}
-
-        {/* Form */}
+        {error && <div style={{ width: '100%', marginBottom: 14, padding: 10, background: 'rgba(255,92,62,0.1)', border: `1px solid ${S.danger}`, borderRadius: 6, color: S.danger, fontSize: 11, fontFamily: "'IBM Plex Mono'", textAlign: 'center' }}>{error}</div>}
         <form onSubmit={handleAuth} style={{ width: '100%' }}>
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: S.faint, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Email</label>
-            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" style={{ width: '100%', padding: '11px 14px', background: S.surface2, border: `1px solid ${S.line}`, borderRadius: 6, color: S.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontFamily: "'IBM Plex Mono'", fontSize: 9, color: S.faint, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 4 }}>Email</label>
+            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" style={{ width: '100%', padding: '10px 12px', background: S.surface2, border: `1px solid ${S.line}`, borderRadius: 6, color: S.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
           </div>
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: S.faint, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Password</label>
-            <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" style={{ width: '100%', padding: '11px 14px', background: S.surface2, border: `1px solid ${S.line}`, borderRadius: 6, color: S.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
+          <div style={{ marginBottom: 18 }}>
+            <label style={{ fontFamily: "'IBM Plex Mono'", fontSize: 9, color: S.faint, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 4 }}>Password</label>
+            <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" style={{ width: '100%', padding: '10px 12px', background: S.surface2, border: `1px solid ${S.line}`, borderRadius: 6, color: S.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
           </div>
-          <button type="submit" disabled={loading} style={{ width: '100%', padding: 12, background: S.lime, color: S.bg, border: 'none', borderRadius: 6, fontFamily: "'IBM Plex Mono'", fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600, cursor: loading ? 'default' : 'pointer' }}>
+          <button type="submit" disabled={loading} style={{ width: '100%', padding: 11, background: S.lime, color: S.bg, border: 'none', borderRadius: 6, fontFamily: "'IBM Plex Mono'", fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600, cursor: loading ? 'default' : 'pointer' }}>
             {loading ? 'Processing...' : mode === 'login' ? 'Sign In' : 'Create Account'}
           </button>
         </form>
-
-        <div style={{ marginTop: 16, textAlign: 'center' }}>
-          <span style={{ fontSize: 12, color: S.faint }}>
+        <div style={{ marginTop: 14, textAlign: 'center' }}>
+          <span style={{ fontSize: 11, color: S.faint }}>
             {mode === 'login' ? <>New? <span style={{ color: S.lime, cursor: 'pointer' }} onClick={() => setMode('signup')}>Sign up</span></> : <>Have an account? <span style={{ color: S.lime, cursor: 'pointer' }} onClick={() => setMode('login')}>Log in</span></>}
           </span>
         </div>
@@ -238,27 +229,23 @@ function PairScreen({ onPaired }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, color: S.text, fontFamily: "'Inter', sans-serif" }}>
-      <div style={{ width: '100%', maxWidth: 320, textAlign: 'center' }}>
-        <I name="logo" size={28} />
-        <h1 style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 20, marginTop: 16, marginBottom: 8 }}>Pair this device</h1>
-        <p style={{ color: S.dim, fontSize: 13, marginBottom: 28, lineHeight: 1.5 }}>Enter the 6-digit code from your web dashboard to connect.</p>
-
-        {error && <div style={{ marginBottom: 16, padding: 10, background: 'rgba(255,92,62,0.1)', border: `1px solid ${S.danger}`, borderRadius: 6, color: S.danger, fontSize: 12, fontFamily: "'IBM Plex Mono'" }}>{error}</div>}
-
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 28 }}>
+    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px 24px', color: S.text, fontFamily: "'Inter', sans-serif", boxSizing: 'border-box' }}>
+      <div style={{ width: '100%', maxWidth: 300, textAlign: 'center' }}>
+        <I name="logo" size={24} />
+        <h1 style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 18, marginTop: 14, marginBottom: 6 }}>Pair this device</h1>
+        <p style={{ color: S.dim, fontSize: 12, marginBottom: 24, lineHeight: 1.5 }}>Enter the 6-digit code from your web dashboard.</p>
+        {error && <div style={{ marginBottom: 14, padding: 10, background: 'rgba(255,92,62,0.1)', border: `1px solid ${S.danger}`, borderRadius: 6, color: S.danger, fontSize: 11, fontFamily: "'IBM Plex Mono'" }}>{error}</div>}
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 24 }}>
           {digits.map((d, i) => (
             <input key={i} ref={el => refs.current[i] = el} type="text" maxLength={1} value={d}
               onChange={e => handleChange(i, e.target.value)} onKeyDown={e => handleKeyDown(i, e)}
-              style={{ width: 40, height: 48, textAlign: 'center', fontFamily: "'IBM Plex Mono'", fontSize: 20, background: S.surface2, border: `1px solid ${d ? S.lime : S.line}`, borderRadius: 6, color: S.text, outline: 'none' }} />
+              style={{ width: 36, height: 44, textAlign: 'center', fontFamily: "'IBM Plex Mono'", fontSize: 18, background: S.surface2, border: `1px solid ${d ? S.lime : S.line}`, borderRadius: 6, color: S.text, outline: 'none' }} />
           ))}
         </div>
-
-        <button onClick={handlePair} disabled={!canSubmit || loading} style={{ width: '100%', padding: 12, background: canSubmit ? S.lime : S.line, color: S.bg, border: 'none', borderRadius: 6, fontFamily: "'IBM Plex Mono'", fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600, cursor: canSubmit ? 'pointer' : 'default' }}>
+        <button onClick={handlePair} disabled={!canSubmit || loading} style={{ width: '100%', padding: 11, background: canSubmit ? S.lime : S.line, color: S.bg, border: 'none', borderRadius: 6, fontFamily: "'IBM Plex Mono'", fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600, cursor: canSubmit ? 'pointer' : 'default' }}>
           {loading ? 'Pairing...' : 'Pair Device'}
         </button>
-
-        <div style={{ marginTop: 12, fontFamily: "'IBM Plex Mono'", fontSize: 9, color: S.faint }}>
+        <div style={{ marginTop: 10, fontFamily: "'IBM Plex Mono'", fontSize: 8, color: S.faint }}>
           This device will register as a worker
         </div>
       </div>
@@ -298,8 +285,8 @@ function TrainingScreen({ job, onDone }) {
   const done = status === 'trained'
 
   return (
-    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, color: S.text, fontFamily: "'Inter', sans-serif" }}>
-      <div style={{ width: '100%', maxWidth: 320, textAlign: 'center' }}>
+    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px 24px', color: S.text, fontFamily: "'Inter', sans-serif", boxSizing: 'border-box' }}>
+      <div style={{ width: '100%', maxWidth: 300, textAlign: 'center' }}>
         {!done ? (
           <>
             <div style={{ width: 64, height: 64, border: `3px solid ${S.line}`, borderTopColor: S.purple, borderRadius: '50%', animation: 'spin 1.5s linear infinite', margin: '0 auto 20px' }} />
@@ -351,56 +338,57 @@ function DashboardScreen({ projects, devices, onUnpair, onLogout, onRefresh }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: S.bg, color: S.text, fontFamily: "'Inter', sans-serif" }}>
+      {/* Safe area top spacer */}
+      <div style={{ height: 'env(safe-area-inset-top, 0px)', background: S.surface, flexShrink: 0 }} />
+
       {/* Header */}
-      <div style={{ padding: '12px 16px', background: S.surface, borderBottom: `1px solid ${S.line}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+      <div style={{ padding: '8px 16px', background: S.surface, borderBottom: `1px solid ${S.line}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <I name="logo" size={16} />
-          <span style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 14 }}>TODDLER</span>
+          <I name="logo" size={14} />
+          <span style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 13 }}>TODDLER</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: S.lime, boxShadow: '0 0 6px rgba(198,255,51,0.4)' }} />
-          <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 9, color: S.lime }}>Online</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 5, height: 5, borderRadius: '50%', background: S.lime, boxShadow: '0 0 6px rgba(198,255,51,0.4)' }} />
+          <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 8, color: S.lime }}>Online</span>
         </div>
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
         {tab === 'zoo' && <ZooScreen devices={devices} onRefresh={onRefresh} />}
         {tab === 'queues' && <QueuesScreen projects={projects} />}
         {tab === 'sandbox' && <SandboxScreen projects={projects} />}
       </div>
 
       {/* Tab Bar */}
-      <div style={{ display: 'flex', borderTop: `1px solid ${S.line}`, background: S.surface, flexShrink: 0 }}>
+      <div style={{ display: 'flex', borderTop: `1px solid ${S.line}`, background: S.surface, flexShrink: 0, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
-            flex: 1, textAlign: 'center', padding: '10px 4px 8px', background: 'none', border: 'none',
-            fontFamily: "'IBM Plex Mono'", fontSize: 9, letterSpacing: 1, textTransform: 'uppercase',
+            flex: 1, textAlign: 'center', padding: '6px 2px 4px', background: 'none', border: 'none',
+            fontFamily: "'IBM Plex Mono'", fontSize: 8, letterSpacing: 0.5, textTransform: 'uppercase',
             color: tab === t.id ? S.lime : S.faint,
             borderTop: `2px solid ${tab === t.id ? S.lime : 'transparent'}`,
             cursor: 'pointer',
           }}>
-            <span style={{ fontSize: 18, display: 'block', marginBottom: 2 }}><I name={t.icon} size={18} /></span>
+            <span style={{ fontSize: 16, display: 'block', marginBottom: 1 }}><I name={t.icon} size={16} /></span>
             {t.label}
           </button>
         ))}
-        {/* Unpair */}
         <button onClick={onUnpair} style={{
-          flex: 1, textAlign: 'center', padding: '10px 4px 8px', background: 'none', border: 'none',
-          fontFamily: "'IBM Plex Mono'", fontSize: 9, letterSpacing: 1, textTransform: 'uppercase',
+          flex: 1, textAlign: 'center', padding: '6px 2px 4px', background: 'none', border: 'none',
+          fontFamily: "'IBM Plex Mono'", fontSize: 8, letterSpacing: 0.5, textTransform: 'uppercase',
           color: S.faint, borderTop: '2px solid transparent', cursor: 'pointer',
         }}>
-          <span style={{ fontSize: 18, display: 'block', marginBottom: 2 }}><I name="unlink" size={18} /></span>
+          <span style={{ fontSize: 16, display: 'block', marginBottom: 1 }}><I name="unlink" size={16} /></span>
           Unpair
         </button>
-        {/* Logout */}
         <button onClick={onLogout} style={{
-          flex: 1, textAlign: 'center', padding: '10px 4px 8px', background: 'none', border: 'none',
-          fontFamily: "'IBM Plex Mono'", fontSize: 9, letterSpacing: 1, textTransform: 'uppercase',
+          flex: 1, textAlign: 'center', padding: '6px 2px 4px', background: 'none', border: 'none',
+          fontFamily: "'IBM Plex Mono'", fontSize: 8, letterSpacing: 0.5, textTransform: 'uppercase',
           color: S.faint, borderTop: '2px solid transparent', cursor: 'pointer',
         }}>
-          <span style={{ fontSize: 18, display: 'block', marginBottom: 2 }}><I name="signout" size={18} /></span>
-          Logout
+          <span style={{ fontSize: 16, display: 'block', marginBottom: 1 }}><I name="signout" size={16} /></span>
+          Out
         </button>
       </div>
     </div>

@@ -58,22 +58,29 @@ export default function Dashboard() {
     console.log('[Toddler Debug] Auth uid:', uid)
     console.log('[Toddler Debug] Auth email:', auth.currentUser.email)
 
-    import('firebase/firestore').then(firestore => {
-      const testRef = firestore.doc(db, 'test', 'ping')
-      console.log('[Toddler Debug] Writing to:', testRef.path)
-      firestore.setDoc(testRef, { v: 1 })
-        .then(() => {
-          firestore.deleteDoc(testRef).catch(() => {})
-          setDebugInfo({ status: 'ok', projectId: pid, uid: uid.slice(0, 8) + '...' })
-          console.log('[Toddler Debug] Firestore write OK')
-        })
-        .catch(err => {
-          console.error('[Toddler Debug] Firestore write FAILED:', err)
-          setDebugInfo({ status: 'fail', code: err.code, message: err.message, projectId: pid, uid: uid.slice(0, 8) + '...' })
-        })
+    import('firebase/firestore').then(async (firestore) => {
+      try {
+        // Step 1: Test read (rules-independent for public data)
+        console.log('[Debug] Step 1: Testing Firestore connection...')
+        const testRef = firestore.doc(db, 'test', 'ping')
+
+        // Step 2: Test write
+        console.log('[Debug] Step 2: Writing test doc...')
+        await firestore.setDoc(testRef, { v: 1, uid: uid })
+
+        // Step 3: Cleanup
+        console.log('[Debug] Step 3: Cleaning up...')
+        await firestore.deleteDoc(testRef).catch(() => {})
+
+        setDebugInfo({ status: 'ok', projectId: pid, uid: uid.slice(0, 8) + '...' })
+        console.log('[Debug] Firestore OK')
+      } catch (err) {
+        console.error('[Debug] FAILED:', err.code, err.message, err)
+        setDebugInfo({ status: 'fail', code: err.code, message: err.message, projectId: pid, uid: uid.slice(0, 8) + '...' })
+      }
     }).catch(err => {
-      console.error('[Toddler Debug] Dynamic import failed:', err)
-      setDebugInfo({ status: 'fail', code: 'import-error', message: err.message, projectId: pid })
+      console.error('[Debug] Import failed:', err)
+      setDebugInfo({ status: 'fail', code: 'import', message: err.message, projectId: pid })
     })
   }, [])
 

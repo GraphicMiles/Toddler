@@ -19,7 +19,8 @@ app = FastAPI(title="Toddler API", version="2.0")
 _cors_env = os.getenv(
     "CORS_ORIGINS",
     "http://localhost,http://localhost:5173,http://localhost:4173,"
-    "capacitor://localhost,https://toddler.ai,https://toddler-53xb.onrender.com"
+    "capacitor://localhost,https://localhost,"
+    "https://toddler.ai,https://toddler-53xb.onrender.com"
 )
 _cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
 if "*" in _cors_origins:

@@ -18,11 +18,6 @@ export default function MyCollection({
 }) {
   const [expandedId, setExpandedId] = useState(null);
 
-  const formatSize = (bytes) => {
-    if (bytes < 1024) return bytes + ' MB';
-    return (bytes / 1024).toFixed(1) + ' GB';
-  };
-
   const formatDate = (date) => {
     if (!date) return '';
     const d = new Date(date);

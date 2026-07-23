@@ -26,8 +26,7 @@ const MOCK_WORKSPACE = {
           { name: 'FilePanel.jsx', type: 'file', path: 'src/components/FilePanel.jsx' },
         ]},
         { name: 'hooks', type: 'folder', open: false, path: 'src/hooks', children: [
-          { name: 'useChat.js', type: 'file', path: 'src/hooks/useChat.js' },
-          { name: 'useOllama.js', type: 'file', path: 'src/hooks/useOllama.js' },
+          { name: 'useModelCollection.js', type: 'file', path: 'src/hooks/useModelCollection.js' },
         ]},
         { name: 'App.jsx', type: 'file', path: 'src/App.jsx' },
         { name: 'main.jsx', type: 'file', path: 'src/main.jsx' },

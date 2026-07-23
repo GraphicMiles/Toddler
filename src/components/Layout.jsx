@@ -1,101 +1,80 @@
-import { motion } from 'framer-motion';
-import { FolderOpen, MessageSquare, Database, Download, Settings } from 'lucide-react';
+import { MessageSquare, Boxes, Database, FolderTree, Settings } from 'lucide-react';
 import './Layout.css';
 
-const SCREENS = {
+export const SCREENS = {
   CHAT: 'chat',
   ZOO: 'zoo',
   COLLECTION: 'collection',
+  WORKSPACE: 'workspace',
 };
 
-export default function Layout({ 
-  children, 
-  workspace = 'No workspace',
+const TABS = [
+  { id: SCREENS.CHAT, label: 'Chat', icon: MessageSquare },
+  { id: SCREENS.ZOO, label: 'Model Zoo', icon: Boxes },
+  { id: SCREENS.COLLECTION, label: 'Collection', icon: Database },
+  { id: SCREENS.WORKSPACE, label: 'Workspace', icon: FolderTree },
+];
+
+export default function Layout({
+  children,
   model = 'No model',
   status = 'idle',
-  onToggleFilePanel,
-  filePanelOpen,
-  onScreenChange,
-  currentScreen = SCREENS.CHAT,
+  ollamaConnected = false,
   modelCount = 0,
+  currentScreen = SCREENS.CHAT,
+  onScreenChange,
 }) {
-  const getStatusClass = () => {
-    switch (status) {
-      case 'busy': return 'busy';
-      case 'off': return 'off';
-      default: return '';
-    }
-  };
-
-  const navItems = [
-    { id: SCREENS.CHAT, label: 'Chat', icon: MessageSquare },
-    { id: SCREENS.ZOO, label: 'Model Zoo', icon: Download },
-    { id: SCREENS.COLLECTION, label: 'My Collection', icon: Database, badge: modelCount },
-  ];
+  const statusMeta =
+    status === 'busy'
+      ? { color: 'var(--warn)', label: 'Working' }
+      : status === 'off'
+        ? { color: 'var(--danger)', label: 'Offline' }
+        : { color: 'var(--success)', label: ollamaConnected ? 'Ready' : 'Idle' };
 
   return (
     <div className="layout-root">
-      {/* Top Bar */}
       <header className="topbar">
-        <div className="topbar-left">
-          <motion.button
-            className={`icon-btn ${filePanelOpen ? 'active' : ''}`}
-            onClick={onToggleFilePanel}
-            aria-label="Browse workspace files"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <FolderOpen size={15} />
-          </motion.button>
-          
-          <div className="brand display">
-            <motion.span 
-              className={`brand-dot ${getStatusClass()}`}
-              animate={status === 'busy' ? { scale: [1, 1.2, 1] } : {}}
-              transition={{ repeat: Infinity, duration: 1 }}
-            />
-            ForgeAI
-          </div>
+        <div className="brand">
+          <span className="brand-mark" aria-hidden="true" />
+          <span className="brand-text">
+            <span className="brand-name display">ForgeAI</span>
+            <span className="brand-sub mono">{model}</span>
+          </span>
         </div>
 
-        {/* Navigation Tabs */}
-        <nav className="topbar-nav">
-          {navItems.map((item) => (
-            <motion.button
-              key={item.id}
-              className={`nav-tab ${currentScreen === item.id ? 'active' : ''}`}
-              onClick={() => onScreenChange?.(item.id)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <item.icon size={14} />
-              <span>{item.label}</span>
-              {item.badge > 0 && (
-                <span className="nav-badge">{item.badge}</span>
-              )}
-            </motion.button>
-          ))}
-        </nav>
-
         <div className="topbar-right">
-          <div className="meta mono">
-            <span className="model-label">{model}</span>
+          <div className="status-pill" title="Model status">
+            <span className="status-dot" style={{ background: statusMeta.color }} />
+            <span className="status-label mono">{statusMeta.label}</span>
           </div>
-
-          <motion.button
-            className="icon-btn"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Settings size={15} />
-          </motion.button>
+          <button className="icon-btn" aria-label="Settings">
+            <Settings size={16} />
+          </button>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="layout-main">
-        {children}
-      </main>
+      <main className="layout-main">{children}</main>
+
+      <nav className="tabbar" aria-label="Primary">
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          const active = currentScreen === tab.id;
+          const badge = tab.id === SCREENS.COLLECTION ? modelCount : 0;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              className={`tab ${active ? 'active' : ''}`}
+              onClick={() => onScreenChange?.(tab.id)}
+              aria-current={active ? 'page' : undefined}
+            >
+              <Icon size={20} strokeWidth={active ? 2.2 : 1.8} />
+              <span className="tab-label">{tab.label}</span>
+              {badge > 0 && <span className="tab-badge">{badge}</span>}
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }

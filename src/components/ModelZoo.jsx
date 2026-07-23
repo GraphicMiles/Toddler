@@ -171,6 +171,55 @@ const TASK_LABELS = {
   balanced: 'Balanced',
 };
 
+function heatLevel(model) {
+  if (model.size < 500) return 1;
+  if (model.size < 1500) return 2;
+  return 3;
+}
+
+function Gauge({ value, label, sub }) {
+  const radius = 18;
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.max(0, Math.min(1, value));
+  const offset = circumference * (1 - clamped);
+  return (
+    <div className="gauge-card">
+      <div className="gauge">
+        <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">
+          <circle cx="22" cy="22" r={radius} fill="none" stroke="var(--border-strong)" strokeWidth="4" />
+          <circle
+            cx="22"
+            cy="22"
+            r={radius}
+            fill="none"
+            stroke="var(--accent)"
+            strokeWidth="4"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+            transform="rotate(-90 22 22)"
+          />
+        </svg>
+        <span className="gauge-value mono">{Math.round(clamped * 100)}%</span>
+      </div>
+      <div className="gauge-meta">
+        <span className="gauge-label">{label}</span>
+        <span className="gauge-sub mono">{sub}</span>
+      </div>
+    </div>
+  );
+}
+
+function HeatMeter({ level }) {
+  return (
+    <div className="heat-meter" title="Speed versus quality" aria-hidden="true">
+      {[0, 1, 2].map((i) => (
+        <span key={i} className={`heat-dot ${i < level ? 'lit' : ''}`} />
+      ))}
+    </div>
+  );
+}
+
 export default function ModelZoo({ 
   downloadedModels = [], 
   onDownload, 
@@ -181,6 +230,8 @@ export default function ModelZoo({
   const [showOnlyCompatible, setShowOnlyCompatible] = useState(true);
   const [downloading, setDownloading] = useState({});
   const [downloadProgress, setDownloadProgress] = useState({});
+
+  const usedStorage = downloadedModels.reduce((sum, m) => sum + (m.size || 0), 0);
 
   // Filter models based on device and category
   const filteredModels = MODEL_CATALOG.filter(model => {
@@ -245,25 +296,20 @@ export default function ModelZoo({
         )}
       </div>
 
-      {/* Device Info */}
-      <div className="device-info">
-        <div className="device-stat">
-          <Cpu size={14} />
-          <span>{deviceCapability.ram}GB RAM detected</span>
-        </div>
-        <div className="device-stat">
-          <HardDrive size={14} />
-          <span>{deviceCapability.storage}GB storage</span>
-        </div>
-        <label className="compatible-toggle">
-          <input 
-            type="checkbox" 
-            checked={showOnlyCompatible}
-            onChange={(e) => setShowOnlyCompatible(e.target.checked)}
-          />
-          <span>Show compatible only</span>
-        </label>
+      {/* Resource gauges */}
+      <div className="gauge-row">
+        <Gauge value={Math.min(deviceCapability.ram / 8, 1)} label="Memory" sub={`${deviceCapability.ram}GB RAM`} />
+        <Gauge value={usedStorage / 64000} label="Storage" sub={`${usedStorage}MB / ${deviceCapability.storage}GB`} />
       </div>
+
+      <label className="compatible-toggle">
+        <input 
+          type="checkbox" 
+          checked={showOnlyCompatible}
+          onChange={(e) => setShowOnlyCompatible(e.target.checked)}
+        />
+        <span>Show compatible only</span>
+      </label>
 
       {/* Filter Tabs */}
       <div className="zoo-filters">
@@ -327,9 +373,7 @@ export default function ModelZoo({
                     <Cpu size={12} />
                     <span className="mono">{model.minRam}GB+ RAM</span>
                   </div>
-                  <div className="spec">
-                    <span className="task-badge">{TASK_LABELS[model.task]}</span>
-                  </div>
+                  <HeatMeter level={heatLevel(model)} />
                 </div>
 
                 {/* Compatibility warning */}

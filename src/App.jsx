@@ -1,10 +1,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import Layout from './components/Layout';
+import Layout, { SCREENS } from './components/Layout';
 import ChatContainer from './components/ChatContainer';
-import FilePanel from './components/FilePanel';
 import ModelZoo from './components/ModelZoo';
 import MyCollection from './components/MyCollection';
+import Workspace from './components/Workspace';
 import useModelCollection from './hooks/useModelCollection';
 import { checkOllamaConnection, haptics, isNative } from './nativeBridge';
 import './styles/index.css';
@@ -23,7 +23,7 @@ const MOCK_WORKSPACE = {
         { name: 'components', type: 'folder', open: true, path: 'src/components', children: [
           { name: 'Chat.jsx', type: 'file', path: 'src/components/Chat.jsx' },
           { name: 'Layout.jsx', type: 'file', path: 'src/components/Layout.jsx' },
-          { name: 'FilePanel.jsx', type: 'file', path: 'src/components/FilePanel.jsx' },
+          { name: 'Workspace.jsx', type: 'file', path: 'src/components/Workspace.jsx' },
         ]},
         { name: 'hooks', type: 'folder', open: false, path: 'src/hooks', children: [
           { name: 'useModelCollection.js', type: 'file', path: 'src/hooks/useModelCollection.js' },
@@ -45,19 +45,13 @@ const MOCK_WORKSPACE = {
   ],
 };
 
-// Screen types
-const SCREENS = {
-  CHAT: 'chat',
-  ZOO: 'zoo',
-  COLLECTION: 'collection',
-};
+// Screen types are imported from ./components/Layout (SCREENS)
 
 export default function App() {
   // Screen state
   const [currentScreen, setCurrentScreen] = useState(SCREENS.CHAT);
   
   // UI state
-  const [filePanelOpen, setFilePanelOpen] = useState(false);
   const [workspace] = useState(MOCK_WORKSPACE);
   
   // Chat state
@@ -137,9 +131,9 @@ export default function App() {
       const lowerText = text.toLowerCase();
 
       if (lowerText.includes('help') || lowerText.includes('what can')) {
-        addMessage('assistant', `I'm running **${activeModel.name}**!\n\nI can help you with:\n\n📁 **File Operations**\n- Read files: "read @filename"\n- Create files: "create a new component"\n\n💻 **Code Help**\n- Explain code\n- Write tests\n- Debug errors\n\nJust ask naturally!`);
+        addMessage('assistant', `I'm running **${activeModel.name}**!\n\nI can help you with:\n\n**File Operations**\n- Read files: "read @filename"\n- Create files: "create a new component"\n\n**Code Help**\n- Explain code\n- Write tests\n- Debug errors\n\nJust ask naturally!`);
       } else if (lowerText.includes('hello') || lowerText.includes('hi')) {
-        addMessage('assistant', `Hey! 👋 I'm ForgeAI, powered by **${activeModel.name}**.\n\nI'm ready to help with your coding. What would you like to work on?`);
+        addMessage('assistant', `Hey! I'm ForgeAI, powered by **${activeModel.name}**.\n\nI'm ready to help with your coding. What would you like to work on?`);
       } else if (lowerText.includes('write') || lowerText.includes('create')) {
         const action = {
           id: generateId(),
@@ -185,7 +179,7 @@ export default function App() {
     }
 
     await new Promise(resolve => setTimeout(resolve, 500));
-    addMessage('system', `✅ File written: ${action.path}`);
+    addMessage('system', `File written: ${action.path}`);
     addMessage('assistant', `Done! I've created ${action.path}.`);
     
     if (isNative) {
@@ -203,7 +197,7 @@ export default function App() {
   const handleDownload = useCallback(async (model) => {
     const result = await downloadModel(model);
     if (result.success) {
-      addMessage('system', `✅ ${model.name} downloaded successfully!`);
+      addMessage('system', `${model.name} downloaded successfully.`);
       if (isNative) {
         await haptics.success();
       }
@@ -214,7 +208,7 @@ export default function App() {
   const handleSelectModel = useCallback((model) => {
     setActiveModel(model);
     setModelStatus('idle');
-    addMessage('system', `🔄 Switched to **${model.name}**`);
+    addMessage('system', `Switched to **${model.name}**`);
     if (isNative) {
       haptics.medium();
     }
@@ -225,7 +219,7 @@ export default function App() {
   // Handle model deletion
   const handleDeleteModel = useCallback((model) => {
     deleteModel(model.id);
-    addMessage('system', `🗑️ **${model.name}** deleted from collection`);
+    addMessage('system', `**${model.name}** deleted from collection`);
   }, [deleteModel]);
 
   // Screen switching
@@ -237,26 +231,13 @@ export default function App() {
 
   return (
     <Layout
-      workspace={workspace.name}
       model={activeModel?.name || 'No model'}
       status={modelStatus}
-      filePanelOpen={filePanelOpen}
-      onToggleFilePanel={() => setFilePanelOpen(prev => !prev)}
+      ollamaConnected={ollamaConnected}
       onScreenChange={setCurrentScreen}
       currentScreen={currentScreen}
       modelCount={downloadedModels.length}
     >
-      {/* File Panel */}
-      <AnimatePresence>
-        {filePanelOpen && (
-          <FilePanel
-            isOpen={filePanelOpen}
-            onClose={() => setFilePanelOpen(false)}
-            workspace={workspace}
-          />
-        )}
-      </AnimatePresence>
-
       {/* Screens */}
       <AnimatePresence mode="wait">
         {currentScreen === SCREENS.CHAT && (
@@ -317,6 +298,19 @@ export default function App() {
               ollamaConnected={ollamaConnected}
               onOpenZoo={() => setCurrentScreen(SCREENS.ZOO)}
             />
+          </motion.div>
+        )}
+
+        {currentScreen === SCREENS.WORKSPACE && (
+          <motion.div
+            key="workspace"
+            variants={screenVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="screen-container"
+          >
+            <Workspace workspace={workspace} onFileSelect={() => {}} />
           </motion.div>
         )}
       </AnimatePresence>

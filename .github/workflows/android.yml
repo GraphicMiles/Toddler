@@ -33,22 +33,20 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # @capacitor/android is already installed by `npm ci`.
-      # Add the native platform ONLY if it is not already present
-      # (the repo ships a committed ./android, so re-adding it
-      # would fail with "android platform already exists").
-      - name: Ensure Capacitor Android platform
+      # Always regenerate the native project from the installed
+      # @capacitor/android version. A stale, committed ./android with an
+      # old Gradle wrapper previously broke the build (could not parse
+      # JavaVersion.VERSION_21). Regenerating guarantees the Gradle wrapper
+      # and capacitor.build.gradle always match the Capacitor packages.
+      - name: Add Capacitor Android platform
         run: |
-          if [ ! -d "android" ]; then
-            npx cap add android
-          else
-            echo "Android platform already present - skipping 'cap add'."
-          fi
+          rm -rf android
+          npx cap add android
 
       - name: Sync Capacitor
         run: npx cap sync android

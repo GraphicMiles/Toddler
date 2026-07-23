@@ -1,0 +1,182 @@
+/* ForgeAI - Design System */
+/* Based on Toddler color scheme + ForgeAI UI */
+
+:root {
+  /* Backgrounds */
+  --bg: #131418;
+  --bg-elev: #1b1c21;
+  --bg-elev-2: #212226;
+  
+  /* Text */
+  --paper: #f1efe9;
+  --paper-dim: #a4a3a0;
+  --faint: #68686c;
+  
+  /* Borders */
+  --border: rgba(241, 239, 233, 0.08);
+  --border-strong: rgba(241, 239, 233, 0.16);
+  
+  /* Accent (primary action) */
+  --accent: #c8f24d;
+  --accent-ink: #12150a;
+  --accent-dim: rgba(200, 242, 77, 0.08);
+  --accent-border: rgba(200, 242, 77, 0.24);
+  
+  /* Warning */
+  --warn: #ff9452;
+  --warn-dim: rgba(255, 148, 82, 0.09);
+  --warn-border: rgba(255, 148, 82, 0.4);
+  
+  /* Danger */
+  --danger: #ff7a7a;
+  --danger-dim: rgba(255, 122, 122, 0.09);
+  
+  /* Success */
+  --success: #7aff9e;
+  
+  /* Spacing */
+  --radius: 14px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--paper);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14.5px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input, textarea {
+  font-family: inherit;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--faint);
+}
+
+/* Focus */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Utilities */
+.mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.display {
+  font-family: 'Manrope', sans-serif;
+}
+
+/* Animation utilities */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0; 
+    transform: translateY(8px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes slideInLeft {
+  from { 
+    opacity: 0; 
+    transform: translateX(-100%); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateX(0); 
+  }
+}
+
+@keyframes slideInRight {
+  from { 
+    opacity: 0; 
+    transform: translateX(100%); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateX(0); 
+  }
+}
+
+@keyframes scaleIn {
+  from { 
+    opacity: 0; 
+    transform: scale(0.95); 
+  }
+  to { 
+    opacity: 1; 
+    transform: scale(1); 
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Loading skeleton */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-elev) 25%,
+    var(--bg-elev-2) 50%,
+    var(--bg-elev) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-xs);
+}

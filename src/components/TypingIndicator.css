@@ -1,0 +1,37 @@
+.typing-indicator {
+  display: flex;
+  gap: 16px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.typing-avatar {
+  flex-shrink: 0;
+}
+
+.typing-content {
+  display: flex;
+  align-items: center;
+  padding-top: 8px;
+}
+
+.typing-dots {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .typing-indicator {
+    gap: 12px;
+    padding: 16px 0;
+  }
+}

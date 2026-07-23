@@ -1,0 +1,66 @@
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.chat-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.chat-column {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 24px 32px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.messages-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Scroll to bottom button */
+.scroll-to-bottom {
+  position: fixed;
+  bottom: 100px;
+  right: 24px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  color: var(--paper-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 50;
+}
+
+.scroll-to-bottom.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.scroll-to-bottom:hover {
+  background: var(--bg-elev-2);
+  color: var(--paper);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .chat-column {
+    padding: 16px 16px 24px;
+  }
+}

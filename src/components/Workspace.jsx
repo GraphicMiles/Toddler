@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, FolderOpen, File, ChevronRight, X, Plus, RefreshCw } from 'lucide-react';
-import './FilePanel.css';
+import { Search, FolderOpen, ChevronRight, X } from 'lucide-react';
+import './Workspace.css';
 
 const FILE_ICONS = {
   js: { color: '#f7df1e', label: 'JS' },
@@ -42,7 +42,7 @@ function FileNode({ node, depth = 0, onSelect, selectedPath }) {
       <motion.div
         className={`file-row ${isFolder ? 'folder' : 'file'} ${isSelected ? 'selected' : ''}`}
         onClick={handleClick}
-        style={{ paddingLeft: `${12 + depth * 16}px` }}
+        style={{ paddingLeft: `${14 + depth * 18}px` }}
         whileHover={{ x: 2 }}
         transition={{ duration: 0.1 }}
       >
@@ -52,19 +52,16 @@ function FileNode({ node, depth = 0, onSelect, selectedPath }) {
             animate={{ rotate: isOpen ? 90 : 0 }}
             transition={{ duration: 0.15 }}
           >
-            <ChevronRight size={12} />
+            <ChevronRight size={13} />
           </motion.span>
         ) : (
           <span className="chevron-placeholder" />
         )}
 
         {isFolder ? (
-          <FolderOpen size={14} className="file-icon folder-icon" />
+          <FolderOpen size={15} className="file-icon folder-icon" />
         ) : (
-          <span 
-            className="file-icon file-badge mono"
-            style={{ color: fileInfo.color }}
-          >
+          <span className="file-icon file-badge mono" style={{ color: fileInfo.color }}>
             {fileInfo.label}
           </span>
         )}
@@ -97,37 +94,23 @@ function FileNode({ node, depth = 0, onSelect, selectedPath }) {
   );
 }
 
-export default function FilePanel({ 
-  isOpen, 
-  onClose, 
-  workspace = {},
-  onFileSelect,
-  onWorkspaceChange 
-}) {
+export default function Workspace({ workspace = {}, onFileSelect }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPath, setSelectedPath] = useState(null);
 
-  // Filter files based on search
   const filteredTree = useMemo(() => {
     if (!searchQuery.trim()) return workspace.tree || [];
-    
     const query = searchQuery.toLowerCase();
-    
     const filterNode = (node) => {
       if (node.type === 'file') {
         return node.name.toLowerCase().includes(query) ? node : null;
       }
-      
-      const filteredChildren = (node.children || [])
-        .map(filterNode)
-        .filter(Boolean);
-      
+      const filteredChildren = (node.children || []).map(filterNode).filter(Boolean);
       if (filteredChildren.length > 0 || node.name.toLowerCase().includes(query)) {
         return { ...node, children: filteredChildren, open: true };
       }
       return null;
     };
-    
     return (workspace.tree || []).map(filterNode).filter(Boolean);
   }, [workspace.tree, searchQuery]);
 
@@ -136,88 +119,34 @@ export default function FilePanel({
     onFileSelect?.(path);
   };
 
-  const handleClose = () => {
-    setSearchQuery('');
-    onClose?.();
-  };
-
   return (
-    <>
-      {/* Backdrop */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            className="file-panel-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={handleClose}
+    <div className="screen-scroll workspace">
+      <div className="screen-pad">
+        <div className="section-head">
+          <h2>Workspace</h2>
+          <p>{workspace.name || 'Local project'}</p>
+        </div>
+
+        <div className="ws-search">
+          <Search size={14} />
+          <input
+            type="text"
+            placeholder="Filter files"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="mono"
+            aria-label="Filter files"
           />
-        )}
-      </AnimatePresence>
-
-      {/* Panel */}
-      <motion.aside
-        className={`file-panel ${isOpen ? 'open' : ''}`}
-        initial={{ x: '-100%' }}
-        animate={{ x: isOpen ? 0 : '-100%' }}
-        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-      >
-        {/* Handle (mobile) */}
-        <div className="panel-handle">
-          <span />
-        </div>
-
-        {/* Header */}
-        <div className="panel-header">
-          <div className="panel-title display">
-            Workspace
-            <button className="panel-close" onClick={handleClose}>
-              <X size={14} />
+          {searchQuery && (
+            <button className="ws-clear" onClick={() => setSearchQuery('')} aria-label="Clear">
+              <X size={12} />
             </button>
-          </div>
-
-          <div className="panel-search">
-            <Search size={13} />
-            <input
-              type="text"
-              placeholder="Filter files…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="mono"
-            />
-            {searchQuery && (
-              <button 
-                className="search-clear"
-                onClick={() => setSearchQuery('')}
-              >
-                <X size={12} />
-              </button>
-            )}
-          </div>
-
-          <div className="panel-actions">
-            <motion.button
-              className="panel-action-btn"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              title="Refresh"
-            >
-              <RefreshCw size={13} />
-            </motion.button>
-            <motion.button
-              className="panel-action-btn primary"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              title="New file"
-            >
-              <Plus size={13} />
-            </motion.button>
-          </div>
+          )}
         </div>
 
-        {/* File Tree */}
-        <div className="panel-tree">
+        {workspace.path && <div className="ws-path mono">{workspace.path}</div>}
+
+        <div className="ws-tree">
           {filteredTree.length > 0 ? (
             filteredTree.map((node, i) => (
               <FileNode
@@ -229,19 +158,10 @@ export default function FilePanel({
               />
             ))
           ) : (
-            <div className="panel-empty">
-              {searchQuery ? 'No files match.' : 'No files in workspace.'}
-            </div>
+            <div className="ws-empty">No files match.</div>
           )}
         </div>
-
-        {/* Footer */}
-        {workspace.path && (
-          <div className="panel-footer mono">
-            {workspace.path}
-          </div>
-        )}
-      </motion.aside>
-    </>
+      </div>
+    </div>
   );
 }

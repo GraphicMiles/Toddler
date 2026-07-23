@@ -48,28 +48,61 @@
   background: var(--bg-elev);
 }
 
-/* Device Info */
-.device-info {
+/* Resource gauges */
+.gauge-row {
   display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 12px 24px;
-  background: var(--bg-elev);
-  border-bottom: 1px solid var(--border);
+  gap: 12px;
+  padding: 16px 24px 4px;
   flex-shrink: 0;
-  flex-wrap: wrap;
 }
 
-.device-stat {
+.gauge-card {
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--paper-dim);
+  gap: 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
 }
 
-.device-stat svg {
-  color: var(--accent);
+.gauge {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.gauge-value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--paper);
+}
+
+.gauge-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.gauge-label {
+  font-size: 11px;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.gauge-sub {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--paper);
+  margin-top: 1px;
 }
 
 .compatible-toggle {
@@ -79,11 +112,32 @@
   font-size: 12px;
   color: var(--paper-dim);
   cursor: pointer;
-  margin-left: auto;
+  padding: 4px 24px 16px;
+  flex-shrink: 0;
 }
 
 .compatible-toggle input {
   accent-color: var(--accent);
+}
+
+/* Heat meter */
+.heat-meter {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+}
+
+.heat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  transition: background 0.15s ease;
+}
+
+.heat-dot.lit {
+  background: var(--accent);
 }
 
 /* Filters */
@@ -346,8 +400,12 @@
     padding: 16px;
   }
 
-  .device-info {
-    padding: 10px 16px;
+  .gauge-row {
+    padding: 16px 16px 4px;
+  }
+
+  .compatible-toggle {
+    padding: 4px 16px 16px;
   }
 
   .zoo-filters {
@@ -357,10 +415,5 @@
   .model-grid {
     padding: 12px 16px;
     grid-template-columns: 1fr;
-  }
-
-  .compatible-toggle {
-    margin-left: 0;
-    width: 100%;
   }
 }

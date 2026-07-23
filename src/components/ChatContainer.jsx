@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useRef, useEffect } from 'react';
+import { Database } from 'lucide-react';
 import Message from './Message';
 import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
@@ -101,6 +102,3 @@ export default function ChatContainer({
     </div>
   );
 }
-
-// Import Database icon for no model state
-import { Database } from 'lucide-react';

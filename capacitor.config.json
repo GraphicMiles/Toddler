@@ -3,8 +3,7 @@
   "appName": "ForgeAI",
   "webDir": "dist",
   "server": {
-    "androidScheme": "https",
-    "url": "http://localhost:5173"
+    "androidScheme": "https"
   },
   "plugins": {
     "Filesystem": {

@@ -1,53 +1,124 @@
-import React from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import LandingPage from './LandingPage'
-import Auth from './Auth'
-import Dashboard from './Dashboard'
-import MobileApp from './MobileApp'
-import { auth } from './firebase'
-import { onAuthStateChanged } from 'firebase/auth'
-import { Capacitor } from '@capacitor/core'
-import { Toaster } from 'react-hot-toast'
+import { useState, useCallback } from 'react';
+import Layout from './components/Layout';
+import ChatContainer from './components/ChatContainer';
+import FilePanel from './components/FilePanel';
+import useChat from './hooks/useChat';
+import './styles/index.css';
 
-function App() {
-  const [user, setUser] = React.useState(null)
-  const [loading, setLoading] = React.useState(true)
+// Mock workspace data
+const MOCK_WORKSPACE = {
+  name: 'forgeai-mvp',
+  path: '/Users/forgeai/Projects/forgeai-mvp',
+  tree: [
+    {
+      name: 'src',
+      type: 'folder',
+      open: true,
+      path: 'src',
+      children: [
+        { name: 'components', type: 'folder', open: true, path: 'src/components', children: [
+          { name: 'Chat.jsx', type: 'file', path: 'src/components/Chat.jsx' },
+          { name: 'Layout.jsx', type: 'file', path: 'src/components/Layout.jsx' },
+          { name: 'FilePanel.jsx', type: 'file', path: 'src/components/FilePanel.jsx' },
+        ]},
+        { name: 'hooks', type: 'folder', open: false, path: 'src/hooks', children: [
+          { name: 'useChat.js', type: 'file', path: 'src/hooks/useChat.js' },
+        ]},
+        { name: 'App.jsx', type: 'file', path: 'src/App.jsx' },
+        { name: 'main.jsx', type: 'file', path: 'src/main.jsx' },
+      ],
+    },
+    {
+      name: 'public',
+      type: 'folder',
+      open: false,
+      path: 'public',
+      children: [
+        { name: 'favicon.svg', type: 'file', path: 'public/favicon.svg' },
+      ],
+    },
+    {
+      name: 'package.json',
+      type: 'file',
+      path: 'package.json',
+    },
+    {
+      name: 'vite.config.js',
+      type: 'file',
+      path: 'vite.config.js',
+    },
+    {
+      name: 'README.md',
+      type: 'file',
+      path: 'README.md',
+    },
+    {
+      name: '.env.example',
+      type: 'file',
+      path: '.env.example',
+    },
+  ],
+};
 
-  React.useEffect(() => {
-    const unsub = onAuthStateChanged(auth, u => { setUser(u); setLoading(false) }, () => setLoading(false))
-    return () => unsub()
-  }, [])
+export default function App() {
+  const [filePanelOpen, setFilePanelOpen] = useState(false);
+  const [workspace, setWorkspace] = useState(MOCK_WORKSPACE);
+  const [selectedModel, setSelectedModel] = useState('llama3.1');
 
-  if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#14130F', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: 28, height: 28, border: '3px solid #38352B', borderTopColor: '#C6FF33', borderRadius: '50%' }} className="animate-spin" />
-    </div>
-  )
+  const {
+    messages,
+    isTyping,
+    status,
+    pendingActions,
+    sendMessage,
+    approveAction,
+    discardAction,
+  } = useChat();
 
-  // Native Android/iOS → MobileApp (pair → train → dashboard)
-  if (Capacitor.isNativePlatform()) {
-    return (
-      <>
-        <Toaster position="top-center" toastOptions={{ style: { background: '#1D1B16', color: '#F2EFE6', border: '1px solid #38352B', borderRadius: 0, fontFamily: '"IBM Plex Mono"', fontSize: 12 } }} />
-        <MobileApp />
-      </>
-    )
-  }
+  const toggleFilePanel = useCallback(() => {
+    setFilePanelOpen(prev => !prev);
+  }, []);
 
-  // Web → Landing + Auth + Dashboard
+  const handleFileSelect = useCallback((path) => {
+    // When a file is selected, we could insert @path into the chat input
+    console.log('File selected:', path);
+  }, []);
+
+  const handleWorkspaceChange = useCallback((newWorkspace) => {
+    // In a real app, this would load a different workspace
+    console.log('Workspace changed:', newWorkspace);
+  }, []);
+
+  const handleModelChange = useCallback((model) => {
+    setSelectedModel(model);
+  }, []);
+
   return (
-    <>
-      <Toaster position="bottom-right" toastOptions={{ style: { background: '#1D1B16', color: '#F2EFE6', border: '1px solid #38352B', borderRadius: 0, fontFamily: '"IBM Plex Mono"', fontSize: 12 } }} />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={user ? <Navigate to="/dashboard" /> : <LandingPage />} />
-          <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Auth mode="login" />} />
-          <Route path="/signup" element={user ? <Navigate to="/dashboard" /> : <Auth mode="signup" />} />
-          <Route path="/dashboard/*" element={user ? <Dashboard /> : <Navigate to="/login" />} />
-        </Routes>
-      </BrowserRouter>
-    </>
-  )
-}
+    <Layout
+      workspace={workspace.name}
+      model={selectedModel}
+      status={status}
+      filePanelOpen={filePanelOpen}
+      onToggleFilePanel={toggleFilePanel}
+      onWorkspaceChange={handleWorkspaceChange}
+      onModelChange={handleModelChange}
+    >
+      <FilePanel
+        isOpen={filePanelOpen}
+        onClose={() => setFilePanelOpen(false)}
+        workspace={workspace}
+        onFileSelect={handleFileSelect}
+        onWorkspaceChange={handleWorkspaceChange}
+      />
 
-export default App
+      <ChatContainer
+        messages={messages}
+        isTyping={isTyping}
+        pendingActions={pendingActions}
+        onSendMessage={sendMessage}
+        onApproveAction={approveAction}
+        onDiscardAction={discardAction}
+      />
+    </Layout>
+  );
+}

@@ -1,0 +1,281 @@
+.file-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 7, 9, 0.55);
+  z-index: 40;
+}
+
+/* Panel */
+.file-panel {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  bottom: 12px;
+  width: 300px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Mobile: bottom sheet */
+@media (max-width: 768px) {
+  .file-panel {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 70vh;
+    border-radius: 18px 18px 0 0;
+    border-bottom: none;
+  }
+}
+
+/* Handle (mobile) */
+.panel-handle {
+  display: none;
+  justify-content: center;
+  padding: 10px 0 4px;
+  flex-shrink: 0;
+}
+
+.panel-handle span {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+
+@media (max-width: 768px) {
+  .panel-handle {
+    display: flex;
+  }
+}
+
+/* Header */
+.panel-header {
+  flex-shrink: 0;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--paper);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-close {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--faint);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.panel-close:hover {
+  color: var(--paper);
+  background: var(--bg-elev-2);
+}
+
+/* Search */
+.panel-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+
+.panel-search svg {
+  flex-shrink: 0;
+  color: var(--faint);
+}
+
+.panel-search input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--paper);
+  font-size: 12.5px;
+}
+
+.panel-search input::placeholder {
+  color: var(--faint);
+}
+
+.search-clear {
+  background: transparent;
+  border: none;
+  color: var(--faint);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.search-clear:hover {
+  color: var(--paper);
+}
+
+/* Actions */
+.panel-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.panel-action-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--faint);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.panel-action-btn:hover {
+  border-color: var(--border-strong);
+  color: var(--paper);
+  background: var(--bg-elev-2);
+}
+
+.panel-action-btn.primary {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.panel-action-btn.primary:hover {
+  background: var(--accent-dim);
+}
+
+/* Tree */
+.panel-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0 16px;
+}
+
+.panel-tree::-webkit-scrollbar {
+  width: 6px;
+}
+
+.panel-tree::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+
+.file-node {
+  width: 100%;
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--paper-dim);
+  user-select: none;
+  white-space: nowrap;
+  transition: background 0.1s, color 0.1s;
+}
+
+.file-row:hover {
+  background: var(--bg-elev-2);
+  color: var(--paper);
+}
+
+.file-row.file:hover {
+  color: var(--accent);
+}
+
+.file-row.selected {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.chevron {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--faint);
+}
+
+.chevron-placeholder {
+  width: 12px;
+  flex-shrink: 0;
+}
+
+.file-icon {
+  flex-shrink: 0;
+}
+
+.folder-icon {
+  color: var(--faint);
+}
+
+.file-badge {
+  font-size: 9px;
+  font-weight: 600;
+  width: 22px;
+  text-align: center;
+}
+
+.file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-children {
+  overflow: hidden;
+}
+
+/* Empty */
+.panel-empty {
+  color: var(--faint);
+  font-size: 13px;
+  padding: 16px 12px;
+  text-align: center;
+}
+
+/* Footer */
+.panel-footer {
+  flex-shrink: 0;
+  padding: 10px 16px;
+  font-size: 10.5px;
+  color: var(--faint);
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

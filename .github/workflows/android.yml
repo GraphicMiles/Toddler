@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -21,6 +21,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
@@ -34,10 +35,20 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Add Capacitor Android
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # @capacitor/android is already installed by `npm ci`.
+      # Add the native platform ONLY if it is not already present
+      # (the repo ships a committed ./android, so re-adding it
+      # would fail with "android platform already exists").
+      - name: Ensure Capacitor Android platform
         run: |
-          npm install @capacitor/android
-          npx cap add android
+          if [ ! -d "android" ]; then
+            npx cap add android
+          else
+            echo "Android platform already present - skipping 'cap add'."
+          fi
 
       - name: Sync Capacitor
         run: npx cap sync android
@@ -45,7 +56,7 @@ jobs:
       - name: Build debug APK
         run: |
           cd android
-          chmod +x gradlew
+          chmod +x ./gradlew
           ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK

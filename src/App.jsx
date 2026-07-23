@@ -1,7 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import Layout from './components/Layout';
 import ChatContainer from './components/ChatContainer';
 import FilePanel from './components/FilePanel';
+import ModelZoo from './components/ModelZoo';
+import MyCollection from './components/MyCollection';
+import useModelCollection from './hooks/useModelCollection';
 import { checkOllamaConnection, haptics, isNative } from './nativeBridge';
 import './styles/index.css';
 
@@ -27,16 +31,6 @@ const MOCK_WORKSPACE = {
         ]},
         { name: 'App.jsx', type: 'file', path: 'src/App.jsx' },
         { name: 'main.jsx', type: 'file', path: 'src/main.jsx' },
-        { name: 'nativeBridge.js', type: 'file', path: 'src/nativeBridge.js' },
-      ],
-    },
-    {
-      name: 'public',
-      type: 'folder',
-      open: false,
-      path: 'public',
-      children: [
-        { name: 'favicon.svg', type: 'file', path: 'public/favicon.svg' },
       ],
     },
     {
@@ -45,48 +39,69 @@ const MOCK_WORKSPACE = {
       path: 'package.json',
     },
     {
-      name: 'vite.config.js',
-      type: 'file',
-      path: 'vite.config.js',
-    },
-    {
       name: 'README.md',
       type: 'file',
       path: 'README.md',
     },
-    {
-      name: '.env.example',
-      type: 'file',
-      path: '.env.example',
-    },
   ],
 };
 
+// Screen types
+const SCREENS = {
+  CHAT: 'chat',
+  ZOO: 'zoo',
+  COLLECTION: 'collection',
+};
+
 export default function App() {
+  // Screen state
+  const [currentScreen, setCurrentScreen] = useState(SCREENS.CHAT);
+  
+  // UI state
   const [filePanelOpen, setFilePanelOpen] = useState(false);
-  const [workspace, setWorkspace] = useState(MOCK_WORKSPACE);
-  const [selectedModel, setSelectedModel] = useState('llama3.1');
-  const [modelStatus, setModelStatus] = useState('off');
+  const [workspace] = useState(MOCK_WORKSPACE);
+  
+  // Chat state
   const [messages, setMessages] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
   const [pendingActions, setPendingActions] = useState([]);
+  
+  // Ollama state
+  const [ollamaConnected, setOllamaConnected] = useState(false);
+  const [modelStatus, setModelStatus] = useState('off');
+  
+  // Model collection
+  const {
+    models: downloadedModels,
+    activeModel,
+    downloadModel,
+    deleteModel,
+    setActiveModel,
+    stopModel,
+    isDownloaded,
+    getDeviceCapability,
+  } = useModelCollection();
 
-  // Check Ollama connection on mount
+  // Device capability
+  const [deviceCapability] = useState(getDeviceCapability);
+
+  // Check Ollama connection
   useEffect(() => {
-    checkOllama();
-    const interval = setInterval(checkOllama, 60000); // Check every minute
+    checkConnection();
+    const interval = setInterval(checkConnection, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  const checkOllama = async () => {
+  const checkConnection = async () => {
     const result = await checkOllamaConnection();
-    setModelStatus(result.connected ? 'idle' : 'off');
+    setOllamaConnected(result.connected);
+    if (!result.connected && !activeModel) {
+      setModelStatus('off');
+    }
   };
 
   // Generate unique ID
-  const generateId = () => {
-    return Math.random().toString(36).substring(2, 15);
-  };
+  const generateId = () => Math.random().toString(36).substring(2, 15);
 
   // Add message to chat
   const addMessage = (role, content, metadata = {}) => {
@@ -103,84 +118,44 @@ export default function App() {
 
   // Handle sending message
   const handleSendMessage = useCallback(async (text) => {
-    const sessionId = generateId();
-    
-    // Add user message
+    if (!activeModel) {
+      addMessage('system', 'Please select a model from My Collection first.');
+      return;
+    }
+
     addMessage('user', text);
     setIsTyping(true);
     setModelStatus('busy');
-    
-    // Haptic feedback on mobile
+
     if (isNative) {
       await haptics.light();
     }
 
     try {
-      // Check if Ollama is connected
-      const ollamaStatus = await checkOllamaConnection();
-      
-      if (!ollamaStatus.connected) {
-        // Show offline message
-        setTimeout(() => {
-          addMessage('system', '⚠️ Ollama not connected. Please start Ollama locally:\n\n```\nollama serve\n```');
-          addMessage('assistant', 'I\'m ready to help once Ollama is running. You can also try commands like "read @filename" or "create a new component".');
-          setIsTyping(false);
-          setModelStatus('off');
-        }, 500);
-        return;
-      }
-
-      // Simulate agent thinking and response
-      await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 1200));
+      // Simulate AI response
+      await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1500));
 
       const lowerText = text.toLowerCase();
 
-      // Handle different commands
-      if (lowerText.includes('read') || lowerText.includes('@')) {
-        // Extract file reference
-        const fileMatch = text.match(/@([\w./-]+)/);
-        if (fileMatch) {
-          const filename = fileMatch[1];
-          addMessage('assistant', `I'll read the file @${filename}:\n\n\`\`\`\n// File contents would appear here\n// Using native file system access\n\`\`\`\n\nThis file contains the implementation. What would you like me to explain or modify?`);
-        } else {
-          addMessage('assistant', 'Which file would you like me to read? Use @filename to reference it.');
-        }
-      } else if (lowerText.includes('write') || lowerText.includes('create') || lowerText.includes('add')) {
-        // Show pending action for file write
+      if (lowerText.includes('help') || lowerText.includes('what can')) {
+        addMessage('assistant', `I'm running **${activeModel.name}**!\n\nI can help you with:\n\n📁 **File Operations**\n- Read files: "read @filename"\n- Create files: "create a new component"\n\n💻 **Code Help**\n- Explain code\n- Write tests\n- Debug errors\n\nJust ask naturally!`);
+      } else if (lowerText.includes('hello') || lowerText.includes('hi')) {
+        addMessage('assistant', `Hey! 👋 I'm ForgeAI, powered by **${activeModel.name}**.\n\nI'm ready to help with your coding. What would you like to work on?`);
+      } else if (lowerText.includes('write') || lowerText.includes('create')) {
         const action = {
           id: generateId(),
           type: 'write_file',
-          path: 'src/new-component.jsx',
-          content: `import { useState } from 'react';
-
-export default function NewComponent() {
-  const [count, setCount] = useState(0);
-  
-  return (
-    <div className="new-component">
-      <h2>New Component</h2>
-      <p>Count: {count}</p>
-      <button onClick={() => setCount(c => c + 1)}>
-        Increment
-      </button>
-    </div>
-  );
-}
-`,
-          description: 'I\'ll create a new React component. Review the code below before I write it.',
+          path: 'src/new-file.jsx',
+          content: `// Created by ForgeAI\n\nconst NewComponent = () => {\n  return (\n    <div className="new-component">\n      <h2>Hello from ${activeModel.name}!</h2>\n    </div>\n  );\n};\n\nexport default NewComponent;`,
+          description: 'I\'ll create this file for you. Review before writing.',
         };
         setPendingActions(prev => [...prev, action]);
-      } else if (lowerText.includes('help') || lowerText.includes('what can')) {
-        addMessage('assistant', 'I can help you with:\n\n📁 **File Operations**\n- Read files: "read @filename"\n- Create files: "create a new component"\n- Edit files: "update the styling"\n\n💻 **Code Help**\n- Explain code: "explain this function"\n- Write tests: "add tests for this"\n- Debug: "fix this error"\n\n🔧 **Terminal**\n- Run commands: "install npm packages"\n\n🔀 **Git**\n- Commit: "commit these changes"\n\nJust ask naturally or use @filename to reference specific files.');
-      } else if (lowerText.includes('hello') || lowerText.includes('hi')) {
-        addMessage('assistant', 'Hey! 👋 I\'m ForgeAI, your local AI coding assistant.\n\nI\'m connected to your workspace and ready to help. Try:\n- "read @package.json" to see your dependencies\n- "create a new hook" to add a React hook\n- "help" to see all my capabilities\n\nWhat would you like to work on?');
       } else {
-        // General response
         const responses = [
-          'Got it! I can help you with that. Would you like me to read the relevant files first?',
-          'I understand. Let me know which files you\'d like me to look at.',
-          'I\'m ready to help. Just mention a file with @filename if you want me to reference specific code.',
-          'Makes sense. What aspect would you like me to focus on?',
+          `I understand. Let me help you with that using ${activeModel.name}.`,
+          'Got it! I can work on that for you.',
+          `That's a great task for ${activeModel.name}. Let me take a look.`,
+          'I\'m here to help. What specific aspect would you like me to focus on?',
         ];
         addMessage('assistant', responses[Math.floor(Math.random() * responses.length)]);
       }
@@ -198,7 +173,7 @@ export default function NewComponent() {
       setIsTyping(false);
       setModelStatus('idle');
     }
-  }, []);
+  }, [activeModel, isNative]);
 
   // Handle action approval
   const handleApproveAction = useCallback(async (actionId) => {
@@ -206,16 +181,13 @@ export default function NewComponent() {
     if (!action) return;
 
     setPendingActions(prev => prev.filter(a => a.id !== actionId));
-    
     if (isNative) {
       await haptics.medium();
     }
 
-    // Simulate file write
     await new Promise(resolve => setTimeout(resolve, 500));
-    
     addMessage('system', `✅ File written: ${action.path}`);
-    addMessage('assistant', `Done! I've created ${action.path}. You can now import and use it in your project.`);
+    addMessage('assistant', `Done! I've created ${action.path}.`);
     
     if (isNative) {
       await haptics.success();
@@ -228,53 +200,127 @@ export default function NewComponent() {
     addMessage('system', 'Action cancelled.');
   }, []);
 
-  const toggleFilePanel = useCallback(() => {
-    setFilePanelOpen(prev => !prev);
-    if (isNative) {
-      haptics.selection();
+  // Handle model download
+  const handleDownload = useCallback(async (model) => {
+    const result = await downloadModel(model);
+    if (result.success) {
+      addMessage('system', `✅ ${model.name} downloaded successfully!`);
+      if (isNative) {
+        await haptics.success();
+      }
     }
-  }, []);
+  }, [downloadModel, isNative]);
 
-  const handleFileSelect = useCallback((path) => {
-    // When a file is selected, we could insert @path into the chat input
-    console.log('File selected:', path);
-  }, []);
+  // Handle model selection
+  const handleSelectModel = useCallback((model) => {
+    setActiveModel(model);
+    setModelStatus('idle');
+    addMessage('system', `🔄 Switched to **${model.name}**`);
+    if (isNative) {
+      haptics.medium();
+    }
+    // Auto-switch to chat
+    setTimeout(() => setCurrentScreen(SCREENS.CHAT), 500);
+  }, [setActiveModel, isNative]);
 
-  const handleWorkspaceChange = useCallback((newWorkspace) => {
-    console.log('Workspace changed:', newWorkspace);
-  }, []);
+  // Handle model deletion
+  const handleDeleteModel = useCallback((model) => {
+    deleteModel(model.id);
+    addMessage('system', `🗑️ **${model.name}** deleted from collection`);
+  }, [deleteModel]);
 
-  const handleModelChange = useCallback((model) => {
-    setSelectedModel(model);
-    checkOllama();
-  }, []);
+  // Screen switching
+  const screenVariants = {
+    initial: { opacity: 0, x: 20 },
+    animate: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: -20 },
+  };
 
   return (
     <Layout
       workspace={workspace.name}
-      model={selectedModel}
+      model={activeModel?.name || 'No model'}
       status={modelStatus}
       filePanelOpen={filePanelOpen}
-      onToggleFilePanel={toggleFilePanel}
-      onWorkspaceChange={handleWorkspaceChange}
-      onModelChange={handleModelChange}
+      onToggleFilePanel={() => setFilePanelOpen(prev => !prev)}
+      onScreenChange={setCurrentScreen}
+      currentScreen={currentScreen}
+      modelCount={downloadedModels.length}
     >
-      <FilePanel
-        isOpen={filePanelOpen}
-        onClose={() => setFilePanelOpen(false)}
-        workspace={workspace}
-        onFileSelect={handleFileSelect}
-        onWorkspaceChange={handleWorkspaceChange}
-      />
+      {/* File Panel */}
+      <AnimatePresence>
+        {filePanelOpen && (
+          <FilePanel
+            isOpen={filePanelOpen}
+            onClose={() => setFilePanelOpen(false)}
+            workspace={workspace}
+          />
+        )}
+      </AnimatePresence>
 
-      <ChatContainer
-        messages={messages}
-        isTyping={isTyping}
-        pendingActions={pendingActions}
-        onSendMessage={handleSendMessage}
-        onApproveAction={handleApproveAction}
-        onDiscardAction={handleDiscardAction}
-      />
+      {/* Screens */}
+      <AnimatePresence mode="wait">
+        {currentScreen === SCREENS.CHAT && (
+          <motion.div
+            key="chat"
+            variants={screenVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="screen-container"
+          >
+            <ChatContainer
+              messages={messages}
+              isTyping={isTyping}
+              pendingActions={pendingActions}
+              onSendMessage={handleSendMessage}
+              onApproveAction={handleApproveAction}
+              onDiscardAction={handleDiscardAction}
+              noModelSelected={!activeModel}
+            />
+          </motion.div>
+        )}
+
+        {currentScreen === SCREENS.ZOO && (
+          <motion.div
+            key="zoo"
+            variants={screenVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="screen-container"
+          >
+            <ModelZoo
+              downloadedModels={downloadedModels}
+              onDownload={handleDownload}
+              deviceCapability={deviceCapability}
+              onClose={() => setCurrentScreen(SCREENS.COLLECTION)}
+            />
+          </motion.div>
+        )}
+
+        {currentScreen === SCREENS.COLLECTION && (
+          <motion.div
+            key="collection"
+            variants={screenVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="screen-container"
+          >
+            <MyCollection
+              models={downloadedModels}
+              activeModel={activeModel}
+              onSelect={handleSelectModel}
+              onDelete={handleDeleteModel}
+              onStop={stopModel}
+              isRunning={modelStatus === 'busy'}
+              ollamaConnected={ollamaConnected}
+              onOpenZoo={() => setCurrentScreen(SCREENS.ZOO)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Layout>
   );
 }

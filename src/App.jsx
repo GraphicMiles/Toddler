@@ -6,6 +6,7 @@ import ModelZoo from './components/ModelZoo';
 import MyCollection from './components/MyCollection';
 import Workspace from './components/Workspace';
 import useModelCollection from './hooks/useModelCollection';
+import useDeviceCapability from './hooks/useDeviceCapability';
 import { checkOllamaConnection, haptics, isNative } from './nativeBridge';
 import './styles/index.css';
 
@@ -71,12 +72,9 @@ export default function App() {
     deleteModel,
     setActiveModel,
     stopModel,
-    isDownloaded,
-    getDeviceCapability,
   } = useModelCollection();
 
-  // Device capability
-  const [deviceCapability] = useState(getDeviceCapability);
+  const deviceCapability = useDeviceCapability();
 
   // Check Ollama connection
   useEffect(() => {
@@ -296,6 +294,7 @@ export default function App() {
               onStop={stopModel}
               isRunning={modelStatus === 'busy'}
               ollamaConnected={ollamaConnected}
+              deviceCapability={deviceCapability}
               onOpenZoo={() => setCurrentScreen(SCREENS.ZOO)}
             />
           </motion.div>

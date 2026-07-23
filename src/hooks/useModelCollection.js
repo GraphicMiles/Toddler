@@ -106,28 +106,6 @@ export default function useModelCollection() {
     return models.some(m => m.id === modelId);
   }, [models]);
 
-  // Get device capability
-  const getDeviceCapability = useCallback(() => {
-    // Try to get actual device memory
-    const ram = navigator.deviceMemory || 4; // Default to 4GB if not available
-    
-    // Estimate storage (this is limited in browsers)
-    let storage = 64; // Default to 64GB estimate
-    
-    if (navigator.storage && navigator.storage.estimate) {
-      navigator.storage.estimate().then(estimate => {
-        storage = Math.round(estimate.quota / (1024 * 1024 * 1024)); // Convert to GB
-      });
-    }
-
-    return {
-      ram,
-      storage,
-      hasWebGPU: !!window.WebGPU,
-      platform: navigator.platform || 'unknown',
-    };
-  }, []);
-
   return {
     models,
     activeModel,
@@ -137,6 +115,5 @@ export default function useModelCollection() {
     setActiveModel,
     stopModel,
     isDownloaded,
-    getDeviceCapability,
   };
 }

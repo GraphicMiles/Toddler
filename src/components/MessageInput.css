@@ -2,19 +2,21 @@
   flex-shrink: 0;
   border-top: 1px solid var(--border);
   background: var(--bg);
-  padding: 14px 24px 12px;
+  padding: 14px 24px max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px));
 }
 
 .message-input-container {
   max-width: 720px;
   margin: 0 auto;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  justify-content: space-evenly;
   gap: 12px;
 }
 
 .input-field {
   flex: 1;
+  min-width: 0;
   border: 1px solid var(--border-strong);
   border-radius: 12px;
   background: var(--bg-elev);
@@ -55,7 +57,10 @@
 /* Send Button */
 .input-actions {
   display: flex;
+  align-items: center;
+  justify-content: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .send-button {

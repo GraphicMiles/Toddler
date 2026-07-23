@@ -4,6 +4,7 @@ import {
   Check, Trash2, Play, Pause, Settings, 
   ChevronDown, Wifi, WifiOff, RefreshCw, Database
 } from 'lucide-react';
+import { formatModelSize, formatStorageCapacity, getModelSizeBytes } from '../utils/deviceCapacity';
 import './MyCollection.css';
 
 export default function MyCollection({ 
@@ -14,9 +15,17 @@ export default function MyCollection({
   onStop,
   isRunning = false,
   ollamaConnected = false,
+  deviceCapability = {},
   onOpenZoo
 }) {
   const [expandedId, setExpandedId] = useState(null);
+  const usedStorageBytes = models.reduce(
+    (total, model) => total + getModelSizeBytes(model),
+    0,
+  );
+  const storageSummary = deviceCapability.storageBytes
+    ? `Using ${formatModelSize(usedStorageBytes)} of ${formatStorageCapacity(deviceCapability.storageBytes)}`
+    : `Using ${formatModelSize(usedStorageBytes)}`;
 
   const formatDate = (date) => {
     if (!date) return '';
@@ -232,7 +241,7 @@ export default function MyCollection({
       {/* Footer */}
       <div className="collection-footer">
         <span className="storage-info mono">
-          Using {(models.reduce((acc, m) => acc + m.size, 0))}MB / 64GB
+          {storageSummary}
         </span>
       </div>
     </div>

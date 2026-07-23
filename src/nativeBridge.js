@@ -10,6 +10,9 @@ import { Haptics } from '@capacitor/haptics';
 import { App } from '@capacitor/app';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { StatusBar } from '@capacitor/status-bar';
+import { registerPlugin } from '@capacitor/core';
+
+const DeviceCapacity = registerPlugin('DeviceCapacity');
 
 // Check if running in Capacitor
 export const isNative = typeof window !== 'undefined' && window.Capacitor?.isNative;
@@ -18,6 +21,65 @@ export const isNative = typeof window !== 'undefined' && window.Capacitor?.isNat
 export const isAndroid = isNative && window.Capacitor.getPlatform() === 'android';
 export const isIOS = isNative && window.Capacitor.getPlatform() === 'ios';
 export const isDesktop = !isNative;
+
+const asPositiveNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+/**
+ * Read hardware capacity where the platform makes it available.
+ *
+ * Android uses the bundled DeviceCapacity plugin so the UI reads the phone's
+ * real RAM and internal-storage capacity instead of relying on a fixed value.
+ * Browsers deliberately restrict hardware details; in that case we expose the
+ * browser's quota as such rather than presenting it as total device storage.
+ */
+export async function getDeviceCapacity() {
+  const platform = isNative ? window.Capacitor.getPlatform() : 'web';
+
+  if (isAndroid) {
+    try {
+      const capacity = await DeviceCapacity.getCapacity();
+      const ramBytes = asPositiveNumber(capacity.totalRamBytes);
+      return {
+        ramBytes,
+        availableRamBytes: asPositiveNumber(capacity.availableRamBytes),
+        storageBytes: asPositiveNumber(capacity.totalStorageBytes),
+        availableStorageBytes: asPositiveNumber(capacity.availableStorageBytes),
+        // Model requirements are expressed in binary GB, matching Android RAM specs.
+        ram: ramBytes ? Math.max(1, Math.round(ramBytes / (1024 ** 3))) : 4,
+        storageScope: 'device',
+        platform,
+      };
+    } catch (error) {
+      console.warn('Unable to read Android device capacity:', error);
+    }
+  }
+
+  const deviceMemory = typeof navigator !== 'undefined' ? navigator.deviceMemory : undefined;
+  const ram = asPositiveNumber(deviceMemory) || 4;
+  let storageBytes = null;
+
+  try {
+    if (navigator.storage?.estimate) {
+      const estimate = await navigator.storage.estimate();
+      storageBytes = asPositiveNumber(estimate.quota);
+    }
+  } catch {
+    // Capacity data is optional in browsers.
+  }
+
+  return {
+    ramBytes: asPositiveNumber(deviceMemory) ? deviceMemory * (1024 ** 3) : null,
+    availableRamBytes: null,
+    storageBytes,
+    availableStorageBytes: null,
+    ram,
+    storageScope: storageBytes ? 'browser' : 'unknown',
+    platform,
+  };
+}
 
 /**
  * File System Operations
@@ -350,5 +412,6 @@ export default {
   statusBar,
   notifications,
   checkOllamaConnection,
+  getDeviceCapacity,
   getDeviceInfo,
 };

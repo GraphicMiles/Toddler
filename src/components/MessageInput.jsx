@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Mic, Square } from 'lucide-react';
+import { Send, Square } from 'lucide-react';
 import './MessageInput.css';
 
 export default function MessageInput({ onSend, disabled = false }) {

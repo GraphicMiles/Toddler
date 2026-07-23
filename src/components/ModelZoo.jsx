@@ -1,9 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Download, X, Check, Wifi, WifiOff, HardDrive, 
-  Cpu, ChevronRight, Sparkles, Code, MessageSquare, RefreshCw
+import {
+  Download, X, Check, WifiOff, HardDrive,
+  Cpu, Sparkles, Code, MessageSquare, Smartphone
 } from 'lucide-react';
+import {
+  formatMemoryCapacity,
+  formatModelSize,
+  formatStorageCapacity,
+  getModelSizeBytes,
+  ramGigabytesForCompatibility,
+} from '../utils/deviceCapacity';
 import './ModelZoo.css';
 
 const MODEL_CATALOG = [
@@ -177,34 +184,14 @@ function heatLevel(model) {
   return 3;
 }
 
-function Gauge({ value, label, sub }) {
-  const radius = 18;
-  const circumference = 2 * Math.PI * radius;
-  const clamped = Math.max(0, Math.min(1, value));
-  const offset = circumference * (1 - clamped);
+function DeviceMetric({ icon: Icon, label, value, detail }) {
   return (
-    <div className="gauge-card">
-      <div className="gauge">
-        <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">
-          <circle cx="22" cy="22" r={radius} fill="none" stroke="var(--border-strong)" strokeWidth="4" />
-          <circle
-            cx="22"
-            cy="22"
-            r={radius}
-            fill="none"
-            stroke="var(--accent)"
-            strokeWidth="4"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            strokeLinecap="round"
-            transform="rotate(-90 22 22)"
-          />
-        </svg>
-        <span className="gauge-value mono">{Math.round(clamped * 100)}%</span>
-      </div>
-      <div className="gauge-meta">
-        <span className="gauge-label">{label}</span>
-        <span className="gauge-sub mono">{sub}</span>
+    <div className="device-metric">
+      <span className="device-metric-icon" aria-hidden="true"><Icon size={16} /></span>
+      <div className="device-metric-copy">
+        <span className="device-metric-label">{label}</span>
+        <strong className="device-metric-value mono">{value}</strong>
+        <span className="device-metric-detail mono">{detail}</span>
       </div>
     </div>
   );
@@ -220,25 +207,44 @@ function HeatMeter({ level }) {
   );
 }
 
-export default function ModelZoo({ 
-  downloadedModels = [], 
-  onDownload, 
-  deviceCapability = { ram: 8, storage: 64 },
-  onClose 
+export default function ModelZoo({
+  downloadedModels = [],
+  onDownload,
+  deviceCapability = { ram: 4 },
+  onClose
 }) {
   const [filter, setFilter] = useState('all');
   const [showOnlyCompatible, setShowOnlyCompatible] = useState(true);
   const [downloading, setDownloading] = useState({});
   const [downloadProgress, setDownloadProgress] = useState({});
 
-  const usedStorage = downloadedModels.reduce((sum, m) => sum + (m.size || 0), 0);
+  const ram = ramGigabytesForCompatibility(
+    deviceCapability.ramBytes,
+    deviceCapability.ram || 4,
+  );
+  const usedStorageBytes = downloadedModels.reduce(
+    (sum, model) => sum + getModelSizeBytes(model),
+    0,
+  );
+  const memoryValue = deviceCapability.ramBytes
+    ? formatMemoryCapacity(deviceCapability.ramBytes)
+    : `${ram} GB estimated`;
+  const memoryDetail = deviceCapability.availableRamBytes
+    ? `${formatMemoryCapacity(deviceCapability.availableRamBytes)} available`
+    : 'Device memory';
+  const storageLabel = deviceCapability.storageScope === 'browser' ? 'Browser quota' : 'Storage';
+  const storageValue = formatStorageCapacity(deviceCapability.storageBytes);
+  const storageDetail = deviceCapability.storageBytes
+    ? deviceCapability.availableStorageBytes
+      ? `${formatModelSize(usedStorageBytes)} models · ${formatStorageCapacity(deviceCapability.availableStorageBytes)} free`
+      : `${formatModelSize(usedStorageBytes)} used by models`
+    : `${formatModelSize(usedStorageBytes)} used by models`;
 
   // Filter models based on device and category
   const filteredModels = MODEL_CATALOG.filter(model => {
-    const isCompatible = model.minRam <= deviceCapability.ram;
+    const isCompatible = model.minRam <= ram;
     const matchesFilter = filter === 'all' || model.task === filter;
-    const isDownloaded = downloadedModels.some(d => d.id === model.id);
-    
+
     if (showOnlyCompatible && !isCompatible) return false;
     if (!matchesFilter) return false;
     
@@ -272,7 +278,7 @@ export default function ModelZoo({
   };
 
   const isDownloaded = (modelId) => downloadedModels.some(d => d.id === modelId);
-  const isCompatible = (model) => model.minRam <= deviceCapability.ram;
+  const isCompatible = (model) => model.minRam <= ram;
 
   return (
     <motion.div 
@@ -296,20 +302,44 @@ export default function ModelZoo({
         )}
       </div>
 
-      {/* Resource gauges */}
-      <div className="gauge-row">
-        <Gauge value={Math.min(deviceCapability.ram / 8, 1)} label="Memory" sub={`${deviceCapability.ram}GB RAM`} />
-        <Gauge value={usedStorage / 64000} label="Storage" sub={`${usedStorage}MB / ${deviceCapability.storage}GB`} />
-      </div>
+      {/* Compact live device summary */}
+      <section className="device-summary" aria-label="Device capacity">
+        <div className="device-summary-head">
+          <div className="device-summary-title">
+            <Smartphone size={15} aria-hidden="true" />
+            <span>Device</span>
+          </div>
+          <span className="device-summary-status">Live capacity</span>
+        </div>
+        <div className="device-metrics">
+          <DeviceMetric
+            icon={Cpu}
+            label="RAM"
+            value={memoryValue}
+            detail={memoryDetail}
+          />
+          <DeviceMetric
+            icon={HardDrive}
+            label={storageLabel}
+            value={storageValue}
+            detail={storageDetail}
+          />
+        </div>
+      </section>
 
-      <label className="compatible-toggle">
-        <input 
-          type="checkbox" 
-          checked={showOnlyCompatible}
-          onChange={(e) => setShowOnlyCompatible(e.target.checked)}
-        />
-        <span>Show compatible only</span>
-      </label>
+      <div className="compatible-controls">
+        <label className="compatible-toggle">
+          <input
+            type="checkbox"
+            checked={showOnlyCompatible}
+            onChange={(e) => setShowOnlyCompatible(e.target.checked)}
+          />
+          <span>Show compatible only</span>
+        </label>
+        <span className="available-models" aria-live="polite">
+          {filteredModels.length} models available
+        </span>
+      </div>
 
       {/* Filter Tabs */}
       <div className="zoo-filters">
@@ -417,14 +447,6 @@ export default function ModelZoo({
             );
           })}
         </AnimatePresence>
-      </div>
-
-      {/* Footer */}
-      <div className="zoo-footer">
-        <span className="footer-text">
-          {filteredModels.length} models available
-          {showOnlyCompatible && ` • Showing compatible only`}
-        </span>
       </div>
     </motion.div>
   );

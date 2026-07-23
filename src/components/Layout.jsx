@@ -1,4 +1,4 @@
-import { MessageSquare, Boxes, Database, FolderTree, Settings } from 'lucide-react';
+import { MessageSquare, Boxes, Database, UserRound } from 'lucide-react';
 import './Layout.css';
 
 export const SCREENS = {
@@ -12,7 +12,7 @@ const TABS = [
   { id: SCREENS.CHAT, label: 'Chat', icon: MessageSquare },
   { id: SCREENS.ZOO, label: 'Model Zoo', icon: Boxes },
   { id: SCREENS.COLLECTION, label: 'Collection', icon: Database },
-  { id: SCREENS.WORKSPACE, label: 'Workspace', icon: FolderTree },
+  { id: SCREENS.WORKSPACE, label: 'User', icon: UserRound },
 ];
 
 export default function Layout({
@@ -47,13 +47,8 @@ export default function Layout({
             <span className="status-dot" style={{ background: statusMeta.color }} />
             <span className="status-label mono">{statusMeta.label}</span>
           </div>
-          <button className="icon-btn" aria-label="Settings">
-            <Settings size={16} />
-          </button>
         </div>
       </header>
-
-      <main className="layout-main">{children}</main>
 
       <nav className="tabbar" aria-label="Primary">
         {TABS.map((tab) => {
@@ -75,6 +70,8 @@ export default function Layout({
           );
         })}
       </nav>
+
+      <main className="layout-main">{children}</main>
     </div>
   );
 }

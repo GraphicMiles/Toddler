@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- ForgeAI logo icon -->
+    <group
+        android:translateX="27"
+        android:translateY="27">
+        <path
+            android:fillColor="#c8f24d"
+            android:pathData="M27,4.5L4.5,16.5l22.5,11.25 22.5,-11.25L27,4.5z"/>
+        <path
+            android:fillColor="#c8f24d"
+            android:pathData="M4.5,38.25L27,49.5l22.5,-11.25"
+            android:strokeWidth="3"
+            android:strokeColor="#c8f24d"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"/>
+        <path
+            android:fillColor="#c8f24d"
+            android:pathData="M4.5,27L27,38.25l22.5,-11.25"
+            android:strokeWidth="3"
+            android:strokeColor="#c8f24d"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"/>
+    </group>
+</vector>

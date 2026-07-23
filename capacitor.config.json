@@ -1,17 +1,17 @@
 {
-  "appId": "ai.toddler.app",
-  "appName": "Toddler",
+  "appId": "ai.forgeai.app",
+  "appName": "ForgeAI",
   "webDir": "dist",
-  "bundledWebRuntime": false,
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "url": "http://localhost:5173"
   },
   "plugins": {
-    "FirebaseAuthentication": {
-      "providers": [
-        "google.com"
-      ],
-      "skipNativeAuth": true
+    "Filesystem": {
+      "boundedQuota": false
+    },
+    "Haptics": {
+      "enableVibrateFallback": true
     }
   }
 }

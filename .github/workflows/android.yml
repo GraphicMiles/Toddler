@@ -1,0 +1,18 @@
+name: Build Android APK
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+      - run: npm ci && npm run build
+      - uses: actions/setup-java@v4
+        with: { java-version: '17' }
+      - run: |
+          npm install @capacitor/android
+          npx cap add android
+          npx cap sync android
+          cd android && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with: { path: android/app/build/outputs/apk/debug/app-debug.apk }

@@ -1,12 +1,12 @@
-package ai.forgeai.app;
+package ai.forgeai.devicecapacity;
 
 import android.app.ActivityManager;
+import android.app.usage.StorageStatsManager;
 import android.content.Context;
 import android.os.Build;
 import android.os.Environment;
 import android.os.StatFs;
 import android.os.storage.StorageManager;
-import android.app.usage.StorageStatsManager;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -14,7 +14,7 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
-/** Exposes physical Android device capacity to the WebView. */
+/** Exposes Android device capacity to the WebView. */
 @CapacitorPlugin(name = "DeviceCapacity")
 public class DeviceCapacityPlugin extends Plugin {
     @PluginMethod
@@ -37,11 +37,10 @@ public class DeviceCapacityPlugin extends Plugin {
             try {
                 StorageStatsManager storageStats = getContext().getSystemService(StorageStatsManager.class);
                 if (storageStats != null) {
-                    // UUID_DEFAULT reports the device's primary internal-storage capacity.
                     return storageStats.getTotalBytes(StorageManager.UUID_DEFAULT);
                 }
             } catch (Exception ignored) {
-                // Fall through to the filesystem measurement below.
+                // Fall through to a filesystem measurement on restricted devices.
             }
         }
 

@@ -13,7 +13,8 @@ export default function ChatContainer({
   onSendMessage,
   onApproveAction,
   onDiscardAction,
-  pendingActions = []
+  pendingActions = [],
+  noModelSelected = false,
 }) {
   const scrollRef = useRef(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -50,7 +51,17 @@ export default function ChatContainer({
       >
         <div className="chat-column">
           {messages.length === 0 && !isTyping ? (
-            <EmptyState />
+            noModelSelected ? (
+              <div className="no-model-state">
+                <div className="no-model-icon">
+                  <Database size={32} />
+                </div>
+                <h2 className="display">Select a model to start</h2>
+                <p>Go to My Collection to select a downloaded model, or visit the Model Zoo to download one.</p>
+              </div>
+            ) : (
+              <EmptyState />
+            )
           ) : (
             <motion.div
               className="messages-wrapper"
@@ -90,3 +101,6 @@ export default function ChatContainer({
     </div>
   );
 }
+
+// Import Database icon for no model state
+import { Database } from 'lucide-react';

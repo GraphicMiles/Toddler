@@ -47,6 +47,8 @@ const MOCK_WORKSPACE = {
   ],
 };
 
+const defaultConversationTitle = () => `Untitled — ${new Date().toLocaleDateString()}`;
+
 // Screen types are imported from ./components/Layout (SCREENS)
 
 export default function App() {
@@ -74,7 +76,6 @@ export default function App() {
     models: downloadedModels,
     activeModel,
     downloadModel,
-    pauseDownload,
     deleteModel,
     setActiveModel,
     stopModel,
@@ -82,7 +83,7 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem('forgeai_chat', JSON.stringify(messages));
-    if (!activeConversationId) { const id = generateId(); setActiveConversationId(id); setConversations([{ id, title: 'New conversation', messages }]); }
+    if (!activeConversationId) { const id = generateId(); setActiveConversationId(id); setConversations([{ id, title: defaultConversationTitle(), messages }]); }
   }, []);
   useEffect(() => { localStorage.setItem('forgeai_conversations', JSON.stringify(conversations)); localStorage.setItem('forgeai_active_conversation', activeConversationId); }, [conversations, activeConversationId]);
   useEffect(() => { if (activeConversationId) setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, messages } : c)); }, [messages, activeConversationId]);
@@ -100,7 +101,7 @@ export default function App() {
     if (isNative) {
       const runtime = await getOnDeviceRuntimeInfo();
       setOllamaConnected(Boolean(runtime.available));
-      if (!runtime.available && !activeModel) setModelStatus('off');
+      setModelStatus(runtime.available ? 'idle' : 'off');
       return;
     }
     const result = await checkOllamaConnection(endpoint);
@@ -182,15 +183,11 @@ export default function App() {
     const result = await downloadModel(model, onProgress);
     if (result.success) {
       addMessage('system', `${model.name} downloaded successfully.`);
-      if (isNative) await haptics.success();
-    } else if (!result.paused) {
-      addMessage('system', `${model.name} download failed: ${result.error || 'unknown error'}`);
-      if (isNative) await haptics.error();
+      if (isNative) {
+        await haptics.success();
+      }
     }
-    return result;
   }, [downloadModel, isNative]);
-
-  const handlePauseDownload = useCallback((model) => pauseDownload(model), [pauseDownload]);
 
   // Handle model selection
   const handleSelectModel = useCallback((model) => {
@@ -210,7 +207,7 @@ export default function App() {
     addMessage('system', `**${model.name}** deleted from collection`);
   }, [deleteModel]);
 
-  const newConversation = useCallback(() => { const id = generateId(); setConversations(prev => [...prev, { id, title: 'New conversation', messages: [] }]); setActiveConversationId(id); setMessages([]); }, []);
+  const newConversation = useCallback(() => { const id = generateId(); setConversations(prev => [...prev, { id, title: defaultConversationTitle(), messages: [] }]); setActiveConversationId(id); setMessages([]); }, []);
   const switchConversation = useCallback((id) => { const target = conversations.find(c => c.id === id); if (target) { setActiveConversationId(id); setMessages(target.messages || []); } }, [conversations]);
   const renameConversation = useCallback(() => { const current = conversations.find(c => c.id === activeConversationId); if (!current) return; const title = window.prompt('Conversation name', current.title); if (title?.trim()) setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, title: title.trim() } : c)); }, [conversations, activeConversationId]);
   const deleteConversation = useCallback(() => { if (conversations.length <= 1 || !window.confirm('Delete this conversation?')) return; const next = conversations.filter(c => c.id !== activeConversationId); setConversations(next); setActiveConversationId(next[0].id); setMessages(next[0].messages || []); }, [conversations, activeConversationId]);
@@ -277,7 +274,6 @@ export default function App() {
             <ModelZoo
               downloadedModels={downloadedModels}
               onDownload={handleDownload}
-              onPause={handlePauseDownload}
               deviceCapability={deviceCapability}
               onClose={() => setCurrentScreen(SCREENS.COLLECTION)}
             />
@@ -301,6 +297,7 @@ export default function App() {
               onStop={stopModel}
               isRunning={modelStatus === 'busy'}
               ollamaConnected={ollamaConnected}
+              runtimeMode={isNative ? 'On-device ready' : 'Ollama active'}
               deviceCapability={deviceCapability}
               onOpenZoo={() => setCurrentScreen(SCREENS.ZOO)}
             />

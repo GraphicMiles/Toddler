@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download, X, Check, WifiOff, HardDrive,
-  Cpu, Sparkles, Code, MessageSquare, Smartphone, Search, Pause, Play
+  Cpu, Sparkles, Code, MessageSquare, Smartphone, Search
 } from 'lucide-react';
 import {
   formatMemoryCapacity,
@@ -11,6 +11,7 @@ import {
   getModelSizeBytes,
   ramGigabytesForCompatibility,
 } from '../utils/deviceCapacity';
+import DropdownMenu from './DropdownMenu';
 import './ModelZoo.css';
 
 const MODEL_CATALOG = [
@@ -19,6 +20,11 @@ const MODEL_CATALOG = [
     id: 'smollm2-360m-q4', name: 'SmolLM2 360M Q4', family: 'smollm2', params: '360M', size: 271, sizeUnit: 'MB', minRam: 2, task: 'chat',
     description: 'Small offline model for compatible Android devices.', badge: 'Offline', runsOn: ['mobile'], quantizations: ['Q4_K_M'], license: 'Apache-2.0',
     file: 'SmolLM-360M-Q4_K_M.gguf', downloadUrl: 'https://huggingface.co/tensorblock/SmolLM-360M-GGUF/resolve/main/SmolLM-360M-Q4_K_M.gguf?download=true',
+  },
+  {
+    id: 'smollm2-135m-q4', name: 'SmolLM2 135M Q4', family: 'smollm2', params: '135M', size: 105, sizeUnit: 'MB', minRam: 1.5, task: 'chat',
+    description: 'Tiny offline test model. Fastest download for compatible Android devices.', badge: 'Tiny', runsOn: ['mobile'], quantizations: ['Q4_K_M'], license: 'Apache-2.0',
+    file: 'SmolLM-135M-Q4_K_M.gguf', downloadUrl: 'https://huggingface.co/tensorblock/SmolLM-135M-GGUF/resolve/main/SmolLM-135M-Q4_K_M.gguf?download=true',
   },
   // Chat Models
   {
@@ -216,7 +222,6 @@ function HeatMeter({ level }) {
 export default function ModelZoo({
   downloadedModels = [],
   onDownload,
-  onPause,
   deviceCapability = { ram: 4 },
   onClose
 }) {
@@ -225,7 +230,6 @@ export default function ModelZoo({
   const [sort, setSort] = useState('recommended');
   const [showOnlyCompatible, setShowOnlyCompatible] = useState(true);
   const [downloading, setDownloading] = useState({});
-  const [paused, setPaused] = useState({});
   const [downloadProgress, setDownloadProgress] = useState({});
 
   const ram = ramGigabytesForCompatibility(
@@ -269,16 +273,13 @@ export default function ModelZoo({
   });
 
   const handleDownload = async (model) => {
-    setPaused(prev => ({ ...prev, [model.id]: false }));
     setDownloading(prev => ({ ...prev, [model.id]: true }));
     setDownloadProgress(prev => ({ ...prev, [model.id]: 0 }));
-    const result = await onDownload?.(model, (progress) => setDownloadProgress(prev => ({ ...prev, [model.id]: progress.progress ?? 0 })));
-    if (result?.paused) setPaused(prev => ({ ...prev, [model.id]: true }));
+    await onDownload?.(model, (progress) => setDownloadProgress(prev => ({ ...prev, [model.id]: progress.progress ?? 0 })));
     setDownloading(prev => { const next = { ...prev }; delete next[model.id]; return next; });
     setDownloadProgress(prev => { const next = { ...prev }; delete next[model.id]; return next; });
   };
 
-  const handlePause = async (model) => { await onPause?.(model); setPaused(prev => ({ ...prev, [model.id]: true })); setDownloading(prev => { const next = { ...prev }; delete next[model.id]; return next; }); };
   const isDownloaded = (modelId) => downloadedModels.some(d => d.id === modelId);
   const isCompatible = (model) => model.minRam <= ram && (!deviceCapability.availableStorageBytes || getModelSizeBytes(model) <= deviceCapability.availableStorageBytes);
 
@@ -334,7 +335,7 @@ export default function ModelZoo({
 
       <div className="zoo-search-row">
         <div className="ws-search"><Search size={14} /><input aria-label="Search models" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search name, family, or task" /></div>
-        <select aria-label="Sort models" value={sort} onChange={e => setSort(e.target.value)}><option value="recommended">Recommended</option><option value="smallest">Smallest size</option><option value="device">Best for device</option><option value="coding">Coding</option><option value="chat">Chat</option></select>
+        <DropdownMenu className="catalog-sort" label="Sort models" value={sort} onChange={setSort} options={[{ value: 'recommended', label: 'Recommended' }, { value: 'smallest', label: 'Smallest size' }, { value: 'device', label: 'Best for device' }, { value: 'coding', label: 'Coding' }, { value: 'chat', label: 'Chat' }]} />
       </div>
       <div className="compatible-controls">
         <label className="compatible-toggle">
@@ -432,12 +433,15 @@ export default function ModelZoo({
                     </button>
                   ) : isDownloading ? (
                     <div className="download-progress">
-                      <div className="progress-bar"><motion.div className="progress-fill" initial={{ width: 0 }} animate={{ width: `${progress}%` }} /></div>
+                      <div className="progress-bar">
+                        <motion.div 
+                          className="progress-fill"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${progress}%` }}
+                        />
+                      </div>
                       <span className="progress-text mono">{progress}%</span>
-                      <button className="download-control" type="button" onClick={() => handlePause(model)} aria-label="Pause download"><Pause size={14} /></button>
                     </div>
-                  ) : paused[model.id] ? (
-                    <button className="btn-download" type="button" onClick={() => handleDownload(model)}><Play size={16} /> Resume</button>
                   ) : (
                     <button 
                       className="btn-download"

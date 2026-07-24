@@ -12,6 +12,7 @@ export default function ChatContainer({
   messages = [], 
   isTyping = false,
   onSendMessage,
+  onStopGeneration,
   onApproveAction,
   onDiscardAction,
   pendingActions = [],
@@ -98,7 +99,7 @@ export default function ChatContainer({
         </div>
       </div>
 
-      <MessageInput onSend={onSendMessage} disabled={isTyping} />
+      <MessageInput onSend={onSendMessage} onStop={onStopGeneration} disabled={isTyping} />
     </div>
   );
 }

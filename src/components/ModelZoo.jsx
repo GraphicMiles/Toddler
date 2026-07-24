@@ -242,7 +242,9 @@ export default function ModelZoo({
 
   // Filter models based on device and category
   const filteredModels = MODEL_CATALOG.filter(model => {
-    const isCompatible = model.minRam <= ram;
+    const freeStorage = deviceCapability.availableStorageBytes;
+    const hasStorage = !freeStorage || getModelSizeBytes(model) <= freeStorage;
+    const isCompatible = model.minRam <= ram && hasStorage;
     const matchesFilter = filter === 'all' || model.task === filter;
 
     if (showOnlyCompatible && !isCompatible) return false;
@@ -254,31 +256,13 @@ export default function ModelZoo({
   const handleDownload = async (model) => {
     setDownloading(prev => ({ ...prev, [model.id]: true }));
     setDownloadProgress(prev => ({ ...prev, [model.id]: 0 }));
-
-    // Simulate download progress
-    // In real app, this would use Ollama API or direct download
-    for (let i = 0; i <= 100; i += 10) {
-      await new Promise(resolve => setTimeout(resolve, 300));
-      setDownloadProgress(prev => ({ ...prev, [model.id]: i }));
-    }
-
-    // Call the download handler
-    await onDownload?.(model);
-
-    setDownloading(prev => {
-      const newState = { ...prev };
-      delete newState[model.id];
-      return newState;
-    });
-    setDownloadProgress(prev => {
-      const newState = { ...prev };
-      delete newState[model.id];
-      return newState;
-    });
+    await onDownload?.(model, (progress) => setDownloadProgress(prev => ({ ...prev, [model.id]: progress.progress ?? 0 })));
+    setDownloading(prev => { const next = { ...prev }; delete next[model.id]; return next; });
+    setDownloadProgress(prev => { const next = { ...prev }; delete next[model.id]; return next; });
   };
 
   const isDownloaded = (modelId) => downloadedModels.some(d => d.id === modelId);
-  const isCompatible = (model) => model.minRam <= ram;
+  const isCompatible = (model) => model.minRam <= ram && (!deviceCapability.availableStorageBytes || getModelSizeBytes(model) <= deviceCapability.availableStorageBytes);
 
   return (
     <motion.div 
@@ -410,7 +394,7 @@ export default function ModelZoo({
                 {!compatible && (
                   <div className="compatibility-warning">
                     <WifiOff size={12} />
-                    <span>Requires {model.minRam}GB RAM</span>
+                    <span>{model.minRam > ram ? `Requires ${model.minRam}GB RAM` : 'Not enough device storage'}</span>
                   </div>
                 )}
 

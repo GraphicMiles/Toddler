@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { checkOllamaConnection, pullOllamaModel, deleteOllamaModel } from '../nativeBridge';
+import { checkOllamaConnection, pullOllamaModel, deleteOllamaModel, downloadOnDeviceModel, isNative } from '../nativeBridge';
 
 const STORAGE_KEY = 'forgeai_models';
 const ACTIVE_MODEL_KEY = 'forgeai_active_model';
@@ -21,8 +21,14 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     setDownloads(d => ({ ...d, [model.id]: { status: 'queued', progress: 0 } }));
     const controller = new AbortController(); controllers.current.set(model.id, controller);
     try {
-      const result = await pullOllamaModel(name, endpoint, (progress) => { setDownloads(d => ({ ...d, [model.id]: progress })); onProgress?.(progress); }, controller.signal);
-      const installed = { ...model, ollamaName: name, downloadedAt: new Date().toISOString(), status: 'ready', downloadedBytes: result.total || undefined };
+      let result;
+      if (isNative && model.downloadUrl) {
+        result = await downloadOnDeviceModel(model.downloadUrl, model.file || `${model.id}.gguf`);
+        onProgress?.({ status: 'completed', progress: 100, completed: result.size || 0, total: result.size || 0 });
+      } else {
+        result = await pullOllamaModel(name, endpoint, (progress) => { setDownloads(d => ({ ...d, [model.id]: progress })); onProgress?.(progress); }, controller.signal);
+      }
+      const installed = { ...model, ollamaName: name, localPath: result.path, downloadedAt: new Date().toISOString(), status: 'ready', downloadedBytes: result.total || result.size || undefined };
       saveModels([...models, installed]);
       controllers.current.delete(model.id);
       setDownloads(d => { const n = { ...d }; delete n[model.id]; return n; });

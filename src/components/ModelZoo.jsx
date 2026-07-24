@@ -14,6 +14,12 @@ import {
 import './ModelZoo.css';
 
 const MODEL_CATALOG = [
+  // On-device Android model: downloaded into app-private storage and run by llama.cpp.
+  {
+    id: 'smollm2-360m-q4', name: 'SmolLM2 360M Q4', family: 'smollm2', params: '360M', size: 271, sizeUnit: 'MB', minRam: 2, task: 'chat',
+    description: 'Small offline model for compatible Android devices.', badge: 'Offline', runsOn: ['mobile'], quantizations: ['Q4_K_M'], license: 'Apache-2.0',
+    file: 'SmolLM-360M-Q4_K_M.gguf', downloadUrl: 'https://huggingface.co/tensorblock/SmolLM-360M-GGUF/resolve/main/SmolLM-360M-Q4_K_M.gguf?download=true',
+  },
   // Chat Models
   {
     id: 'smollm-360m',

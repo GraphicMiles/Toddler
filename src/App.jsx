@@ -8,7 +8,7 @@ import Workspace from './components/Workspace';
 import Settings from './components/Settings';
 import useModelCollection from './hooks/useModelCollection';
 import useDeviceCapability from './hooks/useDeviceCapability';
-import { checkOllamaConnection, streamOllamaChat, haptics, isNative } from './nativeBridge';
+import { checkOllamaConnection, getOnDeviceRuntimeInfo, streamOllamaChat, runOnDeviceChat, loadOnDeviceModel, haptics, isNative } from './nativeBridge';
 import './styles/index.css';
 
 // Mock workspace data
@@ -96,11 +96,15 @@ export default function App() {
   }, []);
 
   const checkConnection = async () => {
+    if (isNative) {
+      const runtime = await getOnDeviceRuntimeInfo();
+      setOllamaConnected(Boolean(runtime.available));
+      if (!runtime.available && !activeModel) setModelStatus('off');
+      return;
+    }
     const result = await checkOllamaConnection(endpoint);
     setOllamaConnected(result.connected);
-    if (!result.connected && !activeModel) {
-      setModelStatus('off');
-    }
+    if (!result.connected && !activeModel) setModelStatus('off');
   };
 
   // Generate unique ID
@@ -130,9 +134,15 @@ export default function App() {
     if (isNative) await haptics.light();
     try {
       const history = [...messages, userMessage].filter(m => m.role === 'user' || m.role === 'assistant').map(({ role, content }) => ({ role, content }));
-      await streamOllamaChat({ url: endpoint, model: activeModel.ollamaName || activeModel.id, messages: history, signal: controller.signal,
-        onToken: (token) => setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: m.content + token } : m)),
-      });
+      if (isNative) {
+        if (!activeModel.localPath) throw new Error('Download a compatible offline model from Model Zoo first.');
+        await loadOnDeviceModel(activeModel.localPath);
+        await runOnDeviceChat({ messages: history, signal: controller.signal, onToken: (token) => setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: m.content + token } : m)) });
+      } else {
+        await streamOllamaChat({ url: endpoint, model: activeModel.ollamaName || activeModel.id, messages: history, signal: controller.signal,
+          onToken: (token) => setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: m.content + token } : m)),
+        });
+      }
       if (isNative) await haptics.success();
     } catch (error) {
       if (error.name !== 'AbortError') setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: `Runtime error: ${error.message}` } : m));

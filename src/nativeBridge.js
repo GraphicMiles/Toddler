@@ -20,6 +20,11 @@ export async function getOnDeviceRuntimeInfo() {
   try { return await OnDeviceRuntime.getInfo(); } catch { return { available: false, reason: 'Native inference runtime is not installed in this build.' }; }
 }
 
+export async function downloadOnDeviceModel(url, filename) {
+  if (!isNative) throw new Error('On-device model downloads require Android.');
+  return OnDeviceRuntime.download({ url, filename });
+}
+
 export async function loadOnDeviceModel(path) {
   if (!isNative) throw new Error('On-device inference requires Android.');
   return OnDeviceRuntime.load({ path });
@@ -40,7 +45,9 @@ export async function runOnDeviceChat({ messages, signal, onToken }) {
 }
 
 // Check if running in Capacitor
-export const isNative = typeof window !== 'undefined' && window.Capacitor?.isNative;
+export const isNative = typeof window !== 'undefined' && (
+  window.Capacitor?.isNativePlatform?.() === true || window.Capacitor?.isNative === true
+);
 
 // Platform detection
 export const isAndroid = isNative && window.Capacitor.getPlatform() === 'android';

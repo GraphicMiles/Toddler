@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download, X, Check, WifiOff, HardDrive,
-  Cpu, Sparkles, Code, MessageSquare, Smartphone
+  Cpu, Sparkles, Code, MessageSquare, Smartphone, Search
 } from 'lucide-react';
 import {
   formatMemoryCapacity,
@@ -214,6 +214,8 @@ export default function ModelZoo({
   onClose
 }) {
   const [filter, setFilter] = useState('all');
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState('recommended');
   const [showOnlyCompatible, setShowOnlyCompatible] = useState(true);
   const [downloading, setDownloading] = useState({});
   const [downloadProgress, setDownloadProgress] = useState({});
@@ -246,11 +248,16 @@ export default function ModelZoo({
     const hasStorage = !freeStorage || getModelSizeBytes(model) <= freeStorage;
     const isCompatible = model.minRam <= ram && hasStorage;
     const matchesFilter = filter === 'all' || model.task === filter;
-
+    const haystack = `${model.name} ${model.family} ${model.task} ${model.description}`.toLowerCase();
     if (showOnlyCompatible && !isCompatible) return false;
-    if (!matchesFilter) return false;
-    
+    if (!matchesFilter || (query.trim() && !haystack.includes(query.trim().toLowerCase()))) return false;
     return true;
+  }).sort((a, b) => {
+    if (sort === 'smallest') return getModelSizeBytes(a) - getModelSizeBytes(b);
+    if (sort === 'device') return (a.minRam - ram) - (b.minRam - ram) || getModelSizeBytes(a) - getModelSizeBytes(b);
+    if (sort === 'coding') return Number(b.task === 'code') - Number(a.task === 'code');
+    if (sort === 'chat') return Number(b.task === 'chat') - Number(a.task === 'chat');
+    return 0;
   });
 
   const handleDownload = async (model) => {
@@ -311,6 +318,10 @@ export default function ModelZoo({
         </div>
       </section>
 
+      <div className="zoo-search-row">
+        <div className="ws-search"><Search size={14} /><input aria-label="Search models" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search name, family, or task" /></div>
+        <select aria-label="Sort models" value={sort} onChange={e => setSort(e.target.value)}><option value="recommended">Recommended</option><option value="smallest">Smallest size</option><option value="device">Best for device</option><option value="coding">Coding</option><option value="chat">Chat</option></select>
+      </div>
       <div className="compatible-controls">
         <label className="compatible-toggle">
           <input

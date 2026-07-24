@@ -57,6 +57,8 @@ export default function App() {
   const [workspace] = useState(MOCK_WORKSPACE);
   
   // Chat state
+  const [conversations, setConversations] = useState(() => { try { return JSON.parse(localStorage.getItem('forgeai_conversations') || '[]'); } catch { return []; } });
+  const [activeConversationId, setActiveConversationId] = useState(() => localStorage.getItem('forgeai_active_conversation') || '');
   const [messages, setMessages] = useState(() => { try { return JSON.parse(localStorage.getItem('forgeai_chat') || '[]'); } catch { return []; } });
   const [isTyping, setIsTyping] = useState(false);
   const [abortController, setAbortController] = useState(null);
@@ -77,7 +79,12 @@ export default function App() {
     stopModel,
   } = useModelCollection({ endpoint });
 
-  useEffect(() => { localStorage.setItem('forgeai_chat', JSON.stringify(messages)); }, [messages]);
+  useEffect(() => {
+    localStorage.setItem('forgeai_chat', JSON.stringify(messages));
+    if (!activeConversationId) { const id = generateId(); setActiveConversationId(id); setConversations([{ id, title: 'New conversation', messages }]); }
+  }, []);
+  useEffect(() => { localStorage.setItem('forgeai_conversations', JSON.stringify(conversations)); localStorage.setItem('forgeai_active_conversation', activeConversationId); }, [conversations, activeConversationId]);
+  useEffect(() => { if (activeConversationId) setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, messages } : c)); }, [messages, activeConversationId]);
 
   const deviceCapability = useDeviceCapability();
 
@@ -188,6 +195,13 @@ export default function App() {
     addMessage('system', `**${model.name}** deleted from collection`);
   }, [deleteModel]);
 
+  const newConversation = useCallback(() => { const id = generateId(); setConversations(prev => [...prev, { id, title: 'New conversation', messages: [] }]); setActiveConversationId(id); setMessages([]); }, []);
+  const switchConversation = useCallback((id) => { const target = conversations.find(c => c.id === id); if (target) { setActiveConversationId(id); setMessages(target.messages || []); } }, [conversations]);
+  const renameConversation = useCallback(() => { const current = conversations.find(c => c.id === activeConversationId); if (!current) return; const title = window.prompt('Conversation name', current.title); if (title?.trim()) setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, title: title.trim() } : c)); }, [conversations, activeConversationId]);
+  const deleteConversation = useCallback(() => { if (conversations.length <= 1 || !window.confirm('Delete this conversation?')) return; const next = conversations.filter(c => c.id !== activeConversationId); setConversations(next); setActiveConversationId(next[0].id); setMessages(next[0].messages || []); }, [conversations, activeConversationId]);
+  const exportChat = useCallback(() => { const blob = new Blob([messages.map(m => `${m.role.toUpperCase()}\n${m.content}`).join('\n\n')], { type: 'text/plain' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'forgeai-chat.txt'; a.click(); URL.revokeObjectURL(a.href); }, [messages]);
+  const clearChat = useCallback(() => { if (window.confirm('Clear this conversation?')) setMessages([]); }, []);
+
   // Screen switching
   const screenVariants = {
     initial: { opacity: 0, x: 20 },
@@ -224,6 +238,14 @@ export default function App() {
               onApproveAction={handleApproveAction}
               onDiscardAction={handleDiscardAction}
               noModelSelected={!activeModel}
+              conversations={conversations}
+              activeConversationId={activeConversationId}
+              onConversationChange={switchConversation}
+              onNewConversation={newConversation}
+              onRenameConversation={renameConversation}
+              onDeleteConversation={deleteConversation}
+              onExportChat={exportChat}
+              onClearChat={clearChat}
             />
           </motion.div>
         )}

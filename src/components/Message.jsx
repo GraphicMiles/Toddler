@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { Copy } from 'lucide-react';
 import './Message.css';
 
 const messageVariants = {
@@ -25,6 +26,7 @@ const messageVariants = {
 };
 
 export default function Message({ message, index }) {
+  const copy = (text) => navigator.clipboard?.writeText(text);
   const { role, content, timestamp, files = [] } = message;
   const isUser = role === 'user';
   const isSystem = role === 'system';
@@ -149,6 +151,7 @@ export default function Message({ message, index }) {
         <div className="message-content">
           {renderWithCode(content)}
         </div>
+        <button className="message-copy" type="button" onClick={() => copy(content)} aria-label="Copy message"><Copy size={13} /> Copy</button>
 
         {files.length > 0 && (
           <div className="message-files">

@@ -378,8 +378,8 @@ export async function streamOllamaChat({ url = 'http://localhost:11434', model, 
   }
 }
 
-export async function pullOllamaModel(model, url = 'http://localhost:11434', onProgress) {
-  const response = await fetch(`${url.replace(/\/$/, '')}/api/pull`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: model, stream: true }) });
+export async function pullOllamaModel(model, url = 'http://localhost:11434', onProgress, signal) {
+  const response = await fetch(`${url.replace(/\/$/, '')}/api/pull`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: model, stream: true }), signal });
   if (!response.ok) throw new Error(`Model download failed (${response.status})`);
   const reader = response.body?.getReader(); if (!reader) throw new Error('Download stream unavailable'); const decoder = new TextDecoder(); let buffer = ''; let last;
   while (true) { const { value, done } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop() || '';

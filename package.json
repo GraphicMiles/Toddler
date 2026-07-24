@@ -11,7 +11,8 @@
     "android:init": "npx cap init ForgeAI ai.forgeai.app --web-dir=dist",
     "android:sync": "npx cap sync android",
     "android:open": "npx cap open android",
-    "android:build": "npm run build && npx cap sync android && cd android && ./gradlew assembleDebug"
+    "android:build": "npm run build && npx cap sync android && cd android && ./gradlew assembleDebug",
+    "test": "node test/deviceCapacity.test.js"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.8",

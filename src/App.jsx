@@ -5,9 +5,10 @@ import ChatContainer from './components/ChatContainer';
 import ModelZoo from './components/ModelZoo';
 import MyCollection from './components/MyCollection';
 import Workspace from './components/Workspace';
+import Settings from './components/Settings';
 import useModelCollection from './hooks/useModelCollection';
 import useDeviceCapability from './hooks/useDeviceCapability';
-import { checkOllamaConnection, haptics, isNative } from './nativeBridge';
+import { checkOllamaConnection, streamOllamaChat, haptics, isNative } from './nativeBridge';
 import './styles/index.css';
 
 // Mock workspace data
@@ -56,8 +57,10 @@ export default function App() {
   const [workspace] = useState(MOCK_WORKSPACE);
   
   // Chat state
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => { try { return JSON.parse(localStorage.getItem('forgeai_chat') || '[]'); } catch { return []; } });
   const [isTyping, setIsTyping] = useState(false);
+  const [abortController, setAbortController] = useState(null);
+  const [endpoint, setEndpoint] = useState(() => localStorage.getItem('forgeai_endpoint') || import.meta.env.VITE_OLLAMA_URL || 'http://localhost:11434');
   const [pendingActions, setPendingActions] = useState([]);
   
   // Ollama state
@@ -72,7 +75,9 @@ export default function App() {
     deleteModel,
     setActiveModel,
     stopModel,
-  } = useModelCollection();
+  } = useModelCollection({ endpoint });
+
+  useEffect(() => { localStorage.setItem('forgeai_chat', JSON.stringify(messages)); }, [messages]);
 
   const deviceCapability = useDeviceCapability();
 
@@ -84,7 +89,7 @@ export default function App() {
   }, []);
 
   const checkConnection = async () => {
-    const result = await checkOllamaConnection();
+    const result = await checkOllamaConnection(endpoint);
     setOllamaConnected(result.connected);
     if (!result.connected && !activeModel) {
       setModelStatus('off');
@@ -107,64 +112,27 @@ export default function App() {
     return message;
   };
 
-  // Handle sending message
+  // Send a real streaming request to Ollama. The assistant placeholder is updated per token.
   const handleSendMessage = useCallback(async (text) => {
-    if (!activeModel) {
-      addMessage('system', 'Please select a model from My Collection first.');
-      return;
-    }
-
-    addMessage('user', text);
-    setIsTyping(true);
-    setModelStatus('busy');
-
-    if (isNative) {
-      await haptics.light();
-    }
-
+    if (!activeModel) { addMessage('system', 'Please select a model from My Collection first.'); return; }
+    const userMessage = { id: generateId(), role: 'user', content: text, timestamp: Date.now() };
+    const assistantId = generateId();
+    setMessages(prev => [...prev, userMessage, { id: assistantId, role: 'assistant', content: '', timestamp: Date.now() }]);
+    setIsTyping(true); setModelStatus('busy');
+    const controller = new AbortController(); setAbortController(controller);
+    if (isNative) await haptics.light();
     try {
-      // Simulate AI response
-      await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1500));
-
-      const lowerText = text.toLowerCase();
-
-      if (lowerText.includes('help') || lowerText.includes('what can')) {
-        addMessage('assistant', `I'm running **${activeModel.name}**!\n\nI can help you with:\n\n**File Operations**\n- Read files: "read @filename"\n- Create files: "create a new component"\n\n**Code Help**\n- Explain code\n- Write tests\n- Debug errors\n\nJust ask naturally!`);
-      } else if (lowerText.includes('hello') || lowerText.includes('hi')) {
-        addMessage('assistant', `Hey! I'm ForgeAI, powered by **${activeModel.name}**.\n\nI'm ready to help with your coding. What would you like to work on?`);
-      } else if (lowerText.includes('write') || lowerText.includes('create')) {
-        const action = {
-          id: generateId(),
-          type: 'write_file',
-          path: 'src/new-file.jsx',
-          content: `// Created by ForgeAI\n\nconst NewComponent = () => {\n  return (\n    <div className="new-component">\n      <h2>Hello from ${activeModel.name}!</h2>\n    </div>\n  );\n};\n\nexport default NewComponent;`,
-          description: 'I\'ll create this file for you. Review before writing.',
-        };
-        setPendingActions(prev => [...prev, action]);
-      } else {
-        const responses = [
-          `I understand. Let me help you with that using ${activeModel.name}.`,
-          'Got it! I can work on that for you.',
-          `That's a great task for ${activeModel.name}. Let me take a look.`,
-          'I\'m here to help. What specific aspect would you like me to focus on?',
-        ];
-        addMessage('assistant', responses[Math.floor(Math.random() * responses.length)]);
-      }
-
-      if (isNative) {
-        await haptics.success();
-      }
+      const history = [...messages, userMessage].filter(m => m.role === 'user' || m.role === 'assistant').map(({ role, content }) => ({ role, content }));
+      await streamOllamaChat({ url: endpoint, model: activeModel.ollamaName || activeModel.id, messages: history, signal: controller.signal,
+        onToken: (token) => setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: m.content + token } : m)),
+      });
+      if (isNative) await haptics.success();
     } catch (error) {
-      console.error('Chat error:', error);
-      addMessage('system', 'Something went wrong. Please try again.');
-      if (isNative) {
-        await haptics.error();
-      }
-    } finally {
-      setIsTyping(false);
-      setModelStatus('idle');
-    }
-  }, [activeModel, isNative]);
+      if (error.name !== 'AbortError') setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: `Runtime error: ${error.message}` } : m));
+    } finally { setIsTyping(false); setModelStatus('idle'); setAbortController(null); }
+  }, [activeModel, endpoint, messages, isNative]);
+
+  const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
 
   // Handle action approval
   const handleApproveAction = useCallback(async (actionId) => {
@@ -192,8 +160,8 @@ export default function App() {
   }, []);
 
   // Handle model download
-  const handleDownload = useCallback(async (model) => {
-    const result = await downloadModel(model);
+  const handleDownload = useCallback(async (model, onProgress) => {
+    const result = await downloadModel(model, onProgress);
     if (result.success) {
       addMessage('system', `${model.name} downloaded successfully.`);
       if (isNative) {
@@ -252,6 +220,7 @@ export default function App() {
               isTyping={isTyping}
               pendingActions={pendingActions}
               onSendMessage={handleSendMessage}
+              onStopGeneration={handleStopGeneration}
               onApproveAction={handleApproveAction}
               onDiscardAction={handleDiscardAction}
               noModelSelected={!activeModel}
@@ -301,15 +270,13 @@ export default function App() {
         )}
 
         {currentScreen === SCREENS.WORKSPACE && (
-          <motion.div
-            key="workspace"
-            variants={screenVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className="screen-container"
-          >
+          <motion.div key="workspace" variants={screenVariants} initial="initial" animate="animate" exit="exit" className="screen-container">
             <Workspace workspace={workspace} onFileSelect={() => {}} />
+          </motion.div>
+        )}
+        {currentScreen === SCREENS.SETTINGS && (
+          <motion.div key="settings" variants={screenVariants} initial="initial" animate="animate" exit="exit" className="screen-container">
+            <Settings endpoint={endpoint} onEndpointChange={setEndpoint} onClearChat={() => setMessages([])} onReset={() => { localStorage.clear(); window.location.reload(); }} />
           </motion.div>
         )}
       </AnimatePresence>

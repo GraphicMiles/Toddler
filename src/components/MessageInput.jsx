@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Send, Square } from 'lucide-react';
 import './MessageInput.css';
 
-export default function MessageInput({ onSend, disabled = false }) {
+export default function MessageInput({ onSend, onStop, disabled = false }) {
   const [value, setValue] = useState('');
   const textareaRef = useRef(null);
 
@@ -75,8 +75,8 @@ export default function MessageInput({ onSend, disabled = false }) {
         <div className="input-actions">
           <motion.button
             className="send-button"
-            onClick={handleSubmit}
-            disabled={disabled || !value.trim()}
+            onClick={disabled ? onStop : handleSubmit}
+            disabled={!disabled && !value.trim()}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >

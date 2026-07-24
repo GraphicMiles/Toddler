@@ -6,13 +6,15 @@ export const SCREENS = {
   ZOO: 'zoo',
   COLLECTION: 'collection',
   WORKSPACE: 'workspace',
+  SETTINGS: 'settings',
 };
 
 const TABS = [
   { id: SCREENS.CHAT, label: 'Chat', icon: MessageSquare },
   { id: SCREENS.ZOO, label: 'Model Zoo', icon: Boxes },
   { id: SCREENS.COLLECTION, label: 'Collection', icon: Database },
-  { id: SCREENS.WORKSPACE, label: 'User', icon: UserRound },
+  { id: SCREENS.WORKSPACE, label: 'Workspace', icon: Boxes },
+  { id: SCREENS.SETTINGS, label: 'User', icon: UserRound },
 ];
 
 export default function Layout({

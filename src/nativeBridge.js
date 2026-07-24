@@ -367,6 +367,31 @@ export const notifications = {
  * Ollama Connection Check
  * Checks if Ollama is running locally
  */
+export async function streamOllamaChat({ url = 'http://localhost:11434', model, messages, signal, onToken }) {
+  const response = await fetch(`${url.replace(/\/$/, '')}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages, stream: true }), signal });
+  if (!response.ok) throw new Error(`Ollama chat failed (${response.status})`);
+  if (!response.body) throw new Error('Runtime did not return a stream');
+  const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
+  while (true) { const { value, done } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n'); buffer = lines.pop() || '';
+    for (const line of lines) { if (!line.trim()) continue; const chunk = JSON.parse(line); if (chunk.error) throw new Error(chunk.error); if (chunk.message?.content) onToken?.(chunk.message.content); if (chunk.done) return chunk; }
+  }
+}
+
+export async function pullOllamaModel(model, url = 'http://localhost:11434', onProgress) {
+  const response = await fetch(`${url.replace(/\/$/, '')}/api/pull`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: model, stream: true }) });
+  if (!response.ok) throw new Error(`Model download failed (${response.status})`);
+  const reader = response.body?.getReader(); if (!reader) throw new Error('Download stream unavailable'); const decoder = new TextDecoder(); let buffer = ''; let last;
+  while (true) { const { value, done } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop() || '';
+    for (const line of lines) { if (!line.trim()) continue; const item = JSON.parse(line); last = item; const total = Number(item.total) || 0; const completed = Number(item.completed) || 0; onProgress?.({ status: item.status || 'downloading', progress: total ? Math.round(completed / total * 100) : 0, completed, total, speed: 0 }); if (item.error) throw new Error(item.error); }
+  } return last || {};
+}
+
+export async function deleteOllamaModel(model, url = 'http://localhost:11434') {
+  const response = await fetch(`${url.replace(/\/$/, '')}/api/delete`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: model }) });
+  if (!response.ok && response.status !== 404) throw new Error(`Model deletion failed (${response.status})`);
+}
+
 export async function checkOllamaConnection(url = 'http://localhost:11434') {
   try {
     const response = await fetch(`${url}/api/tags`, {

@@ -299,6 +299,8 @@ export default function ModelZoo({
         )}
       </div>
 
+      <details className="device-details">
+        <summary>Device info <span>{storageLabel}</span></summary>
       {/* Compact live device summary */}
       <section className="device-summary" aria-label="Device capacity">
         <div className="device-summary-head">
@@ -323,6 +325,7 @@ export default function ModelZoo({
           />
         </div>
       </section>
+      </details>
 
       <div className="zoo-search-row">
         <div className="ws-search"><Search size={14} /><input aria-label="Search models" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search name, family, or task" /></div>

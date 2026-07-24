@@ -74,6 +74,7 @@ export default function App() {
     models: downloadedModels,
     activeModel,
     downloadModel,
+    pauseDownload,
     deleteModel,
     setActiveModel,
     stopModel,
@@ -185,7 +186,10 @@ export default function App() {
         await haptics.success();
       }
     }
+    return result;
   }, [downloadModel, isNative]);
+
+  const handlePauseDownload = useCallback((model) => pauseDownload(model), [pauseDownload]);
 
   // Handle model selection
   const handleSelectModel = useCallback((model) => {
@@ -272,6 +276,7 @@ export default function App() {
             <ModelZoo
               downloadedModels={downloadedModels}
               onDownload={handleDownload}
+              onPause={handlePauseDownload}
               deviceCapability={deviceCapability}
               onClose={() => setCurrentScreen(SCREENS.COLLECTION)}
             />

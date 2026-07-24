@@ -66,13 +66,22 @@ public class OnDeviceRuntime extends Plugin {
                 boolean append = existing > 0 && code == HttpURLConnection.HTTP_PARTIAL;
                 if (!append && existing > 0) { temp.delete(); existing = 0; }
                 long remainingBytes = connection.getContentLengthLong();
+                long totalBytes = append && remainingBytes > 0 ? existing + remainingBytes : remainingBytes;
                 long freeBytes = new StatFs(getContext().getFilesDir().getAbsolutePath()).getAvailableBytes();
                 if (remainingBytes > 0 && freeBytes < remainingBytes + (256L * 1000L * 1000L)) throw new Exception("Not enough device storage for this model");
                 pauseFlags.put(filename, false);
                 try (InputStream input = connection.getInputStream(); FileOutputStream output = new FileOutputStream(temp, append)) {
                     byte[] buffer = new byte[1024 * 1024]; int read;
+                    long completedBytes = existing;
                     while ((read = input.read(buffer)) != -1) {
                         output.write(buffer, 0, read);
+                        completedBytes += read;
+                        JSObject progress = new JSObject();
+                        progress.put("filename", filename);
+                        progress.put("completed", completedBytes);
+                        progress.put("total", totalBytes);
+                        progress.put("progress", totalBytes > 0 ? Math.min(100, Math.round((completedBytes * 100.0) / totalBytes)) : 0);
+                        notifyListeners("downloadProgress", progress);
                         if (Boolean.TRUE.equals(pauseFlags.get(filename))) break;
                     }
                 } finally { connection.disconnect(); }

@@ -3,6 +3,7 @@ package ai.forgeai.app;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.StatFs;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -64,6 +65,9 @@ public class OnDeviceRuntime extends Plugin {
                 if (code < 200 || code >= 300) throw new Exception("Download failed: HTTP " + code);
                 boolean append = existing > 0 && code == HttpURLConnection.HTTP_PARTIAL;
                 if (!append && existing > 0) { temp.delete(); existing = 0; }
+                long remainingBytes = connection.getContentLengthLong();
+                long freeBytes = new StatFs(getContext().getFilesDir().getAbsolutePath()).getAvailableBytes();
+                if (remainingBytes > 0 && freeBytes < remainingBytes + (256L * 1000L * 1000L)) throw new Exception("Not enough device storage for this model");
                 pauseFlags.put(filename, false);
                 try (InputStream input = connection.getInputStream(); FileOutputStream output = new FileOutputStream(temp, append)) {
                     byte[] buffer = new byte[1024 * 1024]; int read;
@@ -82,6 +86,15 @@ public class OnDeviceRuntime extends Plugin {
                 new Handler(Looper.getMainLooper()).post(() -> call.resolve(result));
             } catch (Exception error) { new Handler(Looper.getMainLooper()).post(() -> call.reject(error.getMessage())); }
         });
+    }
+
+    @PluginMethod
+    public void deleteModel(PluginCall call) {
+        String path = call.getString("path", "");
+        if (path.isEmpty()) { call.reject("A model path is required"); return; }
+        File file = new File(path);
+        if (file.exists() && !file.delete()) { call.reject("Unable to delete model file"); return; }
+        call.resolve();
     }
 
     @PluginMethod

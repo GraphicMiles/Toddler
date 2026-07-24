@@ -182,9 +182,10 @@ export default function App() {
     const result = await downloadModel(model, onProgress);
     if (result.success) {
       addMessage('system', `${model.name} downloaded successfully.`);
-      if (isNative) {
-        await haptics.success();
-      }
+      if (isNative) await haptics.success();
+    } else if (!result.paused) {
+      addMessage('system', `${model.name} download failed: ${result.error || 'unknown error'}`);
+      if (isNative) await haptics.error();
     }
     return result;
   }, [downloadModel, isNative]);

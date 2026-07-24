@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { checkOllamaConnection, pullOllamaModel, deleteOllamaModel, downloadOnDeviceModel, pauseOnDeviceDownload, isNative } from '../nativeBridge';
+import { checkOllamaConnection, pullOllamaModel, deleteOllamaModel, downloadOnDeviceModel, pauseOnDeviceDownload, deleteOnDeviceModel, isNative } from '../nativeBridge';
 
 const STORAGE_KEY = 'forgeai_models';
 const ACTIVE_MODEL_KEY = 'forgeai_active_model';
@@ -13,7 +13,13 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
   const controllers = useRef(new Map());
 
   useEffect(() => { setIsLoading(false); }, []);
-  const saveModels = useCallback((next) => { setModels(next); localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); }, []);
+  const saveModels = useCallback((nextOrUpdater) => {
+    setModels(previous => {
+      const next = typeof nextOrUpdater === 'function' ? nextOrUpdater(previous) : nextOrUpdater;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
   const downloadModel = useCallback(async (model, onProgress) => {
     if (models.some(m => m.id === model.id)) return { success: false, error: 'Model already downloaded' };
     const names = { 'smollm-360m': 'smollm2:360m', 'smollm-1.7b': 'smollm2:1.7b', 'llama-3.2-1b': 'llama3.2:1b', 'qwen-0.5b': 'qwen2.5:0.5b', 'phi-3-mini': 'phi3:mini', 'codellama-3b': 'codellama:3b', 'qwen-1.5b-code': 'qwen2.5-coder:1.5b', 'deepseek-1.3b': 'deepseek-coder:1.3b', 'llama-3.1-8b': 'llama3.1:8b', 'qwen-2.5-7b': 'qwen2.5:7b' };
@@ -33,7 +39,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
         return { success: false, paused: true };
       }
       const installed = { ...model, ollamaName: name, localPath: result.path, downloadedAt: new Date().toISOString(), status: 'ready', downloadedBytes: result.total || result.size || undefined };
-      saveModels([...models, installed]);
+      saveModels(previous => previous.some(item => item.id === model.id) ? previous : [...previous, installed]);
       controllers.current.delete(model.id);
       setDownloads(d => { const n = { ...d }; delete n[model.id]; return n; });
       return { success: true, model: installed };
@@ -48,7 +54,10 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
   const pauseDownload = useCallback(async (model) => { if (isNative) return pauseOnDeviceDownload(model.file || `${model.id}.gguf`); controllers.current.get(model.id)?.abort(); }, []);
   const deleteModel = useCallback(async (modelId) => {
     const model = models.find(m => m.id === modelId); if (!model) return;
-    try { await deleteOllamaModel(model.ollamaName || model.id, endpoint); } catch (e) { console.warn('Ollama delete failed', e); }
+    try {
+      if (isNative && model.localPath) await deleteOnDeviceModel(model.localPath);
+      else await deleteOllamaModel(model.ollamaName || model.id, endpoint);
+    } catch (e) { console.warn('Model delete failed', e); return; }
     if (activeModel?.id === modelId) setActiveModel(null);
     saveModels(models.filter(m => m.id !== modelId));
   }, [models, activeModel, saveModels, endpoint]);

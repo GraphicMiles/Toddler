@@ -29,6 +29,10 @@ export async function pauseOnDeviceDownload(filename) {
   if (isNative) return OnDeviceRuntime.pauseDownload({ filename });
 }
 
+export async function deleteOnDeviceModel(path) {
+  if (isNative && path) return OnDeviceRuntime.deleteModel({ path });
+}
+
 export async function loadOnDeviceModel(path) {
   if (!isNative) throw new Error('On-device inference requires Android.');
   return OnDeviceRuntime.load({ path });

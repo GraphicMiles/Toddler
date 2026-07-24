@@ -11,7 +11,6 @@ import {
   getModelSizeBytes,
   ramGigabytesForCompatibility,
 } from '../utils/deviceCapacity';
-import DropdownMenu from './DropdownMenu';
 import './ModelZoo.css';
 
 const MODEL_CATALOG = [
@@ -226,8 +225,6 @@ export default function ModelZoo({
   onClose
 }) {
   const [filter, setFilter] = useState('all');
-  const [query, setQuery] = useState('');
-  const [sort, setSort] = useState('recommended');
   const [showOnlyCompatible, setShowOnlyCompatible] = useState(true);
   const [downloading, setDownloading] = useState({});
   const [downloadProgress, setDownloadProgress] = useState({});
@@ -260,16 +257,9 @@ export default function ModelZoo({
     const hasStorage = !freeStorage || getModelSizeBytes(model) <= freeStorage;
     const isCompatible = model.minRam <= ram && hasStorage;
     const matchesFilter = filter === 'all' || model.task === filter;
-    const haystack = `${model.name} ${model.family} ${model.task} ${model.description}`.toLowerCase();
     if (showOnlyCompatible && !isCompatible) return false;
-    if (!matchesFilter || (query.trim() && !haystack.includes(query.trim().toLowerCase()))) return false;
+    if (!matchesFilter) return false;
     return true;
-  }).sort((a, b) => {
-    if (sort === 'smallest') return getModelSizeBytes(a) - getModelSizeBytes(b);
-    if (sort === 'device') return (a.minRam - ram) - (b.minRam - ram) || getModelSizeBytes(a) - getModelSizeBytes(b);
-    if (sort === 'coding') return Number(b.task === 'code') - Number(a.task === 'code');
-    if (sort === 'chat') return Number(b.task === 'chat') - Number(a.task === 'chat');
-    return 0;
   });
 
   const handleDownload = async (model) => {
@@ -333,10 +323,7 @@ export default function ModelZoo({
       </section>
       </details>
 
-      <div className="zoo-search-row">
-        <div className="ws-search"><Search size={14} /><input aria-label="Search models" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search name, family, or task" /></div>
-        <DropdownMenu className="catalog-sort" label="Sort models" value={sort} onChange={setSort} options={[{ value: 'recommended', label: 'Recommended' }, { value: 'smallest', label: 'Smallest size' }, { value: 'device', label: 'Best for device' }, { value: 'coding', label: 'Coding' }, { value: 'chat', label: 'Chat' }]} />
-      </div>
+      <div className="catalog-note">Small, verified models for this device</div>
       <div className="compatible-controls">
         <label className="compatible-toggle">
           <input

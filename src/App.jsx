@@ -4,48 +4,10 @@ import Layout, { SCREENS } from './components/Layout';
 import ChatContainer from './components/ChatContainer';
 import ModelZoo from './components/ModelZoo';
 import MyCollection from './components/MyCollection';
-import Workspace from './components/Workspace';
-import Settings from './components/Settings';
 import useModelCollection from './hooks/useModelCollection';
 import useDeviceCapability from './hooks/useDeviceCapability';
 import { checkOllamaConnection, getOnDeviceRuntimeInfo, streamOllamaChat, runOnDeviceChat, loadOnDeviceModel, haptics, isNative } from './nativeBridge';
 import './styles/index.css';
-
-// Mock workspace data
-const MOCK_WORKSPACE = {
-  name: 'forgeai-mvp',
-  path: '/Users/forgeai/Projects/forgeai-mvp',
-  tree: [
-    {
-      name: 'src',
-      type: 'folder',
-      open: true,
-      path: 'src',
-      children: [
-        { name: 'components', type: 'folder', open: true, path: 'src/components', children: [
-          { name: 'Chat.jsx', type: 'file', path: 'src/components/Chat.jsx' },
-          { name: 'Layout.jsx', type: 'file', path: 'src/components/Layout.jsx' },
-          { name: 'Workspace.jsx', type: 'file', path: 'src/components/Workspace.jsx' },
-        ]},
-        { name: 'hooks', type: 'folder', open: false, path: 'src/hooks', children: [
-          { name: 'useModelCollection.js', type: 'file', path: 'src/hooks/useModelCollection.js' },
-        ]},
-        { name: 'App.jsx', type: 'file', path: 'src/App.jsx' },
-        { name: 'main.jsx', type: 'file', path: 'src/main.jsx' },
-      ],
-    },
-    {
-      name: 'package.json',
-      type: 'file',
-      path: 'package.json',
-    },
-    {
-      name: 'README.md',
-      type: 'file',
-      path: 'README.md',
-    },
-  ],
-};
 
 const defaultConversationTitle = () => `Untitled — ${new Date().toLocaleDateString()}`;
 
@@ -56,7 +18,6 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState(SCREENS.CHAT);
   
   // UI state
-  const [workspace] = useState(MOCK_WORKSPACE);
   
   // Chat state
   const [conversations, setConversations] = useState(() => { try { return JSON.parse(localStorage.getItem('forgeai_conversations') || '[]'); } catch { return []; } });
@@ -304,16 +265,6 @@ export default function App() {
           </motion.div>
         )}
 
-        {currentScreen === SCREENS.WORKSPACE && (
-          <motion.div key="workspace" variants={screenVariants} initial="initial" animate="animate" exit="exit" className="screen-container">
-            <Workspace workspace={workspace} onFileSelect={() => {}} />
-          </motion.div>
-        )}
-        {currentScreen === SCREENS.SETTINGS && (
-          <motion.div key="settings" variants={screenVariants} initial="initial" animate="animate" exit="exit" className="screen-container">
-            <Settings endpoint={endpoint} onEndpointChange={setEndpoint} onClearChat={() => setMessages([])} onReset={() => { localStorage.clear(); window.location.reload(); }} />
-          </motion.div>
-        )}
       </AnimatePresence>
     </Layout>
   );

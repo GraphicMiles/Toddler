@@ -20,9 +20,13 @@ export async function getOnDeviceRuntimeInfo() {
   try { return await OnDeviceRuntime.getInfo(); } catch { return { available: false, reason: 'Native inference runtime is not installed in this build.' }; }
 }
 
-export async function downloadOnDeviceModel(url, filename) {
+export async function downloadOnDeviceModel(url, filename, onProgress) {
   if (!isNative) throw new Error('On-device model downloads require Android.');
-  return OnDeviceRuntime.download({ url, filename });
+  const listener = await OnDeviceRuntime.addListener('downloadProgress', event => {
+    if (event.filename === filename) onProgress?.(event);
+  });
+  try { return await OnDeviceRuntime.download({ url, filename }); }
+  finally { await listener.remove(); }
 }
 
 export async function pauseOnDeviceDownload(filename) {

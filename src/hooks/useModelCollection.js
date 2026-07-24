@@ -29,7 +29,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     try {
       let result;
       if (isNative && model.downloadUrl) {
-        result = await downloadOnDeviceModel(model.downloadUrl, model.file || `${model.id}.gguf`);
+        result = await downloadOnDeviceModel(model.downloadUrl, model.file || `${model.id}.gguf`, onProgress);
         onProgress?.({ status: 'completed', progress: 100, completed: result.size || 0, total: result.size || 0 });
       } else {
         result = await pullOllamaModel(name, endpoint, (progress) => { setDownloads(d => ({ ...d, [model.id]: progress })); onProgress?.(progress); }, controller.signal);

@@ -13,6 +13,31 @@ import { StatusBar } from '@capacitor/status-bar';
 import { registerPlugin } from '@capacitor/core';
 
 const DeviceCapacity = registerPlugin('DeviceCapacity');
+const OnDeviceRuntime = registerPlugin('OnDeviceRuntime');
+
+export async function getOnDeviceRuntimeInfo() {
+  if (!isNative) return { available: false, reason: 'On-device runtime is available only in the Android build.' };
+  try { return await OnDeviceRuntime.getInfo(); } catch { return { available: false, reason: 'Native inference runtime is not installed in this build.' }; }
+}
+
+export async function loadOnDeviceModel(path) {
+  if (!isNative) throw new Error('On-device inference requires Android.');
+  return OnDeviceRuntime.load({ path });
+}
+
+export async function unloadOnDeviceModel() {
+  if (isNative) return OnDeviceRuntime.unload();
+}
+
+export async function runOnDeviceChat({ messages, signal, onToken }) {
+  if (!isNative) throw new Error('On-device inference requires Android.');
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  const prompt = messages.map(message => `${message.role}: ${message.content}`).join('\n') + '\nassistant:';
+  const result = await OnDeviceRuntime.generate({ prompt, maxTokens: 256 });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  onToken?.(result.text || '');
+  return result;
+}
 
 // Check if running in Capacitor
 export const isNative = typeof window !== 'undefined' && window.Capacitor?.isNative;

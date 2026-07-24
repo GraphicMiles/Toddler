@@ -15,6 +15,7 @@ export default function MyCollection({
   onStop,
   isRunning = false,
   ollamaConnected = false,
+  runtimeMode,
   deviceCapability = {},
   onOpenZoo
 }) {
@@ -46,7 +47,7 @@ export default function MyCollection({
           {/* Ollama Status */}
           <div className={`ollama-status ${ollamaConnected ? 'connected' : 'disconnected'}`}>
             {ollamaConnected ? <Wifi size={14} /> : <WifiOff size={14} />}
-            <span>{ollamaConnected ? 'Ollama active' : 'Ollama offline'}</span>
+            <span>{runtimeMode || (ollamaConnected ? 'Ollama active' : 'Runtime offline')}</span>
           </div>
         </div>
       </div>

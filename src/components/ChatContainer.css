@@ -124,3 +124,5 @@
 .chat-toolbar button:disabled { opacity:.45; cursor:not-allowed; }
 .message-copy { display:inline-flex; align-items:center; gap:5px; margin-top:7px; padding:5px 8px; border:1px solid var(--border); border-radius:var(--radius-xs); background:transparent; color:var(--faint); font-size:10px; }
 .message-copy:hover { color:var(--accent); border-color:var(--accent-border); }
+.chat-toolbar .dropdown { flex:1; min-width:120px; }
+.chat-toolbar .dropdown-trigger { min-height:34px; }

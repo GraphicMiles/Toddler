@@ -6,6 +6,7 @@ import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
 import ActionCard from './ActionCard';
 import EmptyState from './EmptyState';
+import DropdownMenu from './DropdownMenu';
 import './ChatContainer.css';
 
 export default function ChatContainer({ 
@@ -55,7 +56,7 @@ export default function ChatContainer({
   return (
     <div className="chat-container">
       <div className="chat-toolbar">
-        <select aria-label="Conversation" value={activeConversationId || ''} onChange={e => onConversationChange?.(e.target.value)}>{conversations.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select>
+        <DropdownMenu label="Conversation" value={activeConversationId || ''} onChange={onConversationChange} options={conversations.map(c => ({ value: c.id, label: c.title || `Untitled — ${new Date(c.createdAt || Date.now()).toLocaleDateString()}` }))} />
         <button type="button" onClick={onNewConversation}>New</button><button type="button" onClick={() => onRenameConversation?.()} disabled={!conversations.length}>Rename</button><button type="button" onClick={onDeleteConversation} disabled={conversations.length < 2}>Delete</button><button type="button" onClick={onExportChat} disabled={!messages.length}>Export</button><button type="button" onClick={onClearChat} disabled={!messages.length}>Clear</button>
       </div>
       <div 

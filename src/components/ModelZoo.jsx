@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download, X, Check, WifiOff, HardDrive,
-  Cpu, Sparkles, Code, MessageSquare, Smartphone, Search
+  Cpu, Sparkles, Code, MessageSquare, Smartphone, Search, Pause, Play
 } from 'lucide-react';
 import {
   formatMemoryCapacity,
@@ -216,6 +216,7 @@ function HeatMeter({ level }) {
 export default function ModelZoo({
   downloadedModels = [],
   onDownload,
+  onPause,
   deviceCapability = { ram: 4 },
   onClose
 }) {
@@ -224,6 +225,7 @@ export default function ModelZoo({
   const [sort, setSort] = useState('recommended');
   const [showOnlyCompatible, setShowOnlyCompatible] = useState(true);
   const [downloading, setDownloading] = useState({});
+  const [paused, setPaused] = useState({});
   const [downloadProgress, setDownloadProgress] = useState({});
 
   const ram = ramGigabytesForCompatibility(
@@ -267,13 +269,16 @@ export default function ModelZoo({
   });
 
   const handleDownload = async (model) => {
+    setPaused(prev => ({ ...prev, [model.id]: false }));
     setDownloading(prev => ({ ...prev, [model.id]: true }));
     setDownloadProgress(prev => ({ ...prev, [model.id]: 0 }));
-    await onDownload?.(model, (progress) => setDownloadProgress(prev => ({ ...prev, [model.id]: progress.progress ?? 0 })));
+    const result = await onDownload?.(model, (progress) => setDownloadProgress(prev => ({ ...prev, [model.id]: progress.progress ?? 0 })));
+    if (result?.paused) setPaused(prev => ({ ...prev, [model.id]: true }));
     setDownloading(prev => { const next = { ...prev }; delete next[model.id]; return next; });
     setDownloadProgress(prev => { const next = { ...prev }; delete next[model.id]; return next; });
   };
 
+  const handlePause = async (model) => { await onPause?.(model); setPaused(prev => ({ ...prev, [model.id]: true })); setDownloading(prev => { const next = { ...prev }; delete next[model.id]; return next; }); };
   const isDownloaded = (modelId) => downloadedModels.some(d => d.id === modelId);
   const isCompatible = (model) => model.minRam <= ram && (!deviceCapability.availableStorageBytes || getModelSizeBytes(model) <= deviceCapability.availableStorageBytes);
 
@@ -427,15 +432,12 @@ export default function ModelZoo({
                     </button>
                   ) : isDownloading ? (
                     <div className="download-progress">
-                      <div className="progress-bar">
-                        <motion.div 
-                          className="progress-fill"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${progress}%` }}
-                        />
-                      </div>
+                      <div className="progress-bar"><motion.div className="progress-fill" initial={{ width: 0 }} animate={{ width: `${progress}%` }} /></div>
                       <span className="progress-text mono">{progress}%</span>
+                      <button className="download-control" type="button" onClick={() => handlePause(model)} aria-label="Pause download"><Pause size={14} /></button>
                     </div>
+                  ) : paused[model.id] ? (
+                    <button className="btn-download" type="button" onClick={() => handleDownload(model)}><Play size={16} /> Resume</button>
                   ) : (
                     <button 
                       className="btn-download"

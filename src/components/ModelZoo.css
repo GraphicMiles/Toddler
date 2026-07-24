@@ -498,3 +498,5 @@
 .device-details summary span { color:var(--faint); font-size:10px; text-transform:uppercase; }
 .device-details .device-summary { margin:8px 0 0; }
 @media (max-width:380px) { .zoo-search-row { flex-direction:column; } .zoo-search-row select { width:100%; } }
+.download-control { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; padding:0; border:1px solid var(--border-strong); border-radius:var(--radius-sm); background:var(--bg-elev-2); color:var(--paper); }
+.download-control:hover { color:var(--accent); border-color:var(--accent-border); }

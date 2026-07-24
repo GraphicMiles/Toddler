@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { checkOllamaConnection, pullOllamaModel, deleteOllamaModel, downloadOnDeviceModel, isNative } from '../nativeBridge';
+import { checkOllamaConnection, pullOllamaModel, deleteOllamaModel, downloadOnDeviceModel, pauseOnDeviceDownload, isNative } from '../nativeBridge';
 
 const STORAGE_KEY = 'forgeai_models';
 const ACTIVE_MODEL_KEY = 'forgeai_active_model';
@@ -28,6 +28,10 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
       } else {
         result = await pullOllamaModel(name, endpoint, (progress) => { setDownloads(d => ({ ...d, [model.id]: progress })); onProgress?.(progress); }, controller.signal);
       }
+      if (result.paused) {
+        setDownloads(d => ({ ...d, [model.id]: { status: 'paused', progress: 0, completed: result.size || 0 } }));
+        return { success: false, paused: true };
+      }
       const installed = { ...model, ollamaName: name, localPath: result.path, downloadedAt: new Date().toISOString(), status: 'ready', downloadedBytes: result.total || result.size || undefined };
       saveModels([...models, installed]);
       controllers.current.delete(model.id);
@@ -41,6 +45,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
   }, [models, saveModels, endpoint]);
   const retryDownload = useCallback((model, onProgress) => downloadModel(model, onProgress), [downloadModel]);
   const cancelDownload = useCallback((modelId) => controllers.current.get(modelId)?.abort(), []);
+  const pauseDownload = useCallback(async (model) => { if (isNative) return pauseOnDeviceDownload(model.file || `${model.id}.gguf`); controllers.current.get(model.id)?.abort(); }, []);
   const deleteModel = useCallback(async (modelId) => {
     const model = models.find(m => m.id === modelId); if (!model) return;
     try { await deleteOllamaModel(model.ollamaName || model.id, endpoint); } catch (e) { console.warn('Ollama delete failed', e); }
@@ -50,5 +55,5 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
   const setActiveModel = useCallback((model) => { setActiveModelState(model); if (model) localStorage.setItem(ACTIVE_MODEL_KEY, JSON.stringify(model)); else localStorage.removeItem(ACTIVE_MODEL_KEY); }, []);
   const stopModel = useCallback(() => setActiveModel(null), [setActiveModel]);
   const isDownloaded = useCallback((id) => models.some(m => m.id === id), [models]);
-  return { models, activeModel, isLoading, downloads, downloadModel, retryDownload, cancelDownload, deleteModel, setActiveModel, stopModel, isDownloaded, refresh: async () => checkOllamaConnection(endpoint) };
+  return { models, activeModel, isLoading, downloads, downloadModel, retryDownload, cancelDownload, pauseDownload, deleteModel, setActiveModel, stopModel, isDownloaded, refresh: async () => checkOllamaConnection(endpoint) };
 }

@@ -26,5 +26,13 @@ export class OnDeviceProvider {
 }
 
 export function createModelProvider({ mode = 'ollama', endpoint } = {}) {
-  return mode === 'on-device' ? new OnDeviceProvider() : new OllamaProvider(endpoint);
+  return assertModelProvider(mode === 'on-device' ? new OnDeviceProvider() : new OllamaProvider(endpoint));
+}
+
+export function assertModelProvider(provider) {
+  const required = ['getStatus', 'loadModel', 'stream', 'stop', 'unloadModel'];
+  for (const method of required) {
+    if (typeof provider?.[method] !== 'function') throw new Error(`Invalid model provider: missing ${method}()`);
+  }
+  return provider;
 }

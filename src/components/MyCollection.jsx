@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Check, Trash2, Play, Pause, Settings, 
-  ChevronDown, Wifi, WifiOff, RefreshCw, Database
+  Check, Trash2, Play, Pause,
+  ChevronDown, Wifi, WifiOff, Database
 } from 'lucide-react';
 import { formatModelSize, formatStorageCapacity, getModelSizeBytes } from '../utils/deviceCapacity';
 import './MyCollection.css';

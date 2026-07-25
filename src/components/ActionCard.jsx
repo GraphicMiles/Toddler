@@ -17,7 +17,7 @@ const ACTION_LABELS = {
 };
 
 export default function ActionCard({ action, onApprove, onDiscard }) {
-  const { id, type, path, content, description } = action;
+  const { type, path, content, description } = action;
   
   const Icon = ACTION_ICONS[type] || ACTION_ICONS.default;
   const label = ACTION_LABELS[type] || ACTION_LABELS.default;

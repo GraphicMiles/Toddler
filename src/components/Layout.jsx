@@ -60,6 +60,8 @@ export default function Layout({
               className={`tab ${active ? 'active' : ''}`}
               onClick={() => onScreenChange?.(tab.id)}
               aria-current={active ? 'page' : undefined}
+              aria-label={`Open ${tab.label}`}
+              title={tab.label}
             >
               <Icon size={20} strokeWidth={active ? 2.2 : 1.8} />
               <span className="tab-label">{tab.label}</span>

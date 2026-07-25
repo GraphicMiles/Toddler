@@ -126,3 +126,5 @@
 .message-copy:hover { color:var(--accent); border-color:var(--accent-border); }
 .chat-toolbar .dropdown { flex:1; min-width:120px; }
 .chat-toolbar .dropdown-trigger { min-height:34px; }
+/* Android touch target hardening */
+.chat-toolbar button { min-height:40px; }

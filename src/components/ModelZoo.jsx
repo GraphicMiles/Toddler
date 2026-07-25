@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download, X, Check, WifiOff, HardDrive,
-  Cpu, Sparkles, Code, MessageSquare, Smartphone, Search
+  Cpu, Sparkles, Code, MessageSquare, Smartphone
 } from 'lucide-react';
 import {
   formatMemoryCapacity,
@@ -325,7 +325,7 @@ export default function ModelZoo({
 
       <div className="catalog-note">Small, verified models for this device</div>
       <div className="compatible-controls">
-        <label className="compatible-toggle">
+        <label className="compatible-toggle" title="Hide models that do not fit measured device capacity">
           <input
             type="checkbox"
             checked={showOnlyCompatible}
@@ -414,7 +414,7 @@ export default function ModelZoo({
                 {/* Action */}
                 <div className="model-action">
                   {downloaded ? (
-                    <button className="btn-downloaded" disabled>
+                    <button className="btn-downloaded" disabled aria-label={`${model.name} is downloaded`}>
                       <Check size={16} />
                       Downloaded
                     </button>
@@ -433,6 +433,7 @@ export default function ModelZoo({
                     <button 
                       className="btn-download"
                       onClick={() => handleDownload(model)}
+                      aria-label={`${compatible ? 'Download' : 'Cannot download'} ${model.name}`}
                       disabled={!compatible}
                     >
                       <Download size={16} />

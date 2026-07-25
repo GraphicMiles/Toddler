@@ -25,7 +25,7 @@ const messageVariants = {
   }
 };
 
-export default function Message({ message, index }) {
+export default function Message({ message }) {
   const copy = (text) => navigator.clipboard?.writeText(text);
   const { role, content, timestamp, files = [] } = message;
   const isUser = role === 'user';

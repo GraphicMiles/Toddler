@@ -3,7 +3,6 @@ package ai.forgeai.app;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.StatFs;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -14,11 +13,9 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.concurrent.ConcurrentHashMap;
 
 @CapacitorPlugin(name = "OnDeviceRuntime")
 public class OnDeviceRuntime extends Plugin {
-    private static final ConcurrentHashMap<String, Boolean> pauseFlags = new ConcurrentHashMap<>();
     static { System.loadLibrary("ondevice_runtime"); }
     private static native boolean nativeLoad(String path);
     private static native void nativeUnload();
@@ -56,61 +53,19 @@ public class OnDeviceRuntime extends Plugin {
                 if (!dir.exists() && !dir.mkdirs()) throw new Exception("Unable to create model directory");
                 File target = new File(dir, filename);
                 File temp = new File(dir, filename + ".part");
-                long existing = temp.exists() ? temp.length() : 0;
                 HttpURLConnection connection = (HttpURLConnection) new URL(urlString).openConnection();
                 connection.setConnectTimeout(15000); connection.setReadTimeout(120000); connection.setInstanceFollowRedirects(true);
-                if (existing > 0) connection.setRequestProperty("Range", "bytes=" + existing + "-");
                 connection.connect();
-                int code = connection.getResponseCode();
-                if (code < 200 || code >= 300) throw new Exception("Download failed: HTTP " + code);
-                boolean append = existing > 0 && code == HttpURLConnection.HTTP_PARTIAL;
-                if (!append && existing > 0) { temp.delete(); existing = 0; }
-                long remainingBytes = connection.getContentLengthLong();
-                long totalBytes = append && remainingBytes > 0 ? existing + remainingBytes : remainingBytes;
-                long freeBytes = new StatFs(getContext().getFilesDir().getAbsolutePath()).getAvailableBytes();
-                if (remainingBytes > 0 && freeBytes < remainingBytes + (256L * 1000L * 1000L)) throw new Exception("Not enough device storage for this model");
-                pauseFlags.put(filename, false);
-                try (InputStream input = connection.getInputStream(); FileOutputStream output = new FileOutputStream(temp, append)) {
+                if (connection.getResponseCode() < 200 || connection.getResponseCode() >= 300) throw new Exception("Download failed: HTTP " + connection.getResponseCode());
+                try (InputStream input = connection.getInputStream(); FileOutputStream output = new FileOutputStream(temp)) {
                     byte[] buffer = new byte[1024 * 1024]; int read;
-                    long completedBytes = existing;
-                    while ((read = input.read(buffer)) != -1) {
-                        output.write(buffer, 0, read);
-                        completedBytes += read;
-                        JSObject progress = new JSObject();
-                        progress.put("filename", filename);
-                        progress.put("completed", completedBytes);
-                        progress.put("total", totalBytes);
-                        progress.put("progress", totalBytes > 0 ? Math.min(100, Math.round((completedBytes * 100.0) / totalBytes)) : 0);
-                        notifyListeners("downloadProgress", progress);
-                        if (Boolean.TRUE.equals(pauseFlags.get(filename))) break;
-                    }
+                    while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
                 } finally { connection.disconnect(); }
-                if (Boolean.TRUE.equals(pauseFlags.get(filename))) {
-                    JSObject paused = new JSObject(); paused.put("paused", true); paused.put("path", temp.getAbsolutePath()); paused.put("size", temp.length());
-                    new Handler(Looper.getMainLooper()).post(() -> call.resolve(paused)); return;
-                }
                 if (!temp.renameTo(target)) throw new Exception("Unable to finalize model file");
-                pauseFlags.remove(filename);
                 JSObject result = new JSObject(); result.put("path", target.getAbsolutePath()); result.put("size", target.length());
                 new Handler(Looper.getMainLooper()).post(() -> call.resolve(result));
             } catch (Exception error) { new Handler(Looper.getMainLooper()).post(() -> call.reject(error.getMessage())); }
         });
-    }
-
-    @PluginMethod
-    public void deleteModel(PluginCall call) {
-        String path = call.getString("path", "");
-        if (path.isEmpty()) { call.reject("A model path is required"); return; }
-        File file = new File(path);
-        if (file.exists() && !file.delete()) { call.reject("Unable to delete model file"); return; }
-        call.resolve();
-    }
-
-    @PluginMethod
-    public void pauseDownload(PluginCall call) {
-        String filename = call.getString("filename", "");
-        if (filename.isEmpty()) { call.reject("A filename is required"); return; }
-        pauseFlags.put(filename, true); call.resolve();
     }
 
     @PluginMethod

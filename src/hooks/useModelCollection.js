@@ -3,11 +3,13 @@ import { checkOllamaConnection, pullOllamaModel, deleteOllamaModel, downloadOnDe
 
 const STORAGE_KEY = 'forgeai_models';
 const ACTIVE_MODEL_KEY = 'forgeai_active_model';
-const read = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } };
+const read = (key, fallback) => { try { const value = JSON.parse(localStorage.getItem(key)); return value ?? fallback; } catch { return fallback; } };
+const readModels = () => { const value = read(STORAGE_KEY, []); return Array.isArray(value) ? value.filter(item => item && typeof item.id === 'string') : []; };
+const readActive = () => { const value = read(ACTIVE_MODEL_KEY, null); return value && typeof value.id === 'string' ? value : null; };
 
 export default function useModelCollection({ endpoint = 'http://localhost:11434' } = {}) {
-  const [models, setModels] = useState(() => read(STORAGE_KEY, []));
-  const [activeModel, setActiveModelState] = useState(() => read(ACTIVE_MODEL_KEY, null));
+  const [models, setModels] = useState(readModels);
+  const [activeModel, setActiveModelState] = useState(readActive);
   const [isLoading, setIsLoading] = useState(true);
   const [downloads, setDownloads] = useState({});
   const controllers = useRef(new Map());
@@ -16,7 +18,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
   const saveModels = useCallback((nextOrUpdater) => {
     setModels(previous => {
       const next = typeof nextOrUpdater === 'function' ? nextOrUpdater(previous) : nextOrUpdater;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch (error) { console.warn('Unable to persist model metadata', error); }
       return next;
     });
   }, []);
@@ -58,7 +60,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
       if (isNative && model.localPath) await deleteOnDeviceModel(model.localPath);
       else await deleteOllamaModel(model.ollamaName || model.id, endpoint);
     } catch (e) { console.warn('Model delete failed', e); return; }
-    if (activeModel?.id === modelId) setActiveModel(null);
+    if (activeModel?.id === modelId) { setActiveModelState(null); localStorage.removeItem(ACTIVE_MODEL_KEY); }
     saveModels(models.filter(m => m.id !== modelId));
   }, [models, activeModel, saveModels, endpoint]);
   const setActiveModel = useCallback((model) => { setActiveModelState(model); if (model) localStorage.setItem(ACTIVE_MODEL_KEY, JSON.stringify(model)); else localStorage.removeItem(ACTIVE_MODEL_KEY); }, []);

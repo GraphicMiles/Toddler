@@ -12,7 +12,7 @@ export class ToolRegistry {
     return this;
   }
   get(name) { return this.#tools.get(name); }
-  list() { return [...this.#tools.values()].map(({ execute, ...metadata }) => metadata); }
+  list() { return [...this.#tools.values()].map(tool => { const { execute: _execute, ...metadata } = tool; return metadata; }); }
   async execute(name, input = {}, { approved = false } = {}) {
     const tool = this.#tools.get(name);
     if (!tool) throw new Error(`Unknown tool: ${name}`);

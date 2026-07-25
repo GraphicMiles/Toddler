@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Layout, { SCREENS } from './components/Layout';
-import ErrorBoundary from './components/ErrorBoundary';
 import ChatContainer from './components/ChatContainer';
 import ModelZoo from './components/ModelZoo';
 import MyCollection from './components/MyCollection';
@@ -27,7 +26,7 @@ export default function App() {
   const [messages, setMessages] = useState(() => { try { return JSON.parse(localStorage.getItem('forgeai_chat') || '[]'); } catch { return []; } });
   const [isTyping, setIsTyping] = useState(false);
   const [abortController, setAbortController] = useState(null);
-  const [endpoint, setEndpoint] = useState(() => localStorage.getItem('forgeai_endpoint') || import.meta.env.VITE_OLLAMA_URL || 'http://localhost:11434');
+  const [endpoint] = useState(() => localStorage.getItem('forgeai_endpoint') || import.meta.env.VITE_OLLAMA_URL || 'http://localhost:11434');
   const [pendingActions, setPendingActions] = useState([]);
   
   // Ollama state
@@ -44,10 +43,10 @@ export default function App() {
     stopModel,
   } = useModelCollection({ endpoint });
 
+  useEffect(() => { localStorage.setItem('forgeai_chat', JSON.stringify(messages)); }, [messages]);
   useEffect(() => {
-    localStorage.setItem('forgeai_chat', JSON.stringify(messages));
     if (!activeConversationId) { const id = generateId(); setActiveConversationId(id); setConversations([{ id, title: defaultConversationTitle(), messages }]); }
-  }, []);
+  }, [activeConversationId, messages]);
   useEffect(() => { localStorage.setItem('forgeai_conversations', JSON.stringify(conversations)); localStorage.setItem('forgeai_active_conversation', activeConversationId); }, [conversations, activeConversationId]);
   useEffect(() => { if (activeConversationId) setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, messages } : c)); }, [messages, activeConversationId]);
 
@@ -55,18 +54,18 @@ export default function App() {
   const provider = useMemo(() => createModelProvider({ mode: isNative ? 'on-device' : 'ollama', endpoint }), [endpoint]);
 
   // Check Ollama connection
-  useEffect(() => {
-    checkConnection();
-    const interval = setInterval(checkConnection, 30000);
-    return () => clearInterval(interval);
-  }, [provider]);
-
-  const checkConnection = async () => {
+  const checkConnection = useCallback(async () => {
     const result = await provider.getStatus();
     const available = Boolean(result.connected ?? result.available);
     setOllamaConnected(available);
     setModelStatus(available ? 'idle' : 'off');
-  };
+  }, [provider]);
+
+  useEffect(() => {
+    checkConnection();
+    const interval = setInterval(checkConnection, 30000);
+    return () => clearInterval(interval);
+  }, [checkConnection]);
 
   // Generate unique ID
   const generateId = () => Math.random().toString(36).substring(2, 15);
@@ -103,12 +102,9 @@ export default function App() {
     } catch (error) {
       if (error.name !== 'AbortError') setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: `Runtime error: ${error.message}` } : m));
     } finally { setIsTyping(false); setModelStatus('idle'); setAbortController(null); }
-  }, [activeModel, endpoint, messages, isNative, provider]);
+  }, [activeModel, messages, provider]);
 
-  const handleStopGeneration = useCallback(async () => {
-    abortController?.abort();
-    try { await provider.stop(); } catch (error) { console.warn('Unable to stop provider cleanly', error); }
-  }, [abortController, provider]);
+  const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
 
   // Handle action approval
   const handleApproveAction = useCallback(async (actionId) => {
@@ -144,7 +140,7 @@ export default function App() {
         await haptics.success();
       }
     }
-  }, [downloadModel, isNative]);
+  }, [downloadModel]);
 
   // Handle model selection
   const handleSelectModel = useCallback((model) => {
@@ -156,7 +152,7 @@ export default function App() {
     }
     // Auto-switch to chat
     setTimeout(() => setCurrentScreen(SCREENS.CHAT), 500);
-  }, [setActiveModel, isNative]);
+  }, [setActiveModel]);
 
   // Handle model deletion
   const handleDeleteModel = useCallback((model) => {
@@ -179,7 +175,7 @@ export default function App() {
   };
 
   return (
-    <ErrorBoundary><Layout
+    <Layout
       model={activeModel?.name || 'No model'}
       status={modelStatus}
       ollamaConnected={ollamaConnected}
@@ -262,6 +258,6 @@ export default function App() {
         )}
 
       </AnimatePresence>
-    </Layout></ErrorBoundary>
+    </Layout>
   );
 }

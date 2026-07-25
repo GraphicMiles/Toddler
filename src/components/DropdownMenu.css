@@ -9,3 +9,4 @@
 .dropdown-option:last-child { border-bottom:0; }
 .dropdown-option:hover,.dropdown-option.selected { background:var(--accent-dim); color:var(--accent); }
 @media (max-width:380px) { .dropdown-menu { left:0; right:auto; min-width:210px; } }
+.dropdown-menu-head button { width:36px; height:36px; }

@@ -178,3 +178,12 @@
     max-width: calc(100% - 48px);
   }
 }
+/* Production chat treatment */
+.message { border-bottom:0; }
+.message.user .message-body { max-width:min(86%, 620px); padding:12px 15px; border:1px solid var(--accent-border); border-radius:18px 18px 5px 18px; background:var(--accent-dim); text-align:left; }
+.message.agent .message-body { max-width:min(92%, 680px); }
+.message.user .message-header { flex-direction:row; justify-content:flex-start; }
+.message.user .message-content { color:var(--paper); }
+.message-copy { margin-left:0; }
+.message.system { margin:10px 0; }
+@media (max-width:640px) { .message.user .message-body { max-width:88%; padding:10px 13px; } .message.agent .message-body { max-width:calc(100% - 44px); } }

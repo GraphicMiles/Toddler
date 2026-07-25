@@ -112,3 +112,13 @@
     height: 36px;
   }
 }
+.message-input-wrapper { padding-top:12px; }
+.message-input-container { align-items:flex-end; gap:10px; }
+.input-field { border-radius:16px; background:var(--bg-elev); }
+.input-field textarea { min-height:44px; padding:12px 14px; font-family:inherit; font-size:14px; }
+.input-actions { padding-bottom:2px; }
+.send-button { width:44px; height:44px; border-radius:14px; background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+.send-button:hover:not(:disabled) { background:var(--accent); color:var(--accent-ink); filter:brightness(1.08); }
+.send-button:disabled { background:var(--bg-elev-2); border-color:var(--border-strong); color:var(--faint); opacity:1; }
+.send-button:has(svg.lucide-square) { background:var(--danger-dim); border-color:rgba(255,122,122,.35); color:var(--danger); }
+@media (max-width:640px) { .message-input-wrapper { padding:10px 12px max(10px, calc(env(safe-area-inset-bottom, 0px) + 8px)); } .send-button { width:44px; height:44px; } }

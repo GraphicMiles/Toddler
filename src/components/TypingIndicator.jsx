@@ -20,6 +20,7 @@ export default function TypingIndicator() {
         </div>
       </div>
       <div className="typing-content">
+        <span className="typing-label">Thinking…</span>
         <div className="typing-dots">
           <motion.span
             className="dot"

@@ -35,3 +35,5 @@
     padding: 16px 0;
   }
 }
+.typing-content { gap:10px; }
+.typing-label { color:var(--paper-dim); font-size:13px; }

@@ -57,7 +57,13 @@ export default function ChatContainer({
     <div className="chat-container">
       <div className="chat-toolbar">
         <DropdownMenu label="Conversation" value={activeConversationId || ''} onChange={onConversationChange} options={conversations.map(c => ({ value: c.id, label: c.title || `Untitled — ${new Date(c.createdAt || Date.now()).toLocaleDateString()}` }))} />
-        <button type="button" onClick={onNewConversation}>New</button><button type="button" onClick={() => onRenameConversation?.()} disabled={!conversations.length}>Rename</button><button type="button" onClick={onDeleteConversation} disabled={conversations.length < 2}>Delete</button><button type="button" onClick={onExportChat} disabled={!messages.length}>Export</button><button type="button" onClick={onClearChat} disabled={!messages.length}>Clear</button>
+        <div className="chat-actions">
+          <button type="button" onClick={onNewConversation}>New</button>
+          <button type="button" onClick={() => onRenameConversation?.()} disabled={!conversations.length}>Rename</button>
+          <button type="button" onClick={onDeleteConversation} disabled={conversations.length < 2}>Delete</button>
+          <button type="button" onClick={onExportChat} disabled={!messages.length}>Export</button>
+          <button type="button" onClick={onClearChat} disabled={!messages.length}>Clear</button>
+        </div>
       </div>
       <div 
         className="chat-scroll" 

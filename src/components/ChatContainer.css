@@ -128,3 +128,15 @@
 .chat-toolbar .dropdown-trigger { min-height:34px; }
 /* Android touch target hardening */
 .chat-toolbar button { min-height:40px; }
+.chat-toolbar { flex-wrap:wrap; overflow:visible; align-items:stretch; }
+.chat-toolbar > .dropdown { flex:1 1 220px; min-width:160px; }
+.chat-actions { display:flex; flex:1 1 auto; min-width:0; gap:6px; flex-wrap:wrap; }
+.chat-actions button { flex:1 1 auto; min-width:64px; }
+.chat-scroll { min-height:0; }
+.no-model-state { min-height:clamp(260px, 52vh, 520px); }
+@media (max-width:420px) {
+  .chat-toolbar { padding:8px 10px; gap:6px; }
+  .chat-toolbar > .dropdown { flex-basis:100%; }
+  .chat-actions { flex-basis:100%; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); }
+  .chat-actions button { min-width:0; padding-inline:6px; font-size:11px; }
+}

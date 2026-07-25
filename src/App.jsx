@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Layout, { SCREENS } from './components/Layout';
+import ErrorBoundary from './components/ErrorBoundary';
 import ChatContainer from './components/ChatContainer';
 import ModelZoo from './components/ModelZoo';
 import MyCollection from './components/MyCollection';
@@ -175,7 +176,7 @@ export default function App() {
   };
 
   return (
-    <Layout
+    <ErrorBoundary><Layout
       model={activeModel?.name || 'No model'}
       status={modelStatus}
       ollamaConnected={ollamaConnected}
@@ -258,6 +259,6 @@ export default function App() {
         )}
 
       </AnimatePresence>
-    </Layout>
+    </Layout></ErrorBoundary>
   );
 }

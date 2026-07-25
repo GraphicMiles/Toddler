@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Layout, { SCREENS } from './components/Layout';
 import ChatContainer from './components/ChatContainer';
@@ -6,7 +6,8 @@ import ModelZoo from './components/ModelZoo';
 import MyCollection from './components/MyCollection';
 import useModelCollection from './hooks/useModelCollection';
 import useDeviceCapability from './hooks/useDeviceCapability';
-import { checkOllamaConnection, getOnDeviceRuntimeInfo, streamOllamaChat, runOnDeviceChat, loadOnDeviceModel, haptics, isNative } from './nativeBridge';
+import { haptics, isNative } from './nativeBridge';
+import { createModelProvider } from './providers/modelProvider';
 import './styles/index.css';
 
 const defaultConversationTitle = () => `Untitled — ${new Date().toLocaleDateString()}`;
@@ -50,6 +51,7 @@ export default function App() {
   useEffect(() => { if (activeConversationId) setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, messages } : c)); }, [messages, activeConversationId]);
 
   const deviceCapability = useDeviceCapability();
+  const provider = useMemo(() => createModelProvider({ mode: isNative ? 'on-device' : 'ollama', endpoint }), [endpoint]);
 
   // Check Ollama connection
   useEffect(() => {
@@ -59,15 +61,10 @@ export default function App() {
   }, []);
 
   const checkConnection = async () => {
-    if (isNative) {
-      const runtime = await getOnDeviceRuntimeInfo();
-      setOllamaConnected(Boolean(runtime.available));
-      setModelStatus(runtime.available ? 'idle' : 'off');
-      return;
-    }
-    const result = await checkOllamaConnection(endpoint);
-    setOllamaConnected(result.connected);
-    if (!result.connected && !activeModel) setModelStatus('off');
+    const result = await provider.getStatus();
+    const available = Boolean(result.connected ?? result.available);
+    setOllamaConnected(available);
+    setModelStatus(available ? 'idle' : 'off');
   };
 
   // Generate unique ID
@@ -97,20 +94,15 @@ export default function App() {
     if (isNative) await haptics.light();
     try {
       const history = [...messages, userMessage].filter(m => m.role === 'user' || m.role === 'assistant').map(({ role, content }) => ({ role, content }));
-      if (isNative) {
-        if (!activeModel.localPath) throw new Error('Download a compatible offline model from Model Zoo first.');
-        await loadOnDeviceModel(activeModel.localPath);
-        await runOnDeviceChat({ messages: history, signal: controller.signal, onToken: (token) => setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: m.content + token } : m)) });
-      } else {
-        await streamOllamaChat({ url: endpoint, model: activeModel.ollamaName || activeModel.id, messages: history, signal: controller.signal,
-          onToken: (token) => setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: m.content + token } : m)),
-        });
-      }
+      await provider.loadModel?.(isNative ? activeModel.localPath : (activeModel.ollamaName || activeModel.id));
+      await provider.stream({ model: activeModel.ollamaName || activeModel.id, messages: history, signal: controller.signal,
+        onToken: (token) => setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: m.content + token } : m)),
+      });
       if (isNative) await haptics.success();
     } catch (error) {
       if (error.name !== 'AbortError') setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: `Runtime error: ${error.message}` } : m));
     } finally { setIsTyping(false); setModelStatus('idle'); setAbortController(null); }
-  }, [activeModel, endpoint, messages, isNative]);
+  }, [activeModel, endpoint, messages, isNative, provider]);
 
   const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
 

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Check, Trash2, Play, Pause,
-  ChevronDown, Wifi, WifiOff, Database
+  ChevronDown, Wifi, WifiOff, Database, RefreshCw
 } from 'lucide-react';
 import { formatModelSize, formatStorageCapacity, getModelSizeBytes } from '../utils/deviceCapacity';
 import './MyCollection.css';
@@ -17,7 +17,8 @@ export default function MyCollection({
   ollamaConnected = false,
   runtimeMode,
   deviceCapability = {},
-  onOpenZoo
+  onOpenZoo,
+  onRefreshDevice
 }) {
   const [expandedId, setExpandedId] = useState(null);
   const usedStorageBytes = models.reduce(
@@ -27,6 +28,8 @@ export default function MyCollection({
   const storageSummary = deviceCapability.storageBytes
     ? `Using ${formatModelSize(usedStorageBytes)} of ${formatStorageCapacity(deviceCapability.storageBytes)}`
     : `Using ${formatModelSize(usedStorageBytes)}`;
+
+  const formatBytes = bytes => bytes ? formatModelSize(bytes) : 'Catalog estimate';
 
   const formatDate = (date) => {
     if (!date) return '';
@@ -178,8 +181,8 @@ export default function MyCollection({
                       >
                         <div className="details-grid">
                           <div className="detail">
-                            <span className="detail-label">Size</span>
-                            <span className="detail-value mono">{model.size}{model.sizeUnit}</span>
+                            <span className="detail-label">Disk usage</span>
+                            <span className="detail-value mono">{formatBytes(model.downloadedBytes || getModelSizeBytes(model))}</span>
                           </div>
                           <div className="detail">
                             <span className="detail-label">Params</span>
@@ -188,6 +191,14 @@ export default function MyCollection({
                           <div className="detail">
                             <span className="detail-label">Task</span>
                             <span className="detail-value">{model.task}</span>
+                          </div>
+                          <div className="detail">
+                            <span className="detail-label">Quantization</span>
+                            <span className="detail-value mono">{model.quantizations?.join(', ') || 'Unknown'}</span>
+                          </div>
+                          <div className="detail">
+                            <span className="detail-label">License</span>
+                            <span className="detail-value">{model.license || 'Unknown'}</span>
                           </div>
                           <div className="detail">
                             <span className="detail-label">Downloaded</span>
@@ -241,9 +252,8 @@ export default function MyCollection({
 
       {/* Footer */}
       <div className="collection-footer">
-        <span className="storage-info mono">
-          {storageSummary}
-        </span>
+        <span className="storage-info mono">{storageSummary}</span>
+        <button type="button" className="refresh-storage" onClick={() => onRefreshDevice?.()} aria-label="Refresh device storage"><RefreshCw size={14} /> Refresh</button>
       </div>
     </div>
   );

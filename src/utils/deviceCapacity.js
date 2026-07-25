@@ -3,7 +3,7 @@ const BYTES_PER_GIGABYTE = 1000 ** 3;
 const BYTES_PER_GIBIBYTE = 1024 ** 3;
 
 export function getModelSizeBytes(model) {
-  const size = Number(model?.size) || 0;
+  const size = Number(model?.downloadedBytes) > 0 ? Number(model.downloadedBytes) : Number(model?.size) || 0;
   return model?.sizeUnit === 'GB' ? size * BYTES_PER_GIGABYTE : size * BYTES_PER_MEGABYTE;
 }
 

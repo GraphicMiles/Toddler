@@ -50,7 +50,7 @@ export default function App() {
   useEffect(() => { localStorage.setItem('forgeai_conversations', JSON.stringify(conversations)); localStorage.setItem('forgeai_active_conversation', activeConversationId); }, [conversations, activeConversationId]);
   useEffect(() => { if (activeConversationId) setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, messages } : c)); }, [messages, activeConversationId]);
 
-  const deviceCapability = useDeviceCapability();
+  const { deviceCapability, refresh: refreshDevice } = useDeviceCapability();
   const provider = useMemo(() => createModelProvider({ mode: isNative ? 'on-device' : 'ollama', endpoint }), [endpoint]);
 
   // Check Ollama connection
@@ -156,6 +156,7 @@ export default function App() {
 
   // Handle model deletion
   const handleDeleteModel = useCallback((model) => {
+    if (!window.confirm(`Delete ${model.name} permanently?`)) return;
     deleteModel(model.id);
     addMessage('system', `**${model.name}** deleted from collection`);
   }, [deleteModel]);
@@ -253,6 +254,7 @@ export default function App() {
               runtimeMode={isNative ? 'On-device ready' : 'Ollama active'}
               deviceCapability={deviceCapability}
               onOpenZoo={() => setCurrentScreen(SCREENS.ZOO)}
+              onRefreshDevice={refreshDevice}
             />
           </motion.div>
         )}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { getDeviceCapacity } from '../nativeBridge';
 
 const INITIAL_CAPABILITY = {
@@ -18,17 +18,7 @@ const INITIAL_CAPABILITY = {
 export default function useDeviceCapability() {
   const [deviceCapability, setDeviceCapability] = useState(INITIAL_CAPABILITY);
 
-  useEffect(() => {
-    let isCurrent = true;
-
-    getDeviceCapacity().then((capacity) => {
-      if (isCurrent) setDeviceCapability(capacity);
-    });
-
-    return () => {
-      isCurrent = false;
-    };
-  }, []);
-
-  return deviceCapability;
+  const refresh = useCallback(async () => { const capacity = await getDeviceCapacity(); setDeviceCapability(capacity); return capacity; }, []);
+  useEffect(() => { let current = true; getDeviceCapacity().then(capacity => { if (current) setDeviceCapability(capacity); }); return () => { current = false; }; }, []);
+  return { deviceCapability, refresh };
 }

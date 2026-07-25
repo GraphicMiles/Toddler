@@ -439,3 +439,7 @@
     justify-content: center;
   }
 }
+.collection-footer { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.refresh-storage { display:inline-flex; align-items:center; gap:6px; min-height:36px; padding:7px 10px; border:1px solid var(--border-strong); border-radius:var(--radius-sm); background:var(--bg-elev); color:var(--paper-dim); font-size:11px; }
+.refresh-storage:hover { color:var(--accent); border-color:var(--accent-border); }
+@media (max-width:380px) { .collection-footer { align-items:flex-start; flex-direction:column; } .refresh-storage { width:100%; justify-content:center; } }

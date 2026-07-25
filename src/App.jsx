@@ -43,6 +43,8 @@ export default function App() {
     deleteModel,
     setActiveModel,
     stopModel,
+    pauseDownload,
+    cancelDownload,
   } = useModelCollection({ endpoint });
 
   useEffect(() => { localStorage.setItem('forgeai_chat', JSON.stringify(messages)); }, [messages]);
@@ -252,6 +254,8 @@ export default function App() {
             <ModelZoo
               downloadedModels={downloadedModels}
               onDownload={handleDownload}
+              onPause={(model) => pauseDownload(model)}
+              onCancel={(model) => cancelDownload(model.id)}
               deviceCapability={deviceCapability}
               onClose={() => setCurrentScreen(SCREENS.COLLECTION)}
             />

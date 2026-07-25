@@ -13,10 +13,10 @@ export class ToolRegistry {
   }
   get(name) { return this.#tools.get(name); }
   list() { return [...this.#tools.values()].map(({ execute, ...metadata }) => metadata); }
-  async execute(name, input = {}) {
+  async execute(name, input = {}, { approved = false } = {}) {
     const tool = this.#tools.get(name);
     if (!tool) throw new Error(`Unknown tool: ${name}`);
-    if (tool.permission !== 'read') throw new Error(`Tool requires explicit approval: ${name}`);
+    if (tool.permission !== 'read' && !approved) throw new Error(`Tool requires explicit approval: ${name}`);
     return tool.execute(input);
   }
 }

@@ -234,6 +234,8 @@ export default function App() {
               onDeleteConversation={deleteConversation}
               onExportChat={exportChat}
               onClearChat={clearChat}
+              onOpenZoo={() => setCurrentScreen(SCREENS.ZOO)}
+              onOpenCollection={() => setCurrentScreen(SCREENS.COLLECTION)}
             />
           </motion.div>
         )}

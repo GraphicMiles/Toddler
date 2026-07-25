@@ -49,18 +49,6 @@ export default function MessageInput({ onSend, onStop, disabled = false, prefill
     }
   };
 
-  const handlePaste = (e) => {
-    // Check if pasting a file path
-    const text = e.clipboardData.getData('text');
-    if (text.startsWith('/') || text.includes('\\')) {
-      // Convert to @file reference
-      e.preventDefault();
-      const filename = text.split(/[/\\]/).pop();
-      setValue((prev) => prev + '@' + filename + ' ');
-      textareaRef.current?.focus();
-    }
-  };
-
   return (
     <div className="message-input-wrapper">
       <div className="message-input-container">
@@ -73,11 +61,9 @@ export default function MessageInput({ onSend, onStop, disabled = false, prefill
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder="Message ForgeAI…"
+            placeholder="Type a message…"
             rows={1}
             disabled={disabled}
-            className="mono"
           />
         </motion.div>
 
@@ -99,7 +85,7 @@ export default function MessageInput({ onSend, onStop, disabled = false, prefill
       </div>
 
       <div className="input-hint mono">
-        Enter to send · Shift + Enter for new line · Paste a file path to reference it
+        Enter to send · Shift + Enter for new line
       </div>
     </div>
   );

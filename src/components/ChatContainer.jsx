@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Database } from 'lucide-react';
+import { Database, Boxes } from 'lucide-react';
 import Message from './Message';
 import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
@@ -26,6 +26,8 @@ export default function ChatContainer({
   onDeleteConversation,
   onExportChat,
   onClearChat,
+  onOpenZoo,
+  onOpenCollection,
 }) {
   const scrollRef = useRef(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -68,7 +70,7 @@ export default function ChatContainer({
   return (
     <div className="chat-container">
       <div className="chat-toolbar">
-        <DropdownMenu label="Conversation" value={activeConversationId || ''} onChange={onConversationChange} options={conversations.map(c => ({ value: c.id, label: c.title || `Untitled — ${new Date(c.createdAt || Date.now()).toLocaleDateString()}` }))} />
+        <DropdownMenu label="Conversation" value={activeConversationId || ''} onChange={onConversationChange} options={conversations.map(c => ({ value: c.id, label: c.title || `Untitled` }))} />
         <div className="chat-actions">
           <button type="button" onClick={onNewConversation}>New</button>
           <button type="button" onClick={() => onRenameConversation?.()} disabled={!conversations.length}>Rename</button>
@@ -90,7 +92,17 @@ export default function ChatContainer({
                   <Database size={32} />
                 </div>
                 <h2 className="display">Select a model to start</h2>
-                <p>Go to My Collection to select a downloaded model, or visit the Model Zoo to download one.</p>
+                <p>Download a model from the Model Zoo, then select it from your Collection to begin chatting.</p>
+                <div className="no-model-actions">
+                  <button className="btn-primary" onClick={onOpenZoo}>
+                    <Boxes size={14} />
+                    Browse Model Zoo
+                  </button>
+                  <button className="btn-secondary" onClick={onOpenCollection}>
+                    <Database size={14} />
+                    My Collection
+                  </button>
+                </div>
               </div>
             ) : (
               <EmptyState onSuggestionClick={handleSuggestionClick} />
@@ -131,7 +143,7 @@ export default function ChatContainer({
       </div>
 
       {showScrollDown && (
-        <button className="scroll-to-bottom visible" onClick={scrollToBottom} aria-label="Scroll to latest messages">
+        <button className="scroll-to-bottom" onClick={scrollToBottom} aria-label="Scroll to latest messages">
           ↓
         </button>
       )}

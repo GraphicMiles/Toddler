@@ -1,5 +1,6 @@
+import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Copy } from 'lucide-react';
+import { Copy, Check } from 'lucide-react';
 import './Message.css';
 
 const messageVariants = {
@@ -26,10 +27,17 @@ const messageVariants = {
 };
 
 export default function Message({ message }) {
-  const copy = (text) => navigator.clipboard?.writeText(text);
+  const [copied, setCopied] = useState(false);
   const { role, content, timestamp, files = [] } = message;
   const isUser = role === 'user';
   const isSystem = role === 'system';
+
+  const copy = useCallback((text) => {
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }, []);
 
   const formatTime = (ts) => {
     if (!ts) return '';
@@ -57,6 +65,7 @@ export default function Message({ message }) {
 
   // Render code blocks
   const renderWithCode = (text) => {
+    if (!text) return null;
     const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
     const parts = [];
     let lastIndex = 0;
@@ -152,7 +161,15 @@ export default function Message({ message }) {
         <div className="message-content">
           {renderWithCode(content)}
         </div>
-        <button className="message-copy" type="button" onClick={() => copy(content)} aria-label="Copy message"><Copy size={13} /> Copy</button>
+        <button 
+          className="message-copy" 
+          type="button" 
+          onClick={() => copy(content)} 
+          aria-label={copied ? 'Copied!' : 'Copy message'}
+        >
+          {copied ? <Check size={13} /> : <Copy size={13} />}
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
 
         {files.length > 0 && (
           <div className="message-files">

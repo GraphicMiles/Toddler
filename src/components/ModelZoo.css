@@ -354,6 +354,12 @@
   background: var(--accent);
 }
 
+.heat-label {
+  font-size: 10px;
+  color: var(--faint);
+  margin-left: 4px;
+}
+
 /* Compatibility warning */
 .compatibility-warning {
   display: flex;

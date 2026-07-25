@@ -2,7 +2,6 @@
   display: flex;
   gap: 16px;
   padding: 20px 0;
-  border-bottom: 1px solid var(--border);
 }
 
 .typing-avatar {
@@ -12,7 +11,13 @@
 .typing-content {
   display: flex;
   align-items: center;
+  gap: 10px;
   padding-top: 8px;
+}
+
+.typing-label {
+  color: var(--paper-dim);
+  font-size: 13px;
 }
 
 .typing-dots {
@@ -35,5 +40,3 @@
     padding: 16px 0;
   }
 }
-.typing-content { gap:10px; }
-.typing-label { color:var(--paper-dim); font-size:13px; }

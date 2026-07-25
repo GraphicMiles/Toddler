@@ -94,11 +94,13 @@ function DeviceMetric({ icon: Icon, label, value, detail }) {
 }
 
 function HeatMeter({ level }) {
+  const labels = ['Fast', 'Balanced', 'Heavy'];
   return (
-    <div className="heat-meter" title="Speed versus quality" aria-hidden="true">
+    <div className="heat-meter" title={`Speed: ${labels[level - 1] || 'Unknown'}`}>
       {[0, 1, 2].map((i) => (
         <span key={i} className={`heat-dot ${i < level ? 'lit' : ''}`} />
       ))}
+      <span className="heat-label">{labels[level - 1] || ''}</span>
     </div>
   );
 }

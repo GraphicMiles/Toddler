@@ -112,8 +112,8 @@
   color: var(--paper);
 }
 
-.btn-stop,
-.btn-start {
+.btn-chat,
+.btn-stop {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -125,13 +125,13 @@
   transition: all 0.15s;
 }
 
-.btn-start {
+.btn-chat {
   background: var(--accent);
   border: none;
   color: var(--accent-ink);
 }
 
-.btn-start:hover {
+.btn-chat:hover {
   filter: brightness(1.1);
 }
 
@@ -143,6 +143,24 @@
 
 .btn-stop:hover {
   background: var(--warn-dim);
+}
+
+.expand-toggle {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.expand-toggle:hover {
+  color: var(--paper);
+  background: var(--bg-elev-2);
 }
 
 /* Model List */

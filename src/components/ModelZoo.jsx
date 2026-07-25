@@ -126,6 +126,7 @@ export default function ModelZoo({
   onDownload,
   onPause,
   onCancel,
+  onUseModel,
   deviceCapability = { ram: 4 },
   onClose,
 }) {
@@ -270,8 +271,11 @@ export default function ModelZoo({
         {/* ── Action area ── */}
         <div className="model-action">
           {downloaded ? (
-            <button className="btn-downloaded" disabled>
-              <Check size={16} /> Downloaded
+            <button className="btn-use-model" onClick={() => {
+              const full = downloadedModels.find(d => d.id === model.id);
+              if (full) onUseModel?.(full);
+            }}>
+              <MessageSquare size={16} /> Chat with this model
             </button>
           ) : isActive ? (
             <div className="download-progress-wrap">

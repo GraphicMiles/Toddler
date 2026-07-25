@@ -256,6 +256,7 @@ export default function App() {
               onDownload={handleDownload}
               onPause={(model) => pauseDownload(model)}
               onCancel={(model) => cancelDownload(model.id)}
+              onUseModel={handleSelectModel}
               deviceCapability={deviceCapability}
               onClose={() => setCurrentScreen(SCREENS.COLLECTION)}
             />

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Check, Trash2, Play, Pause,
+  Check, Trash2, Play, Pause, MessageSquare,
   ChevronDown, Wifi, WifiOff, Database, RefreshCw
 } from 'lucide-react';
 import { formatModelSize, formatStorageCapacity, getModelSizeBytes } from '../utils/deviceCapacity';
@@ -37,6 +37,17 @@ export default function MyCollection({
     return d.toLocaleDateString();
   };
 
+  // Tapping the model row selects it + navigates to chat
+  const handleTap = (model) => {
+    onSelect?.(model);
+  };
+
+  // Chevron toggles details expand/collapse
+  const toggleExpand = (e, modelId) => {
+    e.stopPropagation();
+    setExpandedId(prev => prev === modelId ? null : modelId);
+  };
+
   return (
     <div className="my-collection">
       {/* Header */}
@@ -47,7 +58,6 @@ export default function MyCollection({
         </div>
         
         <div className="collection-actions">
-          {/* Ollama Status */}
           <div className={`ollama-status ${ollamaConnected ? 'connected' : 'disconnected'}`}>
             {ollamaConnected ? <Wifi size={14} /> : <WifiOff size={14} />}
             <span>{runtimeMode || (ollamaConnected ? 'Ollama active' : 'Runtime offline')}</span>
@@ -80,6 +90,13 @@ export default function MyCollection({
             </div>
           </div>
           <div className="active-model-actions">
+            <button 
+              className="btn-chat"
+              onClick={() => onSelect?.(activeModel)}
+            >
+              <MessageSquare size={14} />
+              Chat
+            </button>
             {isRunning ? (
               <button 
                 className="btn-stop"
@@ -88,15 +105,7 @@ export default function MyCollection({
                 <Pause size={14} />
                 Stop
               </button>
-            ) : (
-              <button 
-                className="btn-start"
-                onClick={() => onSelect?.(activeModel)}
-              >
-                <Play size={14} />
-                Start
-              </button>
-            )}
+            ) : null}
           </div>
         </motion.div>
       )}
@@ -130,10 +139,10 @@ export default function MyCollection({
                   transition={{ delay: index * 0.05 }}
                   layout
                 >
-                  {/* Main Row */}
+                  {/* Main Row — tap to select & chat */}
                   <div 
                     className="model-item-main"
-                    onClick={() => setExpandedId(isExpanded ? null : model.id)}
+                    onClick={() => handleTap(model)}
                   >
                     <div className="model-item-left">
                       <div className="model-radio">
@@ -162,10 +171,16 @@ export default function MyCollection({
                       {isActive && (
                         <span className="active-badge">Active</span>
                       )}
-                      <ChevronDown 
-                        size={16} 
-                        className={`expand-icon ${isExpanded ? 'expanded' : ''}`}
-                      />
+                      <button
+                        className="expand-toggle"
+                        onClick={(e) => toggleExpand(e, model.id)}
+                        aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
+                      >
+                        <ChevronDown 
+                          size={16} 
+                          className={`expand-icon ${isExpanded ? 'expanded' : ''}`}
+                        />
+                      </button>
                     </div>
                   </div>
 
@@ -226,7 +241,7 @@ export default function MyCollection({
                               }}
                             >
                               <Check size={14} />
-                              Select
+                              Select & Chat
                             </button>
                           )}
                           <button 

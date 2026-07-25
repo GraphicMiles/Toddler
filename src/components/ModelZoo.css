@@ -462,6 +462,28 @@
   cursor: default;
 }
 
+.btn-use-model {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--accent);
+  border: none;
+  color: var(--accent-ink);
+  transition: filter 0.15s;
+}
+
+.btn-use-model:hover {
+  filter: brightness(1.08);
+}
+
 .btn-retry {
   background: transparent;
   border: 1px solid var(--warn-border);

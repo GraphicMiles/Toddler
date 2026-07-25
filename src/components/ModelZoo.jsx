@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download, X, Check, WifiOff, HardDrive,
-  Cpu, Sparkles, Code, MessageSquare, Smartphone
+  Cpu, MessageSquare, Smartphone
 } from 'lucide-react';
 import {
   formatMemoryCapacity,
@@ -16,178 +16,20 @@ import './ModelZoo.css';
 const MODEL_CATALOG = [
   // On-device Android model: downloaded into app-private storage and run by llama.cpp.
   {
-    id: 'smollm2-360m-q4', name: 'SmolLM2 360M Q4', family: 'smollm2', params: '360M', size: 235, sizeUnit: 'MB', minRam: 2, task: 'chat',
+    id: 'smollm2-360m-q3', name: 'SmolLM2 360M Q3', family: 'smollm2', params: '360M', size: 235, sizeUnit: 'MB', minRam: 2, task: 'chat',
     description: 'Small offline model for compatible Android devices.', badge: 'Offline', runsOn: ['mobile'], quantizations: ['Q3_K_M'], license: 'Apache-2.0',
     file: 'SmolLM-360M-Q3_K_M.gguf', downloadUrl: 'https://huggingface.co/tensorblock/SmolLM-360M-GGUF/resolve/main/SmolLM-360M-Q3_K_M.gguf?download=true',
   },
   {
-    id: 'smollm2-135m-q4', name: 'SmolLM2 135M Q4', family: 'smollm2', params: '135M', size: 94, sizeUnit: 'MB', minRam: 1.5, task: 'chat',
+    id: 'smollm2-135m-q3', name: 'SmolLM2 135M Q3', family: 'smollm2', params: '135M', size: 94, sizeUnit: 'MB', minRam: 1.5, task: 'chat',
     description: 'Tiny offline test model. Fastest download for compatible Android devices.', badge: 'Tiny', runsOn: ['mobile'], quantizations: ['Q3_K_M'], license: 'Apache-2.0',
     file: 'SmolLM-135M-Q3_K_M.gguf', downloadUrl: 'https://huggingface.co/tensorblock/SmolLM-135M-GGUF/resolve/main/SmolLM-135M-Q3_K_M.gguf?download=true',
   },
-  // Chat Models
-  {
-    id: 'smollm-360m',
-    name: 'SmolLM 360M',
-    family: 'smollm2',
-    params: '360M',
-    size: 150,
-    sizeUnit: 'MB',
-    minRam: 2,
-    task: 'chat',
-    description: 'Ultra-lightweight. Runs on any device with 2GB+ RAM.',
-    badge: 'Fastest',
-    runsOn: ['mobile', 'desktop'],
-    quantizations: ['Q4_K_M'],
-    license: 'Apache-2.0',
-  },
-  {
-    id: 'smollm-1.7b',
-    name: 'SmolLM 1.7B',
-    family: 'smollm2',
-    params: '1.7B',
-    size: 900,
-    sizeUnit: 'MB',
-    minRam: 4,
-    task: 'chat',
-    description: 'Better quality, still lightweight. Great for phones.',
-    badge: 'Popular',
-    runsOn: ['mobile', 'desktop'],
-    quantizations: ['Q4_K_M', 'Q8_0'],
-    license: 'Apache-2.0',
-  },
-  {
-    id: 'llama-3.2-1b',
-    name: 'Llama 3.2 1B',
-    family: 'llama',
-    params: '1B',
-    size: 650,
-    sizeUnit: 'MB',
-    minRam: 4,
-    task: 'chat',
-    description: 'Meta\'s latest small model. Excellent instruction following.',
-    badge: 'New',
-    runsOn: ['mobile', 'desktop'],
-    quantizations: ['Q4_K_M'],
-    license: 'Llama 3.2',
-  },
-  {
-    id: 'qwen-0.5b',
-    name: 'Qwen 0.5B',
-    family: 'qwen',
-    params: '0.5B',
-    size: 300,
-    sizeUnit: 'MB',
-    minRam: 2,
-    task: 'chat',
-    description: 'Multilingual support. Great for Asian languages.',
-    runsOn: ['mobile', 'desktop'],
-    quantizations: ['Q4_K_M'],
-    license: 'Apache-2.0',
-  },
-  {
-    id: 'phi-3-mini',
-    name: 'Phi-3 Mini',
-    family: 'phi',
-    params: '3.8B',
-    size: 2200,
-    sizeUnit: 'MB',
-    minRam: 6,
-    task: 'chat',
-    description: 'Microsoft\'s reasoning powerhouse. Desktop recommended.',
-    badge: 'Quality',
-    runsOn: ['desktop'],
-    quantizations: ['Q4_K_M', 'Q8_0'],
-    license: 'MIT',
-  },
-  // Code Models
-  {
-    id: 'codellama-3b',
-    name: 'CodeLlama 3B',
-    family: 'codellama',
-    params: '3B',
-    size: 1700,
-    sizeUnit: 'MB',
-    minRam: 6,
-    task: 'code',
-    description: 'Meta\'s coding specialist. Great for code completion.',
-    badge: 'Code',
-    runsOn: ['desktop'],
-    quantizations: ['Q4_K_M', 'Q8_0'],
-    license: 'Llama 3.2',
-  },
-  {
-    id: 'qwen-1.5b-code',
-    name: 'Qwen Coder 1.5B',
-    family: 'qwen',
-    params: '1.5B',
-    size: 800,
-    sizeUnit: 'MB',
-    minRam: 4,
-    task: 'code',
-    description: 'Alibaba\'s code model. Good balance of speed and quality.',
-    runsOn: ['mobile', 'desktop'],
-    quantizations: ['Q4_K_M'],
-    license: 'Apache-2.0',
-  },
-  {
-    id: 'deepseek-1.3b',
-    name: 'DeepSeek Coder 1.3B',
-    family: 'deepseek',
-    params: '1.3B',
-    size: 750,
-    sizeUnit: 'MB',
-    minRam: 4,
-    task: 'code',
-    description: 'Specialized for code. Great for fill-in-the-middle.',
-    runsOn: ['mobile', 'desktop'],
-    quantizations: ['Q4_K_M'],
-    license: 'DeepSeek',
-  },
-  // Balanced Models
-  {
-    id: 'llama-3.1-8b',
-    name: 'Llama 3.1 8B',
-    family: 'llama',
-    params: '8B',
-    size: 4700,
-    sizeUnit: 'MB',
-    minRam: 8,
-    task: 'balanced',
-    description: 'Powerful all-rounder. Best quality but needs more RAM.',
-    badge: 'Best',
-    runsOn: ['desktop'],
-    quantizations: ['Q4_K_M', 'Q8_0'],
-    license: 'Llama 3.2',
-  },
-  {
-    id: 'qwen-2.5-7b',
-    name: 'Qwen 2.5 7B',
-    family: 'qwen',
-    params: '7B',
-    size: 4100,
-    sizeUnit: 'MB',
-    minRam: 8,
-    task: 'balanced',
-    description: 'Excellent multilingual + code. Very popular.',
-    badge: 'Popular',
-    runsOn: ['desktop'],
-    quantizations: ['Q4_K_M', 'Q8_0'],
-    license: 'Apache-2.0',
-  },
 ];
 
-const TASK_ICONS = {
-  chat: MessageSquare,
-  code: Code,
-  balanced: Sparkles,
-};
+const TASK_ICONS = { chat: MessageSquare };
 
-const TASK_LABELS = {
-  chat: 'Chat',
-  code: 'Code',
-  balanced: 'Balanced',
-};
+const TASK_LABELS = { chat: 'Chat' };
 
 function heatLevel(model) {
   if (model.size < 500) return 1;
@@ -331,7 +173,7 @@ export default function ModelZoo({
             <span>Compatible only</span>
           </label>
           <div className="zoo-filters">
-            {['all', 'chat', 'code', 'balanced'].map((f) => <button key={f} className={`filter-tab ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>{f === 'all' ? 'All' : TASK_LABELS[f]}</button>)}
+            {['all', 'chat'].map((f) => <button key={f} className={`filter-tab ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>{f === 'all' ? 'All' : TASK_LABELS[f]}</button>)}
           </div>
         </div>
       </details>

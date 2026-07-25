@@ -16,14 +16,14 @@ import './ModelZoo.css';
 const MODEL_CATALOG = [
   // On-device Android model: downloaded into app-private storage and run by llama.cpp.
   {
-    id: 'smollm2-360m-q4', name: 'SmolLM2 360M Q4', family: 'smollm2', params: '360M', size: 271, sizeUnit: 'MB', minRam: 2, task: 'chat',
-    description: 'Small offline model for compatible Android devices.', badge: 'Offline', runsOn: ['mobile'], quantizations: ['Q4_K_M'], license: 'Apache-2.0',
-    file: 'SmolLM-360M-Q4_K_M.gguf', downloadUrl: 'https://huggingface.co/tensorblock/SmolLM-360M-GGUF/resolve/main/SmolLM-360M-Q4_K_M.gguf?download=true',
+    id: 'smollm2-360m-q4', name: 'SmolLM2 360M Q4', family: 'smollm2', params: '360M', size: 235, sizeUnit: 'MB', minRam: 2, task: 'chat',
+    description: 'Small offline model for compatible Android devices.', badge: 'Offline', runsOn: ['mobile'], quantizations: ['Q3_K_M'], license: 'Apache-2.0',
+    file: 'SmolLM-360M-Q3_K_M.gguf', downloadUrl: 'https://huggingface.co/tensorblock/SmolLM-360M-GGUF/resolve/main/SmolLM-360M-Q3_K_M.gguf?download=true',
   },
   {
-    id: 'smollm2-135m-q4', name: 'SmolLM2 135M Q4', family: 'smollm2', params: '135M', size: 105, sizeUnit: 'MB', minRam: 1.5, task: 'chat',
-    description: 'Tiny offline test model. Fastest download for compatible Android devices.', badge: 'Tiny', runsOn: ['mobile'], quantizations: ['Q4_K_M'], license: 'Apache-2.0',
-    file: 'SmolLM-135M-Q4_K_M.gguf', downloadUrl: 'https://huggingface.co/tensorblock/SmolLM-135M-GGUF/resolve/main/SmolLM-135M-Q4_K_M.gguf?download=true',
+    id: 'smollm2-135m-q4', name: 'SmolLM2 135M Q4', family: 'smollm2', params: '135M', size: 94, sizeUnit: 'MB', minRam: 1.5, task: 'chat',
+    description: 'Tiny offline test model. Fastest download for compatible Android devices.', badge: 'Tiny', runsOn: ['mobile'], quantizations: ['Q3_K_M'], license: 'Apache-2.0',
+    file: 'SmolLM-135M-Q3_K_M.gguf', downloadUrl: 'https://huggingface.co/tensorblock/SmolLM-135M-GGUF/resolve/main/SmolLM-135M-Q3_K_M.gguf?download=true',
   },
   // Chat Models
   {
@@ -323,33 +323,18 @@ export default function ModelZoo({
       </section>
       </details>
 
-      <div className="catalog-note">Small, verified models for this device</div>
-      <div className="compatible-controls">
-        <label className="compatible-toggle" title="Hide models that do not fit measured device capacity">
-          <input
-            type="checkbox"
-            checked={showOnlyCompatible}
-            onChange={(e) => setShowOnlyCompatible(e.target.checked)}
-          />
-          <span>Show compatible only</span>
-        </label>
-        <span className="available-models" aria-live="polite">
-          {filteredModels.length} models available
-        </span>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="zoo-filters">
-        {['all', 'chat', 'code', 'balanced'].map((f) => (
-          <button
-            key={f}
-            className={`filter-tab ${filter === f ? 'active' : ''}`}
-            onClick={() => setFilter(f)}
-          >
-            {f === 'all' ? 'All' : TASK_LABELS[f]}
-          </button>
-        ))}
-      </div>
+      <details className="catalog-controls">
+        <summary>Filters & compatibility <span>{filteredModels.length} available</span></summary>
+        <div className="catalog-controls-body">
+          <label className="compatible-toggle" title="Hide models that do not fit measured device capacity">
+            <input type="checkbox" checked={showOnlyCompatible} onChange={(e) => setShowOnlyCompatible(e.target.checked)} />
+            <span>Compatible only</span>
+          </label>
+          <div className="zoo-filters">
+            {['all', 'chat', 'code', 'balanced'].map((f) => <button key={f} className={`filter-tab ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>{f === 'all' ? 'All' : TASK_LABELS[f]}</button>)}
+          </div>
+        </div>
+      </details>
 
       {/* Model Grid */}
       <div className="model-grid">

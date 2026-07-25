@@ -228,3 +228,6 @@ input, textarea {
   color: var(--paper-dim);
   margin: 0;
 }
+.error-state { display:grid; gap:10px; max-width:420px; margin:auto; min-height:40vh; align-content:center; text-align:center; }
+.error-state p { color:var(--paper-dim); }
+.error-state button { min-height:40px; padding:8px 14px; border:0; border-radius:var(--radius-sm); background:var(--accent); color:var(--accent-ink); font-weight:700; }

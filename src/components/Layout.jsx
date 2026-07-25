@@ -1,16 +1,18 @@
-import { MessageSquare, Boxes, Database } from 'lucide-react';
+import { MessageSquare, Boxes, Database, Settings as SettingsIcon } from 'lucide-react';
 import './Layout.css';
 
 export const SCREENS = {
   CHAT: 'chat',
   ZOO: 'zoo',
   COLLECTION: 'collection',
+  SETTINGS: 'settings',
 };
 
 const TABS = [
   { id: SCREENS.CHAT, label: 'Chat', icon: MessageSquare },
   { id: SCREENS.ZOO, label: 'Model Zoo', icon: Boxes },
   { id: SCREENS.COLLECTION, label: 'Collection', icon: Database },
+  { id: SCREENS.SETTINGS, label: 'Settings', icon: SettingsIcon },
 ];
 
 export default function Layout({
@@ -21,12 +23,13 @@ export default function Layout({
   modelCount = 0,
   currentScreen = SCREENS.CHAT,
   onScreenChange,
+  isConnecting = false,
 }) {
   const statusMeta =
     status === 'busy'
       ? { color: 'var(--warn)', label: 'Working' }
       : status === 'off'
-        ? { color: 'var(--danger)', label: 'Offline' }
+        ? { color: 'var(--danger)', label: isConnecting ? 'Connecting…' : 'Offline' }
         : { color: 'var(--success)', label: ollamaConnected ? 'Ready' : 'Idle' };
 
   return (

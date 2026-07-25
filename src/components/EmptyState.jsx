@@ -9,7 +9,7 @@ const suggestions = [
   { icon: Sparkles, text: 'Help me debug this error' },
 ];
 
-export default function EmptyState() {
+export default function EmptyState({ onSuggestionClick }) {
   return (
     <motion.div
       className="empty-state"
@@ -45,7 +45,7 @@ export default function EmptyState() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
       >
-        Browse the workspace to reference a file, or just ask me to read, explain, or change something. I'll show you edits before writing anything.
+        Ask me anything — write code, explain concepts, debug errors, or have a conversation. I'll show you edits before writing anything.
       </motion.p>
 
       <motion.div
@@ -63,6 +63,7 @@ export default function EmptyState() {
             transition={{ delay: 0.3 + index * 0.05 }}
             whileHover={{ x: 4, backgroundColor: 'var(--bg-elev-2)' }}
             whileTap={{ scale: 0.98 }}
+            onClick={() => onSuggestionClick?.(suggestion.text)}
           >
             <suggestion.icon size={14} />
             <span>{suggestion.text}</span>

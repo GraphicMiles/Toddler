@@ -7,6 +7,6 @@
 .dropdown-menu-head button:hover { color:var(--accent); border-color:var(--accent-border); }
 .dropdown-option { display:flex; align-items:center; justify-content:space-between; width:100%; min-height:44px; padding:10px 12px; border:0; border-bottom:1px solid var(--border); background:transparent; color:var(--paper-dim); font-size:13px; text-align:left; }
 .dropdown-option:last-child { border-bottom:0; }
-.dropdown-option:hover,.dropdown-option.selected { background:var(--accent-dim); color:var(--accent); }
+.dropdown-option:hover,.dropdown-option.selected,.dropdown-option.focused { background:var(--accent-dim); color:var(--accent); }
 @media (max-width:380px) { .dropdown-menu { left:0; right:auto; min-width:210px; } }
 .dropdown-menu-head button { width:36px; height:36px; }

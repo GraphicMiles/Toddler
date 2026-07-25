@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Database } from 'lucide-react';
 import Message from './Message';
 import MessageInput from './MessageInput';
@@ -29,6 +29,11 @@ export default function ChatContainer({
 }) {
   const scrollRef = useRef(null);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [prefilledText, setPrefilledText] = useState('');
+
+  const handleSuggestionClick = useCallback((text) => {
+    setPrefilledText(text);
+  }, []);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -37,10 +42,17 @@ export default function ChatContainer({
     }
   }, [messages, isTyping, autoScroll]);
 
+  const [showScrollDown, setShowScrollDown] = useState(false);
+
   const handleScroll = (e) => {
     const { scrollTop, scrollHeight, clientHeight } = e.target;
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
     setAutoScroll(isAtBottom);
+    setShowScrollDown(!isAtBottom && messages.length > 0);
+  };
+
+  const scrollToBottom = () => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   };
 
   const containerVariants = {
@@ -81,7 +93,7 @@ export default function ChatContainer({
                 <p>Go to My Collection to select a downloaded model, or visit the Model Zoo to download one.</p>
               </div>
             ) : (
-              <EmptyState />
+              <EmptyState onSuggestionClick={handleSuggestionClick} />
             )
           ) : (
             <motion.div
@@ -118,7 +130,12 @@ export default function ChatContainer({
         </div>
       </div>
 
-      <MessageInput onSend={onSendMessage} onStop={onStopGeneration} disabled={isTyping} />
+      {showScrollDown && (
+        <button className="scroll-to-bottom visible" onClick={scrollToBottom} aria-label="Scroll to latest messages">
+          ↓
+        </button>
+      )}
+      <MessageInput onSend={onSendMessage} onStop={onStopGeneration} disabled={isTyping} prefilledText={prefilledText} onPrefilledTextConsumed={() => setPrefilledText('')} />
     </div>
   );
 }

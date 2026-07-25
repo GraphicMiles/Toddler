@@ -146,15 +146,6 @@
   white-space: nowrap;
 }
 
-.compatible-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 24px;
-  flex-shrink: 0;
-}
-
 .compatible-toggle {
   display: inline-flex;
   align-items: center;
@@ -172,13 +163,6 @@
   accent-color: var(--accent);
   cursor: pointer;
   flex-shrink: 0;
-}
-
-.available-models {
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
 }
 
 /* Filter tabs */
@@ -455,6 +439,43 @@
   text-align: right;
 }
 
+.download-error {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 40px;
+}
+
+.error-text {
+  color: var(--danger);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.btn-retry {
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--warn-border);
+  color: var(--warn);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-retry:hover {
+  background: var(--warn-dim);
+}
+
+.btn-download:disabled.other-downloading {
+  background: var(--bg-elev-2);
+  color: var(--faint);
+  cursor: wait;
+}
+
 @media (max-width: 640px) {
   .zoo-header {
     padding: 16px;
@@ -462,10 +483,6 @@
 
   .device-summary {
     margin: 12px 16px 0;
-  }
-
-  .compatible-controls {
-    padding: 10px 16px;
   }
 
   .zoo-filters {
@@ -481,15 +498,9 @@
   .device-metrics {
     grid-template-columns: 1fr;
   }
-
-  .available-models {
-    font-size: 10px;
-  }
 }
 
-.zoo-search-row { display:flex; gap:8px; padding:10px 16px 0; flex-shrink:0; }
-.zoo-search-row .ws-search { flex:1; min-width:0; }
-.zoo-search-row select { width:132px; min-height:38px; padding:8px; border:1px solid var(--border-strong); border-radius:var(--radius-sm); background:var(--bg-elev); color:var(--paper); font-size:11px; }
+
 .device-details { margin:10px 16px 0; flex-shrink:0; }
 .device-details summary { display:flex; justify-content:space-between; align-items:center; min-height:36px; padding:8px 10px; list-style:none; cursor:pointer; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg-elev); color:var(--paper-dim); font-size:12px; }
 .device-details summary::-webkit-details-marker { display:none; }
@@ -497,10 +508,8 @@
 .device-details[open] summary::before { content:'−'; }
 .device-details summary span { color:var(--faint); font-size:10px; text-transform:uppercase; }
 .device-details .device-summary { margin:8px 0 0; }
-@media (max-width:380px) { .zoo-search-row { flex-direction:column; } .zoo-search-row select { width:100%; } }
-.zoo-search-row .catalog-sort { width:132px; flex-shrink:0; }
-.download-control { width:40px; height:40px; }
-.catalog-note { display:none; }
+
+
 .catalog-controls { margin:8px 16px 0; flex-shrink:0; }
 .catalog-controls summary { display:flex; justify-content:space-between; align-items:center; min-height:38px; padding:8px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg-elev); color:var(--paper-dim); cursor:pointer; font-size:12px; list-style:none; }
 .catalog-controls summary::-webkit-details-marker { display:none; }

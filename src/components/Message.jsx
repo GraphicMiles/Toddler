@@ -97,9 +97,10 @@ export default function Message({ message }) {
   };
 
   if (isSystem) {
+    const level = message.level || (content?.toLowerCase().includes('error') || content?.toLowerCase().includes('failed') ? 'error' : 'info');
     return (
       <motion.div
-        className="message system"
+        className={`message system system-${level}`}
         variants={messageVariants}
         initial="hidden"
         animate="visible"

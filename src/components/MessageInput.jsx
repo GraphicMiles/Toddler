@@ -3,9 +3,18 @@ import { motion } from 'framer-motion';
 import { Send, Square } from 'lucide-react';
 import './MessageInput.css';
 
-export default function MessageInput({ onSend, onStop, disabled = false }) {
+export default function MessageInput({ onSend, onStop, disabled = false, prefilledText, onPrefilledTextConsumed }) {
   const [value, setValue] = useState('');
   const textareaRef = useRef(null);
+
+  // Consume prefilled text from suggestions
+  useEffect(() => {
+    if (prefilledText) {
+      setValue(prefilledText);
+      onPrefilledTextConsumed?.();
+      textareaRef.current?.focus();
+    }
+  }, [prefilledText, onPrefilledTextConsumed]);
 
   // Auto-grow textarea
   useEffect(() => {

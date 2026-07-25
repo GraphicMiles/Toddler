@@ -4,13 +4,14 @@ import Layout, { SCREENS } from './components/Layout';
 import ChatContainer from './components/ChatContainer';
 import ModelZoo from './components/ModelZoo';
 import MyCollection from './components/MyCollection';
+import Settings from './components/Settings';
 import useModelCollection from './hooks/useModelCollection';
 import useDeviceCapability from './hooks/useDeviceCapability';
 import { haptics, isNative } from './nativeBridge';
 import { createModelProvider } from './providers/modelProvider';
 import './styles/index.css';
 
-const defaultConversationTitle = () => `Untitled — ${new Date().toLocaleDateString()}`;
+const defaultConversationTitle = () => `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
 // Screen types are imported from ./components/Layout (SCREENS)
 
@@ -26,12 +27,13 @@ export default function App() {
   const [messages, setMessages] = useState(() => { try { return JSON.parse(localStorage.getItem('forgeai_chat') || '[]'); } catch { return []; } });
   const [isTyping, setIsTyping] = useState(false);
   const [abortController, setAbortController] = useState(null);
-  const [endpoint] = useState(() => localStorage.getItem('forgeai_endpoint') || import.meta.env.VITE_OLLAMA_URL || 'http://localhost:11434');
+  const [endpoint, setEndpoint] = useState(() => localStorage.getItem('forgeai_endpoint') || import.meta.env.VITE_OLLAMA_URL || 'http://localhost:11434');
   const [pendingActions, setPendingActions] = useState([]);
   
   // Ollama state
   const [ollamaConnected, setOllamaConnected] = useState(false);
   const [modelStatus, setModelStatus] = useState('off');
+  const [isConnecting, setIsConnecting] = useState(true);
   
   // Model collection
   const {
@@ -55,10 +57,17 @@ export default function App() {
 
   // Check Ollama connection
   const checkConnection = useCallback(async () => {
-    const result = await provider.getStatus();
-    const available = Boolean(result.connected ?? result.available);
-    setOllamaConnected(available);
-    setModelStatus(available ? 'idle' : 'off');
+    try {
+      const result = await provider.getStatus();
+      const available = Boolean(result.connected ?? result.available);
+      setOllamaConnected(available);
+      setModelStatus(available ? 'idle' : 'off');
+    } catch {
+      setOllamaConnected(false);
+      setModelStatus('off');
+    } finally {
+      setIsConnecting(false);
+    }
   }, [provider]);
 
   useEffect(() => {
@@ -70,7 +79,7 @@ export default function App() {
   // Generate unique ID
   const generateId = () => Math.random().toString(36).substring(2, 15);
 
-  // Add message to chat
+  // Add message to chat. level can be 'info', 'error', or 'warn'.
   const addMessage = (role, content, metadata = {}) => {
     const message = {
       id: generateId(),
@@ -83,9 +92,11 @@ export default function App() {
     return message;
   };
 
+  const addSystemMessage = (content, level = 'info') => addMessage('system', content, { level });
+
   // Send a real streaming request to Ollama. The assistant placeholder is updated per token.
   const handleSendMessage = useCallback(async (text) => {
-    if (!activeModel) { addMessage('system', 'Please select a model from My Collection first.'); return; }
+    if (!activeModel) { addSystemMessage('Please select a model from My Collection first.', 'warn'); return; }
     const userMessage = { id: generateId(), role: 'user', content: text, timestamp: Date.now() };
     const assistantId = generateId();
     setMessages(prev => [...prev, userMessage, { id: assistantId, role: 'assistant', content: '', timestamp: Date.now() }]);
@@ -100,7 +111,7 @@ export default function App() {
       });
       if (isNative) await haptics.success();
     } catch (error) {
-      if (error.name !== 'AbortError') setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: `Runtime error: ${error.message}` } : m));
+      if (error.name !== 'AbortError') setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: `Something went wrong: ${error.message}`, level: 'error' } : m));
     } finally { setIsTyping(false); setModelStatus('idle'); setAbortController(null); }
   }, [activeModel, messages, provider]);
 
@@ -117,7 +128,7 @@ export default function App() {
     }
 
     await new Promise(resolve => setTimeout(resolve, 500));
-    addMessage('system', `File written: ${action.path}`);
+    addSystemMessage(`File written: ${action.path}`, 'info');
     addMessage('assistant', `Done! I've created ${action.path}.`);
     
     if (isNative) {
@@ -128,17 +139,19 @@ export default function App() {
   // Handle action discard
   const handleDiscardAction = useCallback((actionId) => {
     setPendingActions(prev => prev.filter(a => a.id !== actionId));
-    addMessage('system', 'Action cancelled.');
+    addSystemMessage('Action cancelled.', 'warn');
   }, []);
 
   // Handle model download
   const handleDownload = useCallback(async (model, onProgress) => {
     const result = await downloadModel(model, onProgress);
     if (result.success) {
-      addMessage('system', `${model.name} downloaded successfully.`);
+      addSystemMessage(`${model.name} downloaded successfully.`, 'info');
       if (isNative) {
         await haptics.success();
       }
+    } else if (result.error) {
+      addSystemMessage(`Failed to download ${model.name}: ${result.error}`, 'error');
     }
   }, [downloadModel]);
 
@@ -146,11 +159,10 @@ export default function App() {
   const handleSelectModel = useCallback((model) => {
     setActiveModel(model);
     setModelStatus('idle');
-    addMessage('system', `Switched to **${model.name}**`);
+    addSystemMessage(`Switched to **${model.name}**`, 'info');
     if (isNative) {
       haptics.medium();
     }
-    // Auto-switch to chat
     setTimeout(() => setCurrentScreen(SCREENS.CHAT), 500);
   }, [setActiveModel]);
 
@@ -158,7 +170,7 @@ export default function App() {
   const handleDeleteModel = useCallback((model) => {
     if (!window.confirm(`Delete ${model.name} permanently?`)) return;
     deleteModel(model.id);
-    addMessage('system', `**${model.name}** deleted from collection`);
+    addSystemMessage(`**${model.name}** deleted from collection`, 'warn');
   }, [deleteModel]);
 
   const newConversation = useCallback(() => { const id = generateId(); setConversations(prev => [...prev, { id, title: defaultConversationTitle(), messages: [] }]); setActiveConversationId(id); setMessages([]); }, []);
@@ -167,6 +179,15 @@ export default function App() {
   const deleteConversation = useCallback(() => { if (conversations.length <= 1 || !window.confirm('Delete this conversation?')) return; const next = conversations.filter(c => c.id !== activeConversationId); setConversations(next); setActiveConversationId(next[0].id); setMessages(next[0].messages || []); }, [conversations, activeConversationId]);
   const exportChat = useCallback(() => { const blob = new Blob([messages.map(m => `${m.role.toUpperCase()}\n${m.content}`).join('\n\n')], { type: 'text/plain' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'forgeai-chat.txt'; a.click(); URL.revokeObjectURL(a.href); }, [messages]);
   const clearChat = useCallback(() => { if (window.confirm('Clear this conversation?')) setMessages([]); }, []);
+
+  const handleResetApp = useCallback(() => {
+    if (!window.confirm('Reset all app data? This will clear all conversations, model metadata, and settings.')) return;
+    localStorage.clear();
+    setMessages([]);
+    setConversations([]);
+    setActiveConversationId('');
+    setEndpoint('http://localhost:11434');
+  }, []);
 
   // Screen switching
   const screenVariants = {
@@ -183,6 +204,7 @@ export default function App() {
       onScreenChange={setCurrentScreen}
       currentScreen={currentScreen}
       modelCount={downloadedModels.length}
+      isConnecting={isConnecting}
     >
       {/* Screens */}
       <AnimatePresence mode="wait">
@@ -255,6 +277,24 @@ export default function App() {
               deviceCapability={deviceCapability}
               onOpenZoo={() => setCurrentScreen(SCREENS.ZOO)}
               onRefreshDevice={refreshDevice}
+            />
+          </motion.div>
+        )}
+
+        {currentScreen === SCREENS.SETTINGS && (
+          <motion.div
+            key="settings"
+            variants={screenVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="screen-container"
+          >
+            <Settings
+              endpoint={endpoint}
+              onEndpointChange={setEndpoint}
+              onClearChat={clearChat}
+              onReset={handleResetApp}
             />
           </motion.div>
         )}

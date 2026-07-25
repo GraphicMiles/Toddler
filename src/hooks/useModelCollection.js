@@ -24,8 +24,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
   }, []);
   const downloadModel = useCallback(async (model, onProgress) => {
     if (models.some(m => m.id === model.id)) return { success: false, error: 'Model already downloaded' };
-    const names = { 'smollm-360m': 'smollm2:360m', 'smollm-1.7b': 'smollm2:1.7b', 'llama-3.2-1b': 'llama3.2:1b', 'qwen-0.5b': 'qwen2.5:0.5b', 'phi-3-mini': 'phi3:mini', 'codellama-3b': 'codellama:3b', 'qwen-1.5b-code': 'qwen2.5-coder:1.5b', 'deepseek-1.3b': 'deepseek-coder:1.3b', 'llama-3.1-8b': 'llama3.1:8b', 'qwen-2.5-7b': 'qwen2.5:7b' };
-    const name = model.ollamaName || names[model.id] || model.id;
+    const name = model.ollamaName || model.id;
     setDownloads(d => ({ ...d, [model.id]: { status: 'queued', progress: 0 } }));
     const controller = new AbortController(); controllers.current.set(model.id, controller);
     try {

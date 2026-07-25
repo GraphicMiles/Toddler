@@ -59,7 +59,7 @@ export default function App() {
     checkConnection();
     const interval = setInterval(checkConnection, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [provider]);
 
   const checkConnection = async () => {
     const result = await provider.getStatus();
@@ -105,7 +105,10 @@ export default function App() {
     } finally { setIsTyping(false); setModelStatus('idle'); setAbortController(null); }
   }, [activeModel, endpoint, messages, isNative, provider]);
 
-  const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
+  const handleStopGeneration = useCallback(async () => {
+    abortController?.abort();
+    try { await provider.stop(); } catch (error) { console.warn('Unable to stop provider cleanly', error); }
+  }, [abortController, provider]);
 
   // Handle action approval
   const handleApproveAction = useCallback(async (actionId) => {

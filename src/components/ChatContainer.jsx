@@ -116,11 +116,25 @@ export default function ChatContainer({
 
   return (
     <div className="chat-container">
-      {/* Local Server Status Banner */}
-      {isNative && localServerStatus?.running && (
-        <div className="local-server-banner">
-          <span>🟢 Local Inference Active</span>
-          <span className="banner-detail">Port {localServerStatus.port} • {localServerStatus.model || 'Model mounted'}</span>
+      {/* Local Server Status Banner - Enhanced for Testing */}
+      {isNative && (
+        <div style={{ 
+          background: localServerStatus?.running ? '#166534' : '#334155',
+          color: localServerStatus?.running ? '#86efac' : '#94a3b8',
+          padding: '8px 16px',
+          fontSize: '13px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <span>
+            {localServerStatus?.running ? '🟢 Local Server Active' : '⚪ Local Server Inactive'}
+          </span>
+          {localServerStatus?.running && (
+            <span style={{ fontSize: '12px', opacity: 0.9 }}>
+              Port {localServerStatus.port}
+            </span>
+          )}
         </div>
       )}
 

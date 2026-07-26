@@ -50,6 +50,7 @@ export default function App() {
     stopModel,
     pauseDownload,
     cancelDownload,
+    downloads,
   } = useModelCollection({ endpoint });
 
   useEffect(() => { localStorage.setItem('forgeai_chat', JSON.stringify(messages)); }, [messages]);
@@ -232,22 +233,29 @@ export default function App() {
   const handleSendMessage = useCallback(async (text) => {
     if (!activeModel) { addSystemMessage('Please select a model from My Collection first.', 'warn'); return; }
 
-    // Agent processing (direct call, full agent mode)
-    const agentResult = await agentCore.processMessage({
-      message: text,
-      workspace: { path: '', name: 'workspace', tree: [] },
-    });
-
-    // Add any proposed actions through manual approval (not auto-executed)
-    if (agentResult.proposedActions && agentResult.proposedActions.length > 0) {
-      setPendingActions(prev => [...prev, ...agentResult.proposedActions]);
-    }
-
     const userMessage = { id: generateId(), role: 'user', content: text, timestamp: Date.now() };
     const assistantId = generateId();
-    // Initialize assistant message with agent review/plan response
-    const agentResponseText = agentResult.agentResponse || 'Agent is reviewing...';
-    setMessages(prev => [...prev, userMessage, { id: assistantId, role: 'assistant', content: agentResponseText, timestamp: Date.now() }]);
+
+    // Agent processing — best-effort, non-blocking. Never let agent errors abort the chat.
+    let agentResponseText = '';
+    try {
+      const agentResult = await agentCore.processMessage({
+        message: text,
+        workspace: { path: '', name: 'workspace', tree: [] },
+      });
+      // Only keep tool-based proposed actions (those that have a gate entry).
+      // agent_review / plan_task items are informational and have no gate entry,
+      // so they must NOT show Approve/Discard buttons.
+      const toolActions = (agentResult.proposedActions || []).filter(a => a.type !== 'agent_review');
+      if (toolActions.length > 0) setPendingActions(prev => [...prev, ...toolActions]);
+      agentResponseText = agentResult.agentResponse || '';
+    } catch (agentErr) {
+      console.warn('Agent processing skipped:', agentErr);
+    }
+
+    // Build the initial assistant message (agent summary or placeholder)
+    const initialContent = agentResponseText || '';
+    setMessages(prev => [...prev, userMessage, { id: assistantId, role: 'assistant', content: initialContent, timestamp: Date.now() }]);
     setIsTyping(true); setModelStatus('busy');
     const controller = new AbortController(); setAbortController(controller);
     if (isNative) await haptics.light();
@@ -259,7 +267,12 @@ export default function App() {
       });
       if (isNative) await haptics.success();
     } catch (error) {
-      if (error.name !== 'AbortError') setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: `Something went wrong: ${error.message}`, level: 'error' } : m));
+      if (error.name !== 'AbortError') {
+        const friendly = error.message?.includes('loaded safely')
+          ? 'Model could not be loaded. It may still be downloading, or the file may be corrupted — try re-downloading from Model Zoo.'
+          : `Something went wrong: ${error.message}`;
+        setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: friendly, level: 'error' } : m));
+      }
     } finally { setIsTyping(false); setModelStatus('idle'); setAbortController(null); }
   }, [activeModel, messages, provider, agentCore]);
 
@@ -271,8 +284,13 @@ export default function App() {
     if (!action) return;
 
     setPendingActions(prev => prev.filter(a => a.id !== actionId));
-    if (isNative) {
-      await haptics.medium();
+    if (isNative) await haptics.medium();
+
+    // Informational / plan actions have no gate entry — just acknowledge them
+    if (action.type === 'agent_review' || !action.type) {
+      addSystemMessage('Plan acknowledged.', 'info');
+      if (isNative) await haptics.success();
+      return;
     }
 
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -280,16 +298,13 @@ export default function App() {
     // Execute through agent core with approval
     try {
       const result = await agentCore.executeApprovedAction(actionId);
-      addSystemMessage(`Agent executed: ${action.type || 'action'} → ${JSON.stringify(result)}`, 'info');
-      addMessage('assistant', `Done! Executed ${action.type || 'action'} with result: ${JSON.stringify(result)}`);
+      addSystemMessage(`Agent executed: ${action.type} → ${JSON.stringify(result)}`, 'info');
+      addMessage('assistant', `Done! Executed ${action.type} with result: ${JSON.stringify(result)}`);
     } catch (execError) {
       addSystemMessage(`Agent execution failed: ${execError.message}`, 'error');
-      addMessage('assistant', `Execution failed: ${execError.message}`);
     }
 
-    if (isNative) {
-      await haptics.success();
-    }
+    if (isNative) await haptics.success();
   }, [pendingActions, agentCore]);
 
   // Handle action discard
@@ -409,6 +424,7 @@ export default function App() {
           >
             <ModelZoo
               downloadedModels={downloadedModels}
+              downloads={downloads}
               onDownload={handleDownload}
               onPause={(model) => pauseDownload(model)}
               onCancel={(model) => cancelDownload(model.id)}

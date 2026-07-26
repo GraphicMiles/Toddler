@@ -123,6 +123,7 @@ function DeviceMetric({ icon: Icon, label, value, detail }) {
 
 export default function ModelZoo({
   downloadedModels = [],
+  downloads = {},
   onDownload,
   onPause,
   onCancel,
@@ -134,10 +135,17 @@ export default function ModelZoo({
 }) {
   const [filter, setFilter] = useState('all');
   const [showOnlyCompatible, setShowOnlyCompatible] = useState(true);
-  const [activeDownloadId, setActiveDownloadId] = useState(null);
-  const [progress, setProgress] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const [error, setError] = useState(null);
+
+  // Derive download state from the app-level downloads map (persists across tab switches)
+  const activeDownloadId = Object.keys(downloads).find(id =>
+    downloads[id]?.status === 'downloading' || downloads[id]?.status === 'paused'
+  ) || null;
+  const progress = activeDownloadId ? (downloads[activeDownloadId]?.progress ?? 0) : 0;
+  const paused = activeDownloadId ? downloads[activeDownloadId]?.status === 'paused' : false;
+  // Show error for any failed download that isn't currently active
+  const failedEntry = Object.entries(downloads).find(([, v]) => v?.status === 'failed');
+  const error = failedEntry ? (failedEntry[1]?.error || 'Download failed') : null;
+  const failedModelId = failedEntry ? failedEntry[0] : null;
 
   const ram = ramGigabytesForCompatibility(deviceCapability.ramBytes, deviceCapability.ram || 4);
   const usedStorageBytes = downloadedModels.reduce((sum, m) => sum + getModelSizeBytes(m), 0);
@@ -170,54 +178,27 @@ export default function ModelZoo({
     model.minRam <= ram &&
     (!deviceCapability.availableStorageBytes || getModelSizeBytes(model) <= deviceCapability.availableStorageBytes);
 
-  // ── Download handlers ──
+  // ── Download handlers (state is in downloads prop, survives tab switches) ──
 
   const handleStart = async (model) => {
     if (activeDownloadId) return; // one at a time
-    setActiveDownloadId(model.id);
-    setProgress(0);
-    setPaused(false);
-    setError(null);
-    try {
-      const result = await onDownload?.(model, (p) => setProgress(p.progress ?? 0));
-      if (result && !result.success) {
-        if (result.paused) {
-          setPaused(true);
-        } else {
-          setError(result.error || 'Download failed');
-        }
-      }
-    } catch (err) {
-      setError(err.message || 'Download failed');
-    } finally {
-      if (!paused) {
-        setActiveDownloadId(null);
-        setProgress(0);
-      }
-    }
+    await onDownload?.(model);
   };
 
   const handlePause = (model) => {
     onPause?.(model);
-    setPaused(true);
   };
 
   const handleResume = (model) => {
-    setPaused(false);
-    handleStart(model);
+    onDownload?.(model);
   };
 
   const handleCancel = (model) => {
     onCancel?.(model);
-    setActiveDownloadId(null);
-    setProgress(0);
-    setPaused(false);
-    setError(null);
   };
 
   const handleRetry = (model) => {
-    setError(null);
-    handleStart(model);
+    onDownload?.(model);
   };
 
   // ── Render a single model card ──
@@ -302,7 +283,7 @@ export default function ModelZoo({
                 </button>
               </div>
             </div>
-          ) : error && !activeDownloadId ? (
+          ) : error && failedModelId === model.id ? (
             <div className="download-error">
               <span className="error-text">{error}</span>
               <button className="btn-retry" onClick={() => handleRetry(model)}>

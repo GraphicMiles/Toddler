@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(OnDeviceRuntime.class);
         registerPlugin(DeviceCapacityPlugin.class);
         registerPlugin(LlamaServerPlugin.class);
+        registerPlugin(MLCPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

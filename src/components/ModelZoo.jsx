@@ -313,15 +313,12 @@ export default function ModelZoo({
 
   return (
     <motion.div className="model-zoo" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      {/* Header */}
+      {/* Compact header: title left, close right — subtitle removed */}
       <div className="zoo-header">
-        <div className="zoo-title">
-          <h2 className="display">Model Zoo</h2>
-          <p className="zoo-subtitle">Choose a model that fits your device</p>
-        </div>
+        <h2 className="display">Model Zoo</h2>
         {onClose && (
-          <button className="zoo-close" onClick={onClose}>
-            <X size={20} />
+          <button className="zoo-close" onClick={onClose} aria-label="Close">
+            <X size={18} />
           </button>
         )}
       </div>
@@ -342,65 +339,47 @@ export default function ModelZoo({
           </div>
         )}
 
-        {/* Device info toggle */}
-        <div className="zoo-section">
-          <details>
-            <summary className="zoo-section-toggle">
-              <span className="toggle-label">
-                <span className="toggle-icon">+</span>
-                Device info
-              </span>
-              <span className="toggle-meta">{storageLabel}</span>
-            </summary>
-            <div className="device-summary">
-              <div className="device-summary-head">
-                <div className="device-summary-title">
-                  <Smartphone size={15} />
-                  <span>Device</span>
-                </div>
-                <span className="device-summary-status">Live capacity</span>
-              </div>
-              <div className="device-metrics">
-                <DeviceMetric icon={Cpu} label="RAM" value={memoryValue} detail={memoryDetail} />
-                <DeviceMetric icon={HardDrive} label={storageLabel} value={storageValue} detail={storageDetail} />
-              </div>
+        {/* Inline chip bar + filters — single compact row */}
+        <div className="zoo-toolbar">
+          <div className="zoo-chips">
+            <span className="zoo-chip" title={`${memoryValue} RAM · ${storageDetail}`}>
+              <HardDrive size={12} /> {storageValue || '—'}
+            </span>
+            <span className="zoo-chip">{filteredModels.length} models</span>
+          </div>
+          <div className="zoo-toolbar-right">
+            <label className="compatible-toggle">
+              <input
+                type="checkbox"
+                checked={showOnlyCompatible}
+                onChange={(e) => setShowOnlyCompatible(e.target.checked)}
+              />
+              <span>Compatible</span>
+            </label>
+            <div className="zoo-filters">
+              {['all', 'chat'].map((f) => (
+                <button
+                  key={f}
+                  className={`filter-tab ${filter === f ? 'active' : ''}`}
+                  onClick={() => setFilter(f)}
+                >
+                  {f === 'all' ? 'All' : TASK_LABELS[f]}
+                </button>
+              ))}
             </div>
-          </details>
+          </div>
         </div>
 
-        {/* Filters toggle */}
-        <div className="zoo-section">
-          <details open>
-            <summary className="zoo-section-toggle">
-              <span className="toggle-label">
-                <span className="toggle-icon">−</span>
-                Filters & compatibility
-              </span>
-              <span className="toggle-meta">{filteredModels.length} available</span>
-            </summary>
-            <div className="zoo-controls">
-              <label className="compatible-toggle">
-                <input
-                  type="checkbox"
-                  checked={showOnlyCompatible}
-                  onChange={(e) => setShowOnlyCompatible(e.target.checked)}
-                />
-                <span>Compatible only</span>
-              </label>
-              <div className="zoo-filters">
-                {['all', 'chat'].map((f) => (
-                  <button
-                    key={f}
-                    className={`filter-tab ${filter === f ? 'active' : ''}`}
-                    onClick={() => setFilter(f)}
-                  >
-                    {f === 'all' ? 'All' : TASK_LABELS[f]}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </details>
-        </div>
+        {/* Device info — collapsible, tucked under toolbar */}
+        <details className="zoo-device-details">
+          <summary className="zoo-device-toggle">
+            <Smartphone size={12} /> Device info
+          </summary>
+          <div className="device-metrics">
+            <DeviceMetric icon={Cpu} label="RAM" value={memoryValue} detail={memoryDetail} />
+            <DeviceMetric icon={HardDrive} label={storageLabel} value={storageValue} detail={storageDetail} />
+          </div>
+        </details>
 
         {/* Model cards */}
         <div className="model-grid">

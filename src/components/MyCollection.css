@@ -6,12 +6,11 @@
   background: var(--bg);
 }
 
-/* Header */
+/* Header (compact: single row) */
 .collection-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 24px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -19,30 +18,37 @@
 .collection-title {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
 }
 
 .collection-title h2 {
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 700;
   color: var(--paper);
+  margin: 0;
+  white-space: nowrap;
 }
 
 .model-count {
-  padding: 4px 10px;
+  padding: 2px 7px;
   background: var(--bg-elev);
-  border-radius: 20px;
-  font-size: 11px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
   color: var(--faint);
+  flex-shrink: 0;
 }
 
 .ollama-status {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 12px;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  flex-shrink: 0;
 }
 
 .ollama-status.connected {
@@ -60,9 +66,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin: 16px;
-  padding: 18px;
+  gap: 14px;
+  margin: 10px 14px;
+  padding: 14px;
   background: linear-gradient(160deg, var(--accent-dim), transparent 75%);
   border: 1px solid var(--accent-border);
   border-radius: var(--radius);
@@ -434,14 +440,15 @@
 /* Responsive */
 @media (max-width: 640px) {
   .collection-header {
-    padding: 16px;
-    flex-direction: column;
-    gap: 12px;
-    align-items: flex-start;
+    padding: 8px 12px;
+  }
+
+  .collection-title {
+    gap: 6px;
   }
 
   .active-model-banner {
-    padding: 16px;
+    padding: 14px;
     flex-direction: column;
     gap: 14px;
     align-items: flex-start;

@@ -50,17 +50,14 @@ export default function MyCollection({
 
   return (
     <div className="my-collection">
-      {/* Header */}
+      {/* Compact header: everything on one row */}
       <div className="collection-header">
         <div className="collection-title">
           <h2 className="display">My Collection</h2>
-          <span className="model-count">{models.length} models</span>
-        </div>
-        
-        <div className="collection-actions">
+          <span className="model-count">{models.length}</span>
           <div className={`ollama-status ${ollamaConnected ? 'connected' : 'disconnected'}`}>
-            {ollamaConnected ? <Wifi size={14} /> : <WifiOff size={14} />}
-            <span>{runtimeMode || (ollamaConnected ? 'Ollama active' : 'Runtime offline')}</span>
+            {ollamaConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
+            <span>{runtimeMode || (ollamaConnected ? 'Ollama active' : 'Offline')}</span>
           </div>
         </div>
       </div>

@@ -231,7 +231,7 @@ export default function App() {
   const provider = useMemo(() => {
     // Priority order:
     // 1. Local llama-server (if mounted) → highest priority on Android
-    // 2. MLC-LLM (on-device) → when available
+    // 2. MLC-LLM (on-device) → when available (currently stub)
     // 3. Ollama → reliable fallback (web + Android)
 
     if (isNative) {
@@ -280,7 +280,7 @@ export default function App() {
     // Terminal command execution (improved - supports common commands)
     registry.register({
       name: 'terminal',
-      description: 'Execute terminal/shell commands (ls, pwd, echo, cat, mkdir, touch)',
+      description: 'Execute terminal/shell commands (ls, pwd, echo, cat, mkdir, touch, rm)',
       permission: 'dangerous',
       execute: async ({ command, workspacePath = '' }) => {
         if (typeof command !== 'string' || !command.trim()) {
@@ -334,6 +334,16 @@ export default function App() {
           return {
             command: cmd,
             output: `Created file: ${cmd.slice(6).trim()}`,
+            type: 'terminal',
+            status: 'completed',
+            simulated: true,
+          };
+        }
+
+        if (lowerCmd.startsWith('rm ')) {
+          return {
+            command: cmd,
+            output: `Would delete: ${cmd.slice(3).trim()}`,
             type: 'terminal',
             status: 'completed',
             simulated: true,
@@ -737,7 +747,6 @@ export default function App() {
   // Handle model selection with health check for local server
   const handleSelectModel = useCallback(async (model) => {
     if (isNative && localServerStatus?.running) {
-      // If local server is running, verify it's healthy before allowing chat
       try {
         const { createLocalServerProvider } = await import('./providers/localServerProvider');
         const provider = createLocalServerProvider(localServerStatus.port || 8080);

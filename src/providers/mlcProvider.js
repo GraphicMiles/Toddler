@@ -1,14 +1,15 @@
 /**
- * MLCProvider
+ * MLCProvider (Placeholder)
  * 
- * On-device inference using MLC-LLM (recommended for Android).
- * This is the simplest path to real local inference.
+ * This is a **stub** for future MLC-LLM integration.
  * 
- * Note: This is a stub implementation. Full integration requires:
- * - Adding MLC-LLM Android SDK
- * - Registering the native module
+ * Current behavior:
+ * - Always reports as unavailable
+ * - Shows clear message to the user
+ * - Does not attempt real inference
  * 
- * For now, it gracefully falls back to showing "MLC not yet integrated".
+ * When MLC-LLM is properly integrated later, this class can be replaced
+ * with real implementation without changing the rest of the app.
  */
 
 export class MLCProvider {
@@ -19,42 +20,36 @@ export class MLCProvider {
   }
 
   async getStatus() {
-    // In a real implementation, this would check if MLC runtime is available
     return {
       connected: false,
       available: false,
       kind: this.kind,
-      reason: 'MLC-LLM integration not yet enabled. Using Ollama fallback.',
+      reason: 'MLC-LLM is not yet integrated. The app falls back to Ollama or local llama-server.',
       ready: false,
+      isStub: true
     };
   }
 
   async loadModel(modelPathOrId) {
-    console.log('[MLCProvider] loadModel called with:', modelPathOrId);
-    
-    // Placeholder — real implementation would call native MLC-LLM
-    this.currentModel = modelPathOrId;
-    this.modelLoaded = true;
-    
     return { 
-      loaded: true, 
-      path: modelPathOrId,
-      message: 'MLC-LLM support coming soon. Currently falling back to Ollama.'
+      loaded: false, 
+      error: 'MLC-LLM not available',
+      message: 'On-device inference via MLC-LLM is not ready yet.'
     };
   }
 
   async stream({ messages, signal, onToken }) {
-    // Placeholder streaming
-    const fallbackMessage = "MLC-LLM is not yet integrated. Please use Ollama for now.";
+    const message = "MLC-LLM support is not enabled. Please use Ollama or mount a local model.";
     
-    // Simulate streaming the fallback message
-    for (const char of fallbackMessage) {
-      if (signal?.aborted) break;
-      onToken?.(char);
-      await new Promise(r => setTimeout(r, 15));
+    if (onToken) {
+      for (const char of message) {
+        if (signal?.aborted) break;
+        onToken(char);
+        await new Promise(r => setTimeout(r, 10));
+      }
     }
     
-    return { done: true, fallback: true };
+    return { done: true, fallback: true, isStub: true };
   }
 
   async stop() {

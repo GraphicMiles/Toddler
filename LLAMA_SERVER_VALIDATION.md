@@ -1,41 +1,38 @@
 # llama-server Standalone Validation Guide
 
-This guide helps you validate that `llama-server` (from llama.cpp) can run on a real Android device before integrating it into the app.
+This guide helps you validate that `llama-server` (from llama.cpp) can run on a real Android device.
+
+**Important**: This step is required because we cannot ship a pre-built binary with the app for legal and technical reasons.
 
 ## Step 1: Build llama-server for Android (arm64-v8a)
 
-### Prerequisites
-- Android NDK (r25 or newer recommended)
-- CMake 3.22+
-- A Linux/macOS machine (or WSL on Windows)
+### Easiest Method: Use Termux (Recommended)
 
-### Build Commands
+If you have an Android device and don't want to use a computer:
+
+1. Install **Termux** from F-Droid.
+2. Run these commands in Termux:
 
 ```bash
-# Clone llama.cpp (if not already done)
+pkg update && pkg upgrade -y
+pkg install git cmake clang wget -y
+
 git clone https://github.com/ggml-org/llama.cpp.git
 cd llama.cpp
 
-# Configure for Android arm64
-cmake -B build-android \
-  -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
-  -DANDROID_ABI=arm64-v8a \
-  -DANDROID_PLATFORM=android-26 \
-  -DLLAMA_BUILD_EXAMPLES=ON \
-  -DLLAMA_BUILD_SERVER=ON \
-  -DLLAMA_CUBLAS=OFF \
-  -DLLAMA_METAL=OFF
-
-# Build
-cmake --build build-android --config Release -j$(nproc)
-
-# The binary will be at:
-# build-android/bin/llama-server
+cmake -B build -DLLAMA_BUILD_SERVER=ON -DLLAMA_CUBLAS=OFF
+cmake --build build --config Release -j4
 ```
 
-### Alternative: Use Prebuilt Releases
+The binary will be at: `build/bin/llama-server`
 
-Check the [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases) — some versions include Android builds.
+### Alternative: Build on Computer
+
+Use the commands in the original guide if you prefer building on a PC.
+
+### Alternative: Prebuilt Binary
+
+Some community builds of `llama-server` for Android exist. Search for "llama.cpp android server" if you want to try prebuilt versions.
 
 ---
 

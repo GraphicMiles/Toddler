@@ -32,12 +32,18 @@ export class LocalServerProvider {
           url: this.baseUrl,
         };
       }
-      return { connected: false, available: false, kind: this.kind };
+      return { 
+        connected: false, 
+        available: false, 
+        kind: this.kind,
+        reason: 'Local server is not responding'
+      };
     } catch (err) {
       return { 
         connected: false, 
         available: false, 
         kind: this.kind,
+        reason: 'Local inference server is not running. Please mount a model first.',
         error: err.message 
       };
     }

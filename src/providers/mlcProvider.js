@@ -24,9 +24,10 @@ export class MLCProvider {
       connected: false,
       available: false,
       kind: this.kind,
-      reason: 'MLC-LLM is not yet integrated. The app falls back to Ollama or local llama-server.',
+      reason: 'MLC-LLM on-device inference is coming soon. Currently using Ollama or local llama-server.',
       ready: false,
-      isStub: true
+      isStub: true,
+      comingSoon: true
     };
   }
 

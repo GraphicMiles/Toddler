@@ -229,13 +229,20 @@ export default function App() {
 
   const { deviceCapability, refresh: refreshDevice } = useDeviceCapability();
   const provider = useMemo(() => {
-    // Priority order:
-    // 1. Local llama-server (if mounted) → highest priority on Android
-    // 2. MLC-LLM (on-device) → when available (currently stub)
-    // 3. Ollama → reliable fallback (web + Android)
+    // === Inference Provider Selection ===
+    // 
+    // Current priority:
+    // 1. Local llama-server (if user has mounted a model) → Best for offline
+    // 2. MLC-LLM → Planned (stub only right now)
+    // 3. Ollama → Reliable default (works on web + Android)
+    //
+    // Note: Local inference requires the user to build llama-server manually.
+    // See LLAMA_SERVER_VALIDATION.md for instructions.
 
     if (isNative) {
-      // On Android: Try local server first, then MLC, then Ollama
+      // On Android we try local server first.
+      // If the user hasn't mounted a model, it will gracefully fall back
+      // to showing an error, and the UI should guide them.
       return createLocalServerProvider(8080);
     }
     

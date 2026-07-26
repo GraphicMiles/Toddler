@@ -258,12 +258,31 @@ export default function ModelZoo({
         {/* ── Action area ── */}
         <div className="model-action">
           {downloaded ? (
-            <button className="btn-use-model" onClick={() => {
-              const full = downloadedModels.find(d => d.id === model.id);
-              if (full) onUseModel?.(full);
-            }}>
-              <MessageSquare size={16} /> Chat with this model
-            </button>
+              <div className="model-actions">
+                <button 
+                  className="btn-use-model" 
+                  onClick={() => {
+                    const full = downloadedModels.find(d => d.id === model.id);
+                    if (full) onUseModel?.(full);
+                  }}
+                >
+                  <MessageSquare size={16} /> Chat
+                </button>
+                
+                {isNative && (
+                  <button 
+                    className="btn-mount-model"
+                    onClick={async () => {
+                      const full = downloadedModels.find(d => d.id === model.id);
+                      if (full && onMountModel) {
+                        await onMountModel(full);
+                      }
+                    }}
+                  >
+                    Mount
+                  </button>
+                )}
+              </div>
           ) : isActive ? (
             <div className="download-progress-wrap">
               <div className="download-progress">

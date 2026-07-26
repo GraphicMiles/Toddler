@@ -18,7 +18,10 @@ export default function MyCollection({
   runtimeMode,
   deviceCapability = {},
   onOpenZoo,
-  onRefreshDevice
+  onRefreshDevice,
+  onMountModel,
+  onUnmountModel,
+  isNative = false
 }) {
   const [expandedId, setExpandedId] = useState(null);
   const usedStorageBytes = models.reduce(
@@ -241,6 +244,32 @@ export default function MyCollection({
                               Select & Chat
                             </button>
                           )}
+
+                          {/* Mount/Unmount for local llama-server */}
+                          {isNative && (
+                            isActive ? (
+                              <button 
+                                className="btn-unmount"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (onUnmountModel) await onUnmountModel(model);
+                                }}
+                              >
+                                Unmount
+                              </button>
+                            ) : (
+                              <button 
+                                className="btn-mount"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (onMountModel) await onMountModel(model);
+                                }}
+                              >
+                                Mount
+                              </button>
+                            )
+                          )}
+
                           <button 
                             className="btn-delete"
                             onClick={(e) => {

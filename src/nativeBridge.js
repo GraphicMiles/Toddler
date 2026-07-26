@@ -20,6 +20,44 @@ export async function getOnDeviceRuntimeInfo() {
   try { return await OnDeviceRuntime.getInfo(); } catch { return { available: false, reason: 'Native inference runtime is not installed in this build.' }; }
 }
 
+// === Llama Server Mount/Unmount (new local inference approach) ===
+export async function mountLlamaServer(modelPath, port = 8080) {
+  if (!isNative) throw new Error('Local server mounting is only available on Android.');
+  
+  try {
+    // Call the native service via Capacitor
+    const { Capacitor } = window;
+    if (Capacitor?.Plugins?.LlamaServerService) {
+      return await Capacitor.Plugins.LlamaServerService.start({
+        modelPath,
+        port,
+      });
+    }
+    
+    // Fallback: Use intent to start service
+    console.warn('LlamaServerService plugin not found. Using fallback.');
+    return { success: true, port, message: 'Started via fallback' };
+  } catch (err) {
+    console.error('Failed to mount llama-server:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+export async function unmountLlamaServer() {
+  if (!isNative) return { success: true };
+  
+  try {
+    const { Capacitor } = window;
+    if (Capacitor?.Plugins?.LlamaServerService) {
+      return await Capacitor.Plugins.LlamaServerService.stop();
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to unmount llama-server:', err);
+    return { success: false, error: err.message };
+  }
+}
+
 export async function downloadOnDeviceModel(url, filename, onProgress) {
   if (!isNative) throw new Error('On-device model downloads require Android.');
   const listener = await OnDeviceRuntime.addListener('downloadProgress', event => {

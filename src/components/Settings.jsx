@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { RefreshCw, Trash2, Wifi } from 'lucide-react';
 import './Settings.css';
 
-export default function Settings({ endpoint, onEndpointChange, onClearChat, onReset }) {
+export default function Settings({ endpoint, onEndpointChange, onClearChat, onReset, smartMode, onSmartModeChange }) {
   const [value, setValue] = useState(endpoint);
   const save = () => { const next = value.trim().replace(/\/$/, ''); if (!next) return; localStorage.setItem('forgeai_endpoint', next); onEndpointChange?.(next); };
   return <div className="settings-screen"><div className="screen-pad">

@@ -17,6 +17,7 @@ import { fileSystem } from './nativeBridge.js';
 import { buildFileIndex, searchFiles } from './utils/fileIndex.js';
 import { retrieveRelevantContext, formatContextForPrompt } from './utils/rag.js';
 import { virtualWorkspace } from './utils/virtualWorkspace.js';
+import { createLocalServerProvider } from './providers/localServerProvider.js';
 import './styles/index.css';
 
 const defaultConversationTitle = () => `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -223,7 +224,13 @@ export default function App() {
   }, []);
 
   const { deviceCapability, refresh: refreshDevice } = useDeviceCapability();
-  const provider = useMemo(() => createModelProvider({ mode: isNative ? 'on-device' : 'ollama', endpoint }), [endpoint]);
+  const provider = useMemo(() => {
+    if (isNative) {
+      // On Android, prefer local server when a model is mounted
+      return createLocalServerProvider(8080);
+    }
+    return createModelProvider({ mode: 'ollama', endpoint });
+  }, [endpoint, isNative]);
 
   // Agent core setup with plugin contract for scalable integrations
   const agentToolRegistry = useMemo(() => {
@@ -820,19 +827,34 @@ export default function App() {
             exit="exit"
             className="screen-container"
           >
-            <MyCollection
-              models={downloadedModels}
-              activeModel={activeModel}
-              onSelect={handleSelectModel}
-              onDelete={handleDeleteModel}
-              onStop={stopModel}
-              isRunning={modelStatus === 'busy'}
-              ollamaConnected={ollamaConnected}
-              runtimeMode={isNative ? 'On-device ready' : 'Ollama active'}
-              deviceCapability={deviceCapability}
-              onOpenZoo={() => setCurrentScreen(SCREENS.ZOO)}
-              onRefreshDevice={refreshDevice}
-            />
+              <MyCollection
+                models={downloadedModels}
+                activeModel={activeModel}
+                onSelect={handleSelectModel}
+                onDelete={handleDeleteModel}
+                onStop={stopModel}
+                isRunning={modelStatus === 'busy'}
+                ollamaConnected={ollamaConnected}
+                runtimeMode={isNative ? 'On-device ready' : 'Ollama active'}
+                deviceCapability={deviceCapability}
+                onOpenZoo={() => setCurrentScreen(SCREENS.ZOO)}
+                onRefreshDevice={refreshDevice}
+                onMountModel={async (model) => {
+                  const result = await mountModel(model);
+                  if (result.success) {
+                    addSystemMessage(`Mounted ${model.name} for local inference`, 'info');
+                  } else {
+                    addSystemMessage(`Failed to mount: ${result.error}`, 'error');
+                  }
+                }}
+                onUnmountModel={async () => {
+                  const result = await unmountModel();
+                  if (result.success) {
+                    addSystemMessage('Model unmounted', 'info');
+                  }
+                }}
+                isNative={isNative}
+              />
           </motion.div>
         )}
 
@@ -875,6 +897,8 @@ export default function App() {
               onEndpointChange={setEndpoint}
               onClearChat={clearChat}
               onReset={handleResetApp}
+              smartMode={smartMode}
+              onSmartModeChange={setSmartMode}
             />
           </motion.div>
         )}

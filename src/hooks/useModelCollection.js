@@ -132,6 +132,45 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     else localStorage.removeItem(ACTIVE_MODEL_KEY);
   }, []);
 
+  // Mount/Unmount for local llama-server (Android)
+  const mountModel = useCallback(async (model) => {
+    if (!isNative) {
+      setActiveModel(model);
+      return { success: true, mounted: false };
+    }
+
+    try {
+      const { mountLlamaServer } = await import('../nativeBridge');
+      const result = await mountLlamaServer(model.localPath || model.file);
+      
+      if (result.success) {
+        setActiveModel(model);
+        return { success: true, mounted: true, port: result.port };
+      }
+      return { success: false, error: result.error };
+    } catch (err) {
+      console.error('Failed to mount model:', err);
+      return { success: false, error: err.message };
+    }
+  }, [setActiveModel]);
+
+  const unmountModel = useCallback(async () => {
+    if (!isNative) {
+      setActiveModel(null);
+      return { success: true };
+    }
+
+    try {
+      const { unmountLlamaServer } = await import('../nativeBridge');
+      await unmountLlamaServer();
+      setActiveModel(null);
+      return { success: true };
+    } catch (err) {
+      console.error('Failed to unmount model:', err);
+      return { success: false, error: err.message };
+    }
+  }, [setActiveModel]);
+
   const stopModel = useCallback(() => setActiveModel(null), [setActiveModel]);
   const isDownloaded = useCallback((id) => models.some(m => m.id === id), [models]);
 

@@ -207,13 +207,21 @@ export default function Workspace({
   const handleNewFile = useCallback(async (parentPath) => {
     const name = prompt('New file name (e.g. notes.txt):');
     if (!name?.trim()) return;
-    await onFileCreate?.(parentPath + '/' + name.trim());
+    try {
+      await onFileCreate?.(parentPath + '/' + name.trim());
+    } catch (err) {
+      alert('Failed to create file: ' + err.message);
+    }
   }, [onFileCreate]);
 
   const handleNewFolder = useCallback(async (parentPath) => {
     const name = prompt('New folder name:');
     if (!name?.trim()) return;
-    await onFolderCreate?.(parentPath + '/' + name.trim());
+    try {
+      await onFolderCreate?.(parentPath + '/' + name.trim());
+    } catch (err) {
+      alert('Failed to create folder: ' + err.message);
+    }
   }, [onFolderCreate]);
 
   const handleRename = useCallback(async (node) => {
@@ -222,12 +230,20 @@ export default function Workspace({
     if (!newName?.trim() || newName.trim() === oldName) return;
     const parentPath = node.path.substring(0, node.path.lastIndexOf('/'));
     const newPath = parentPath + '/' + newName.trim();
-    await onFileRename?.(node.path, newPath);
+    try {
+      await onFileRename?.(node.path, newPath);
+    } catch (err) {
+      alert('Failed to rename: ' + err.message);
+    }
   }, [onFileRename]);
 
   const handleDelete = useCallback(async (node) => {
     if (!confirm(`Delete "${node.name}"${node.type === 'folder' ? ' and all its contents' : ''}?`)) return;
-    await onFileDelete?.(node.path, node.type);
+    try {
+      await onFileDelete?.(node.path, node.type);
+    } catch (err) {
+      alert('Failed to delete: ' + err.message);
+    }
   }, [onFileDelete]);
 
   const handleSave = useCallback(async (path, content) => {

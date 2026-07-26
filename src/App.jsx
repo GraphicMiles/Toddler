@@ -39,13 +39,7 @@ export default function App() {
   // Workspace state
   const [workspaceTree, setWorkspaceTree] = useState([]);
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
-  const workspacePath = useMemo(() => {
-    if (isNative) {
-      // On Android, use the app's internal files directory
-      try { return window.Capacitor?.getPlatform?.() === 'android' ? '/data' : ''; } catch { return ''; }
-    }
-    return '';
-  }, []);
+  const [workspaceRootPath, setWorkspaceRootPath] = useState('');
   
   // Ollama state
   const [ollamaConnected, setOllamaConnected] = useState(false);
@@ -74,13 +68,14 @@ export default function App() {
 
   // Load workspace file tree
   const loadWorkspace = useCallback(async () => {
-    if (!isNative) return; // Only load on Android
+    if (!isNative) return;
     setWorkspaceLoading(true);
     try {
       const rootPath = window.Capacitor?.getPlatform?.() === 'android'
         ? (await fileSystem.exists('/data/data') ? '/data/data' : '/storage/emulated/0')
         : '';
       if (rootPath) {
+        setWorkspaceRootPath(rootPath);
         const tree = await fileSystem.loadTree(rootPath);
         setWorkspaceTree(tree);
       }
@@ -100,8 +95,9 @@ export default function App() {
 
   const handleFileSave = useCallback(async (path, content) => {
     await fileSystem.writeFile(path, content);
+    await loadWorkspace();
     addSystemMessage(`Saved: ${path.split('/').pop()}`, 'info');
-  }, []);
+  }, [loadWorkspace]);
 
   const handleFileCreate = useCallback(async (path) => {
     await fileSystem.writeFile(path, '');
@@ -130,7 +126,7 @@ export default function App() {
   // Token windowing: trim conversation history to fit within context window
   const trimHistory = useCallback((msgs, maxTokens = 2500) => {
     const userAssistant = msgs.filter(m => m.role === 'user' || m.role === 'assistant');
-    if (userAssistant.length <= 2) return userAssistant;
+    if (userAssistant.length <= 2) return userAssistant.map(({ role, content }) => ({ role, content }));
     // Rough estimate: ~4 chars per token
     let total = 0;
     const trimmed = [];
@@ -140,7 +136,7 @@ export default function App() {
       total += tokens;
       trimmed.unshift(userAssistant[i]);
     }
-    return trimmed;
+    return trimmed.map(({ role, content }) => ({ role, content }));
   }, []);
 
   const { deviceCapability, refresh: refreshDevice } = useDeviceCapability();
@@ -324,7 +320,7 @@ export default function App() {
     try {
       const agentResult = await agentCore.processMessage({
         message: text,
-        workspace: { path: workspacePath, name: 'workspace', tree: workspaceTree },
+        workspace: { path: workspaceRootPath, name: 'workspace', tree: workspaceTree },
       });
       // Only keep tool-based proposed actions (those that have a gate entry).
       // agent_review / plan_task items are informational and have no gate entry,
@@ -555,7 +551,7 @@ export default function App() {
             className="screen-container"
           >
             <Workspace
-              workspace={{ name: 'Device Storage', path: workspacePath, tree: workspaceTree }}
+              workspace={{ name: 'Device Storage', path: workspaceRootPath, tree: workspaceTree }}
               workspaceLoading={workspaceLoading}
               onFileSelect={(path) => addSystemMessage(`Selected: ${path}`, 'info')}
               onFileRead={handleFileRead}

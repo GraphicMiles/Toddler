@@ -130,13 +130,13 @@ export async function getDeviceCapacity() {
  */
 export const fileSystem = {
   /**
-   * Read a file as text
+   * Read a file as UTF-8 text
    */
   async readFile(path) {
     if (isNative) {
       try {
-        const result = await Filesystem.readFile({ path, encoding: undefined });
-        return typeof result.data === 'string' ? result.data : await result.data.text();
+        const result = await Filesystem.readFile({ path, encoding: 'utf8' });
+        return result.data;
       } catch (err) {
         throw new Error(`Cannot read "${path}": ${err.message || 'file not found'}`);
       }
@@ -218,12 +218,17 @@ export const fileSystem = {
   },
 
   /**
-   * Delete a file
+   * Delete a file or directory (recursive)
    */
   async deleteFile(path) {
     if (isNative) {
       try {
-        await Filesystem.deleteFile({ path });
+        const stat = await Filesystem.stat({ path });
+        if (stat.type === 'directory') {
+          await Filesystem.rmdir({ path, recursive: true });
+        } else {
+          await Filesystem.deleteFile({ path });
+        }
       } catch (err) {
         throw new Error(`Cannot delete "${path}": ${err.message}`);
       }

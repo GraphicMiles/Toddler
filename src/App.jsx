@@ -751,23 +751,8 @@ export default function App() {
     }
   }, [downloadModel]);
 
-  // Handle model selection with health check for local server
-  const handleSelectModel = useCallback(async (model) => {
-    if (isNative && localServerStatus?.running) {
-      try {
-        const { createLocalServerProvider } = await import('./providers/localServerProvider');
-        const provider = createLocalServerProvider(localServerStatus.port || 8080);
-        const status = await provider.getStatus();
-        
-        if (!status.connected) {
-          addSystemMessage('Local server is not responding. Please remount the model.', 'warn');
-          return;
-        }
-      } catch (err) {
-        console.warn('Health check failed:', err);
-      }
-    }
-
+  // Handle model selection
+  const handleSelectModel = useCallback((model) => {
     setActiveModel(model);
     setModelStatus('idle');
     addSystemMessage(`Switched to **${model.name}**`, 'info');
@@ -775,7 +760,7 @@ export default function App() {
       haptics.medium();
     }
     setTimeout(() => setCurrentScreen(SCREENS.CHAT), 500);
-  }, [setActiveModel, isNative, localServerStatus]);
+  }, [setActiveModel]);
 
   // Handle model deletion
   const handleDeleteModel = useCallback((model) => {

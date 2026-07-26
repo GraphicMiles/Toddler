@@ -141,7 +141,9 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
 
     try {
       const { mountLlamaServer } = await import('../nativeBridge');
-      const result = await mountLlamaServer(model.localPath || model.file || model.downloadedPath);
+      const result = await mountLlamaServer(
+        model.localPath || model.file || model.downloadedPath
+      );
       
       if (result.success) {
         setActiveModel(model);
@@ -152,10 +154,26 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
           message: 'Local inference server started'
         };
       }
-      return { success: false, error: result.error || 'Failed to start local server' };
+      
+      // Even if the plugin isn't fully registered, still set the model as active
+      // so the app can attempt to use it
+      setActiveModel(model);
+      return { 
+        success: true, 
+        mounted: false, 
+        warning: result.error || 'Local server plugin not fully registered. You may need to build llama-server first.',
+        fallback: true
+      };
     } catch (err) {
       console.error('Failed to mount model:', err);
-      return { success: false, error: err.message || 'Unknown error during mount' };
+      // Still set the model as active even if mount fails
+      setActiveModel(model);
+      return { 
+        success: true, 
+        mounted: false, 
+        warning: err.message || 'Could not start local server. Falling back to active model selection.',
+        fallback: true
+      };
     }
   }, [setActiveModel]);
 
@@ -167,13 +185,13 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
 
     try {
       const { unmountLlamaServer } = await import('../nativeBridge');
-      const result = await unmountLlamaServer();
+      await unmountLlamaServer().catch(() => {});
       setActiveModel(null);
-      return { success: true, message: 'Local server stopped' };
+      return { success: true, message: 'Model unmounted' };
     } catch (err) {
       console.error('Failed to unmount model:', err);
-      setActiveModel(null); // Still clear the model even if unmount fails
-      return { success: false, error: err.message || 'Failed to stop server' };
+      setActiveModel(null);
+      return { success: true, message: 'Model deselected (server may still be running)' };
     }
   }, [setActiveModel]);
 

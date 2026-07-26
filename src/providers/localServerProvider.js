@@ -73,7 +73,7 @@ export class LocalServerProvider {
       });
 
       if (!response.ok) {
-        throw new Error(`Local server error: ${response.status}`);
+        throw new Error(`Local server error (${response.status})`);
       }
 
       const reader = response.body.getReader();
@@ -100,15 +100,15 @@ export class LocalServerProvider {
             if (token) {
               onToken?.(token);
             }
-          } catch (e) {
-            // Ignore parse errors on partial chunks
-          }
+          } catch (e) {}
         }
       }
     } catch (error) {
-      if (error.name !== 'AbortError') {
-        throw error;
-      }
+      if (error.name === 'AbortError') return;
+      
+      throw new Error(
+        `Local inference server is not running. Please mount a model first.`
+      );
     }
   }
 

@@ -163,7 +163,11 @@ export const fileSystem = {
         const uri = await Filesystem.writeFile({ path, data: content || '' });
         return uri;
       } catch (err) {
-        throw new Error(`Cannot write "${path}": ${err.message}`);
+        const msg = err.message || '';
+        if (msg.includes('permission') || msg.includes('denied')) {
+          throw new Error(`Permission denied writing to "${path}". Grant storage permission or use Downloads/ForgeAI folder.`);
+        }
+        throw new Error(`Cannot write "${path}": ${msg}`);
       }
     }
     const blob = new Blob([content || ''], { type: 'text/plain' });
@@ -212,7 +216,13 @@ export const fileSystem = {
       try {
         await Filesystem.mkdir({ path, recursive: true });
       } catch (err) {
-        throw new Error(`Cannot create directory "${path}": ${err.message}`);
+        const msg = err.message || '';
+        if (msg.includes('permission') || msg.includes('denied')) {
+          throw new Error(`Permission denied creating "${path}". Use Downloads/ForgeAI or grant storage permission.`);
+        }
+        if (!msg.includes('exists')) {
+          throw new Error(`Cannot create directory "${path}": ${msg}`);
+        }
       }
     }
   },

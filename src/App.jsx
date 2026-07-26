@@ -15,6 +15,7 @@ import { ToolRegistry } from './tools/toolRegistry.js';
 import { ApprovalGate } from './tools/toolApproval.js';
 import { fileSystem } from './nativeBridge.js';
 import { buildFileIndex, searchFiles } from './utils/fileIndex.js';
+import { retrieveRelevantContext, formatContextForPrompt } from './utils/rag.js';
 import './styles/index.css';
 
 const defaultConversationTitle = () => `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -72,13 +73,48 @@ export default function App() {
     if (!isNative) return;
     setWorkspaceLoading(true);
     try {
-      const rootPath = window.Capacitor?.getPlatform?.() === 'android'
-        ? (await fileSystem.exists('/data/data') ? '/data/data' : '/storage/emulated/0')
-        : '';
+      // Use proper writable paths for Android
+      // Prefer app's private data directory or Documents (more reliable with Capacitor)
+      let rootPath = '';
+      
+      if (window.Capacitor?.getPlatform?.() === 'android') {
+        // Try common writable locations in order of preference
+        const candidates = [
+          '/storage/emulated/0/Download/ForgeAI',           // User-visible Downloads
+          '/storage/emulated/0/Documents/ForgeAI',         // Documents folder
+          '/data/data/ai.forgeai.app/files/ForgeAI',       // App private (may need adjustment)
+        ];
+        
+        for (const candidate of candidates) {
+          try {
+            // Create the directory if it doesn't exist
+            await fileSystem.createDirectory(candidate).catch(() => {});
+            const exists = await fileSystem.exists(candidate);
+            if (exists) {
+              rootPath = candidate;
+              break;
+            }
+          } catch (e) {
+            console.warn(`Candidate path failed: ${candidate}`, e);
+          }
+        }
+        
+        // Final fallback - use app's external files dir equivalent
+        if (!rootPath) {
+          rootPath = '/storage/emulated/0/Download';
+          try {
+            await fileSystem.createDirectory(rootPath + '/ForgeAI').catch(() => {});
+            rootPath = rootPath + '/ForgeAI';
+          } catch {}
+        }
+      }
+      
       if (rootPath) {
         setWorkspaceRootPath(rootPath);
         const tree = await fileSystem.loadTree(rootPath);
         setWorkspaceTree(tree);
+      } else {
+        console.warn('No suitable workspace root path found on this device');
       }
     } catch (err) {
       console.warn('Failed to load workspace:', err);
@@ -101,15 +137,28 @@ export default function App() {
   }, [loadWorkspace]);
 
   const handleFileCreate = useCallback(async (path) => {
-    await fileSystem.writeFile(path, '');
-    await loadWorkspace();
-    addSystemMessage(`Created: ${path.split('/').pop()}`, 'info');
+    try {
+      await fileSystem.writeFile(path, '');
+      await loadWorkspace();
+      addSystemMessage(`Created: ${path.split('/').pop()}`, 'info');
+    } catch (err) {
+      console.error('File creation failed:', err);
+      addSystemMessage(`Failed to create file: ${err.message}`, 'error');
+      // Re-throw so Workspace.jsx can also show alert if needed
+      throw err;
+    }
   }, [loadWorkspace]);
 
   const handleFolderCreate = useCallback(async (path) => {
-    await fileSystem.createDirectory(path);
-    await loadWorkspace();
-    addSystemMessage(`Created folder: ${path.split('/').pop()}`, 'info');
+    try {
+      await fileSystem.createDirectory(path);
+      await loadWorkspace();
+      addSystemMessage(`Created folder: ${path.split('/').pop()}`, 'info');
+    } catch (err) {
+      console.error('Folder creation failed:', err);
+      addSystemMessage(`Failed to create folder: ${err.message}`, 'error');
+      throw err;
+    }
   }, [loadWorkspace]);
 
   const handleFileRename = useCallback(async (oldPath, newPath) => {
@@ -373,6 +422,21 @@ export default function App() {
     const userMessage = { id: generateId(), role: 'user', content: text, timestamp: Date.now() };
     const assistantId = generateId();
 
+    // === RAG: Retrieve relevant file context (safe & bounded) ===
+    let ragContext = '';
+    try {
+      const contextItems = await retrieveRelevantContext({
+        query: text,
+        workspaceTree,
+        selectedPath: selectedFilePath,
+        fileSystem,
+        maxFiles: 4,
+      });
+      ragContext = formatContextForPrompt(contextItems);
+    } catch (ragErr) {
+      console.warn('RAG retrieval skipped:', ragErr);
+    }
+
     // Agent processing - best-effort, non-blocking. Never let agent errors abort the chat.
     let agentResponseText = '';
     try {
@@ -398,8 +462,29 @@ export default function App() {
     if (isNative) await haptics.light();
     try {
       const history = trimHistory([...messages, userMessage]);
-      await provider.loadModel?.(isNative ? activeModel.localPath : (activeModel.ollamaName || activeModel.id));
-      await provider.stream({ model: activeModel.ollamaName || activeModel.id, messages: history, signal: controller.signal,
+      
+      // Inject RAG context into the first user message for the model
+      const messagesWithContext = [...history];
+      if (ragContext && messagesWithContext.length > 0) {
+        const lastUserIndex = messagesWithContext.length - 1;
+        if (messagesWithContext[lastUserIndex].role === 'user') {
+          messagesWithContext[lastUserIndex] = {
+            ...messagesWithContext[lastUserIndex],
+            content: ragContext + messagesWithContext[lastUserIndex].content,
+          };
+        }
+      }
+
+      const modelIdForProvider = isNative 
+        ? (activeModel.localPath || activeModel.downloadedPath || activeModel.file || activeModel.ollamaName || activeModel.id)
+        : (activeModel.ollamaName || activeModel.id);
+      
+      if (!modelIdForProvider) {
+        throw new Error('No valid model identifier found. Please re-download the model.');
+      }
+      
+      await provider.loadModel?.(modelIdForProvider);
+      await provider.stream({ model: modelIdForProvider, messages: messagesWithContext, signal: controller.signal,
         onToken: (token) => setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: m.content + token } : m)),
       });
       if (isNative) await haptics.success();
@@ -411,7 +496,7 @@ export default function App() {
         setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: friendly, level: 'error' } : m));
       }
     } finally { setIsTyping(false); setModelStatus('idle'); setAbortController(null); }
-  }, [activeModel, messages, provider, agentCore, trimHistory]);
+  }, [activeModel, messages, provider, agentCore, trimHistory, workspaceTree, selectedFilePath]);
 
   const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
 

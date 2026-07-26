@@ -3,6 +3,9 @@
  * The brain module. Understands user goals, selects registered tools,
  * maintains context, plans tasks, proposes actions (with manual approval),
  * and reviews outputs. Never hardcodes behavior for new capabilities.
+ * 
+ * IMPROVED VERSION: Significantly smarter rule-based planning
+ * while remaining 100% deterministic and safe.
  */
 
 import { AgentPluginRegistry, AGENT_PERMISSIONS } from './pluginContract.js';
@@ -11,39 +14,27 @@ import { ApprovalGate, executeWithApproval } from '../tools/toolApproval.js';
 
 export class AgentCore {
   constructor(options = {}) {
-    // Internal plugin/tool registry for agent-level contract
     this.pluginRegistry = new AgentPluginRegistry();
-    // Reference to app-level registry for execution
     this.toolRegistry = options.toolRegistry || null;
     this.approvalGate = options.approvalGate || null;
     this.provider = options.provider || null;
 
-    // Context maintained across interactions
     this.context = {
-      history: [],        // recent conversation turns
-      workspace: {},      // workspace info from Workspace component
-      plan: [],           // current plan steps
-      review: null,       // last review result
+      history: [],
+      workspace: {},
+      plan: [],
+      review: null,
       activeModel: null,
     };
   }
 
-  /**
-   * Register a plugin that may expose agent-level tools.
-   * This makes future integrations (Git, Memory, Search) possible
-   * without changing core logic.
-   */
   registerPlugin(plugin) {
     this.pluginRegistry.registerPlugin(plugin);
     return this;
   }
 
-  /**
-   * Register an individual agent tool directly.
-   */
   registerTool(toolDef) {
     const { name, description, permission, execute } = toolDef;
-    // Mirror into plugin registry for agent visibility
     this.pluginRegistry.registerPlugin({
       id: `direct-${name}`,
       name: `Direct: ${name}`,
@@ -53,116 +44,260 @@ export class AgentCore {
     return this;
   }
 
-  /**
-   * Set workspace context for planning.
-   */
   setWorkspace(workspaceInfo) {
     this.context.workspace = workspaceInfo || {};
     return this;
   }
 
-  /**
-   * Push conversation turn into context.
-   */
   addHistory(turn) {
     this.context.history.push(turn);
-    // Keep last 20 turns to prevent unbounded growth
     if (this.context.history.length > 20) {
       this.context.history = this.context.history.slice(-20);
     }
   }
 
+  // ==================== IMPROVED PLANNING ====================
+
   /**
-   * Plan the user's goal into executable steps.
-   * Returns an array of step descriptors.
+   * Smart keyword groups for better intent detection
+   */
+  getIntentMatchers() {
+    return {
+      read: [
+        'read', 'show', 'open', 'view', 'look', 'display', 'get content', 'what is in',
+        'contents of', 'tell me about', 'inspect', 'check file'
+      ],
+      write: [
+        'write', 'create', 'add', 'save', 'edit', 'update', 'modify', 'append',
+        'make a file', 'new file', 'generate', 'implement'
+      ],
+      delete: [
+        'delete', 'remove', 'erase', 'trash', 'get rid of', 'clean up'
+      ],
+      rename: [
+        'rename', 'move', 'relocate', 'change name', 'mv '
+      ],
+      search: [
+        'search', 'find', 'look for', 'where is', 'locate', 'grep', 'list files'
+      ],
+      plan: [
+        'plan', 'break down', 'steps', 'how to', 'roadmap', 'outline'
+      ],
+      explain: [
+        'explain', 'what does', 'how does', 'why', 'describe', 'summarize'
+      ],
+      fix: [
+        'fix', 'bug', 'error', 'broken', 'not working', 'debug', 'repair'
+      ],
+      refactor: [
+        'refactor', 'improve', 'clean up', 'optimize', 'reorganize', 'modernize'
+      ],
+      list: [
+        'list', 'show all', 'what files', 'directory', 'ls', 'tree'
+      ],
+    };
+  }
+
+  /**
+   * Detect intents with priority (more specific first)
+   */
+  detectIntents(message) {
+    const msgLower = (message || '').toLowerCase();
+    const matchers = this.getIntentMatchers();
+    const detected = new Set();
+
+    // Priority order: more specific actions first
+    const priorityOrder = ['fix', 'refactor', 'explain', 'plan', 'write', 'read', 'delete', 'rename', 'search', 'list'];
+
+    for (const intent of priorityOrder) {
+      const keywords = matchers[intent] || [];
+      if (keywords.some(kw => msgLower.includes(kw))) {
+        detected.add(intent);
+      }
+    }
+
+    return Array.from(detected);
+  }
+
+  /**
+   * Resolve the best target path using context
+   */
+  resolveTargetPath(workspace) {
+    const ws = workspace || this.context.workspace || {};
+    return ws.selectedPath || ws.path || '';
+  }
+
+  /**
+   * Find relevant files in workspace based on message
+   */
+  findRelevantFiles(message, workspace) {
+    const ws = workspace || this.context.workspace || {};
+    const tree = ws.tree || [];
+    if (!tree.length) return [];
+
+    const msgLower = message.toLowerCase();
+    const relevant = [];
+
+    function search(nodes) {
+      for (const node of nodes) {
+        const nameLower = (node.name || '').toLowerCase();
+        if (msgLower.includes(nameLower) || nameLower.includes(msgLower.split(' ').pop())) {
+          relevant.push(node);
+        }
+        if (node.children) search(node.children);
+      }
+    }
+
+    search(tree);
+    return relevant.slice(0, 3); // Limit to top 3
+  }
+
+  /**
+   * Main improved planning function
    */
   planTask(userMessage, workspace) {
     const steps = [];
-    const msgLower = (userMessage || '').toLowerCase();
-    const workspacePath = workspace?.path || this.context.workspace?.path || '';
-    const selectedPath = workspace?.selectedPath || this.context.workspace?.selectedPath || '';
+    const intents = this.detectIntents(userMessage);
+    const targetPath = this.resolveTargetPath(workspace);
+    const relevantFiles = this.findRelevantFiles(userMessage, workspace);
 
-    // Resolve target path: prefer selected file, then workspace root
-    const resolvePath = () => selectedPath || workspacePath;
-
-    if (msgLower.includes('read') || msgLower.includes('show') || msgLower.includes('open') || msgLower.includes('look') || msgLower.includes('view')) {
+    // === READ / EXPLAIN / LIST ===
+    if (intents.includes('read') || intents.includes('explain') || intents.includes('list')) {
+      const pathToUse = targetPath || (relevantFiles[0]?.path || '');
       steps.push({
         intent: 'read_file',
-        description: 'Read a file in the workspace',
-        targetPath: resolvePath(),
+        description: intents.includes('explain') 
+          ? 'Read and explain the selected/relevant file' 
+          : 'Read file content from workspace',
+        targetPath: pathToUse,
       });
     }
 
-    if (msgLower.includes('write') || msgLower.includes('create') || msgLower.includes('add') || msgLower.includes('save')) {
+    // === WRITE / CREATE / EDIT ===
+    if (intents.includes('write')) {
+      const suggestedContent = this.generateSuggestedContent(userMessage, targetPath);
       steps.push({
         intent: 'write_file',
-        description: 'Write content to a file',
-        targetPath: resolvePath(),
-        proposedContent: `// Content based on: ${userMessage}`,
+        description: 'Write or edit a file in the workspace',
+        targetPath: targetPath || 'new-file.txt',
+        proposedContent: suggestedContent,
       });
     }
 
-    if (msgLower.includes('delete') || msgLower.includes('remove')) {
+    // === FIX / REFACTOR ===
+    if (intents.includes('fix') || intents.includes('refactor')) {
+      const pathToUse = targetPath || (relevantFiles[0]?.path || '');
+      steps.push({
+        intent: 'read_file',
+        description: intents.includes('fix') ? 'Read file to identify the issue' : 'Read file for refactoring',
+        targetPath: pathToUse,
+      });
+      steps.push({
+        intent: 'write_file',
+        description: intents.includes('fix') ? 'Apply fix to the file' : 'Apply refactoring improvements',
+        targetPath: pathToUse,
+        proposedContent: `// ${intents.includes('fix') ? 'Fixed' : 'Refactored'} version based on: ${userMessage}`,
+      });
+    }
+
+    // === DELETE ===
+    if (intents.includes('delete')) {
       steps.push({
         intent: 'delete',
-        description: 'Delete a file or folder',
-        targetPath: resolvePath(),
+        description: 'Delete file or folder',
+        targetPath: targetPath,
       });
     }
 
-    if (msgLower.includes('rename') || msgLower.includes('move')) {
+    // === RENAME / MOVE ===
+    if (intents.includes('rename')) {
       steps.push({
         intent: 'rename',
-        description: 'Rename a file or folder',
-        targetPath: resolvePath(),
+        description: 'Rename or move file/folder',
+        targetPath: targetPath,
       });
     }
 
-    if (msgLower.includes('search') || msgLower.includes('find')) {
+    // === SEARCH / FIND ===
+    if (intents.includes('search')) {
       steps.push({
         intent: 'search',
-        description: 'Search project files or docs',
+        description: 'Search workspace for files matching request',
         query: userMessage,
       });
     }
 
-    if (msgLower.includes('plan') || msgLower.includes('break') || msgLower.includes('step')) {
+    // === PLAN / BREAK DOWN ===
+    if (intents.includes('plan')) {
       steps.push({
         intent: 'plan_task',
-        description: 'Break the request into subtasks',
+        description: 'Create a structured plan for the request',
         originalRequest: userMessage,
       });
     }
 
-    // Always include a review step
+    // === Always end with review ===
     steps.push({
       intent: 'review',
-      description: 'Review outputs and confirm results',
+      description: 'Review the proposed changes and results',
     });
 
-    this.context.plan = steps;
-    return { steps, message: userMessage, workspace };
+    // Remove duplicate intents
+    const uniqueSteps = [];
+    const seenIntents = new Set();
+    for (const step of steps) {
+      if (!seenIntents.has(step.intent)) {
+        seenIntents.add(step.intent);
+        uniqueSteps.push(step);
+      }
+    }
+
+    this.context.plan = uniqueSteps;
+    return { steps: uniqueSteps, message: userMessage, workspace };
   }
 
   /**
-   * Select a registered tool for a given step.
-   * Scalable: checks agent plugin registry, then falls back to app registry.
+   * Generate better suggested content for write operations
    */
+  generateSuggestedContent(userMessage, targetPath) {
+    const ext = (targetPath || '').split('.').pop()?.toLowerCase() || 'txt';
+    
+    if (ext === 'js' || ext === 'jsx' || ext === 'ts' || ext === 'tsx') {
+      return `// ${userMessage}\n\nexport default function Component() {\n  return (\n    <div>\n      {/* TODO: Implement based on request */}\n    </div>\n  );\n}`;
+    }
+    
+    if (ext === 'html') {
+      return `<!DOCTYPE html>\n<html>\n<head>\n  <title>${userMessage}</title>\n</head>\n<body>\n  <!-- TODO: Content based on: ${userMessage} -->\n</body>\n</html>`;
+    }
+
+    if (ext === 'css') {
+      return `/* Styles for: ${userMessage} */\n\nbody {\n  /* Add your styles here */\n}`;
+    }
+
+    if (ext === 'py') {
+      return `# ${userMessage}\n\ndef main():\n    print("Hello from ForgeAI")\n\nif __name__ == "__main__":\n    main()`;
+    }
+
+    return `// Content based on request: ${userMessage}\n// Target: ${targetPath || 'new file'}`;
+  }
+
+  // ==================== TOOL SELECTION & EXECUTION ====================
+
   selectTool(step) {
     const available = this.pluginRegistry.listTools();
-    // Try direct match by intent
+
     for (const tool of available) {
       if (tool.name === step.intent || tool.name.includes(step.intent)) {
         return tool;
       }
     }
-    // Try partial name match
+
     for (const tool of available) {
       if (step.intent && step.intent.includes(tool.name)) {
         return tool;
       }
     }
-    // Fallback to app-level registry if linked
+
     if (this.toolRegistry) {
       const appTool = this.toolRegistry.get(step.intent);
       if (appTool) {
@@ -174,22 +309,19 @@ export class AgentCore {
         };
       }
     }
+
     return null;
   }
 
-  /**
-   * Propose actions through the approval gate (manual approval path).
-   * Returns proposed action descriptors for the UI to display.
-   */
   proposeActions(plan) {
     if (!this.approvalGate) {
       throw new Error('AgentCore: ApprovalGate is required for manual approval flow');
     }
 
     const proposed = [];
+
     for (const step of plan.steps || []) {
       if (step.intent === 'review' || step.intent === 'plan_task') {
-        // Planning/review steps don't produce external actions
         proposed.push({
           id: `agent-plan-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           type: 'agent_review',
@@ -202,7 +334,6 @@ export class AgentCore {
       const tool = this.selectTool(step);
       if (!tool) continue;
 
-      // For manual approval, create an approval request rather than executing
       const input = this.buildInput(step, tool.name);
       const approvalRequest = this.approvalGate.request(tool.name, input);
 
@@ -219,32 +350,27 @@ export class AgentCore {
     return proposed;
   }
 
-  /**
-   * Build execution input for a selected tool.
-   */
   buildInput(step, toolName) {
     const workspace = this.context.workspace || {};
     const input = {};
+
     if (step.targetPath) input.path = step.targetPath;
     if (step.proposedContent) input.content = step.proposedContent;
     if (step.query) input.query = step.query;
     if (step.originalRequest) input.request = step.originalRequest;
-    // For rename, extract new name from the message if available
+
     if (toolName === 'rename' && step.originalRequest) {
-      const match = step.originalRequest.match(/rename\s+.+\s+to\s+(.+)/i);
+      const match = step.originalRequest.match(/rename\s+.+?\s+to\s+(.+)/i);
       if (match) input.newName = match[1].trim();
     }
-    // For read_file, ensure we have a meaningful path
+
     if (toolName === 'read_file' && !input.path) {
       input.path = workspace.selectedPath || workspace.path || '';
     }
+
     return input;
   }
 
-  /**
-   * Execute an approved action through the app-level tool registry.
-   * Used when the user approves a pending action in the UI.
-   */
   async executeApprovedAction(actionId) {
     if (!this.approvalGate || !this.toolRegistry) {
       throw new Error('AgentCore: ApprovalGate and ToolRegistry required for execution');
@@ -253,15 +379,12 @@ export class AgentCore {
       this.toolRegistry,
       this.approvalGate,
       actionId,
-      true // approved
+      true
     );
     this.context.review = { actionId, result, status: 'completed', timestamp: Date.now() };
     return result;
   }
 
-  /**
-   * Review the completed plan/actions and produce a summary.
-   */
   reviewPlan(plan, results = []) {
     const completedSteps = results.filter((r) => r && r.status === 'completed').length;
     const totalSteps = (plan.steps || []).length;
@@ -273,24 +396,14 @@ export class AgentCore {
     };
   }
 
-  /**
-   * Main entry point: process a user message through planning,
-   * proposal (manual approval), and initial review.
-   */
   async processMessage({ message, workspace }) {
     this.setWorkspace(workspace);
     this.addHistory({ role: 'user', content: message, timestamp: Date.now() });
 
-    // 1. Plan
     const plan = this.planTask(message, workspace);
-
-    // 2. Propose actions (manual approval path - does not auto-execute)
     const proposedActions = this.proposeActions(plan);
-
-    // 3. Build review summary
     const review = this.reviewPlan(plan, []);
 
-    // 4. Return structured result for chat integration
     return {
       agentResponse: `Agent planned ${plan.steps.length} steps. ${proposedActions.length} actions proposed for your approval.`,
       plan,

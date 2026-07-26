@@ -20,7 +20,7 @@ export class LocalServerProvider {
     try {
       const response = await fetch(`${this.baseUrl}/health`, {
         method: 'GET',
-        signal: AbortSignal.timeout(3000),
+        signal: AbortSignal.timeout(2500),
       });
       
       if (response.ok) {
@@ -29,11 +29,17 @@ export class LocalServerProvider {
           available: true,
           kind: this.kind,
           mounted: this.mountedModel,
+          url: this.baseUrl,
         };
       }
       return { connected: false, available: false, kind: this.kind };
-    } catch {
-      return { connected: false, available: false, kind: this.kind };
+    } catch (err) {
+      return { 
+        connected: false, 
+        available: false, 
+        kind: this.kind,
+        error: err.message 
+      };
     }
   }
 

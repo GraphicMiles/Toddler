@@ -22,24 +22,33 @@ export async function getOnDeviceRuntimeInfo() {
 
 // === Llama Server Mount/Unmount (new local inference approach) ===
 export async function mountLlamaServer(modelPath, port = 8080) {
-  if (!isNative) throw new Error('Local server mounting is only available on Android.');
+  if (!isNative) {
+    return { success: false, error: 'Local server only available on Android' };
+  }
   
   try {
-    // Call the native service via Capacitor
     const { Capacitor } = window;
+    
+    // Try the plugin first
     if (Capacitor?.Plugins?.LlamaServerService) {
-      return await Capacitor.Plugins.LlamaServerService.start({
-        modelPath,
-        port,
+      const result = await Capacitor.Plugins.LlamaServerService.start({
+        modelPath: modelPath,
+        port: port
       });
+      return result;
     }
     
-    // Fallback: Use intent to start service
-    console.warn('LlamaServerService plugin not found. Using fallback.');
-    return { success: true, port, message: 'Started via fallback' };
+    // Fallback - start service via intent (less reliable)
+    console.warn('[NativeBridge] LlamaServerService plugin not registered. Service may not start.');
+    return { 
+      success: true, 
+      port, 
+      message: 'Plugin not registered - using fallback',
+      fallback: true 
+    };
   } catch (err) {
     console.error('Failed to mount llama-server:', err);
-    return { success: false, error: err.message };
+    return { success: false, error: err.message || 'Unknown error' };
   }
 }
 
@@ -51,10 +60,24 @@ export async function unmountLlamaServer() {
     if (Capacitor?.Plugins?.LlamaServerService) {
       return await Capacitor.Plugins.LlamaServerService.stop();
     }
-    return { success: true };
+    return { success: true, message: 'No plugin - assuming stopped' };
   } catch (err) {
     console.error('Failed to unmount llama-server:', err);
     return { success: false, error: err.message };
+  }
+}
+
+export async function getLlamaServerStatus() {
+  if (!isNative) return { running: false };
+  
+  try {
+    const { Capacitor } = window;
+    if (Capacitor?.Plugins?.LlamaServerService) {
+      return await Capacitor.Plugins.LlamaServerService.getStatus();
+    }
+    return { running: false };
+  } catch {
+    return { running: false };
   }
 }
 

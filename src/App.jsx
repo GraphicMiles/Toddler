@@ -42,6 +42,9 @@ export default function App() {
   const [smartMode, setSmartMode] = useState(() => {
     try { return localStorage.getItem('forgeai_smart_mode') === 'true'; } catch { return false; }
   });
+
+  // Local server status (for llama-server approach)
+  const [localServerStatus, setLocalServerStatus] = useState({ running: false, port: 8080, model: null });
   
   // Workspace state
   const [workspaceTree, setWorkspaceTree] = useState([]);
@@ -654,6 +657,23 @@ export default function App() {
     if (isNative) await haptics.success();
   }, [pendingActions, agentCore]);
 
+  // Check local server status periodically (when on Android)
+  useEffect(() => {
+    if (!isNative) return;
+
+    const checkStatus = async () => {
+      try {
+        const { getLlamaServerStatus } = await import('./nativeBridge');
+        const status = await getLlamaServerStatus();
+        setLocalServerStatus(status);
+      } catch (e) {}
+    };
+
+    const interval = setInterval(checkStatus, 8000);
+    checkStatus(); // initial check
+    return () => clearInterval(interval);
+  }, [isNative]);
+
   // Auto-execute safe read-only actions (smoother UX)
   const autoExecuteSafeActions = useCallback(async (actions) => {
     const safeActions = actions.filter(a => SAFE_AUTO_APPROVE_TOOLS.includes(a.type));
@@ -842,7 +862,7 @@ export default function App() {
                 onStop={stopModel}
                 isRunning={modelStatus === 'busy'}
                 ollamaConnected={ollamaConnected}
-                runtimeMode={isNative ? 'On-device ready' : 'Ollama active'}
+                runtimeMode={isNative ? (localServerStatus.running ? 'Local Server Active' : 'On-device ready') : 'Ollama active'}
                 deviceCapability={deviceCapability}
                 onOpenZoo={() => setCurrentScreen(SCREENS.ZOO)}
                 onRefreshDevice={refreshDevice}

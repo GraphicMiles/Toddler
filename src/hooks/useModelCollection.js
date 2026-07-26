@@ -136,38 +136,44 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
   const mountModel = useCallback(async (model) => {
     if (!isNative) {
       setActiveModel(model);
-      return { success: true, mounted: false };
+      return { success: true, mounted: false, message: 'Web mode - model set as active' };
     }
 
     try {
       const { mountLlamaServer } = await import('../nativeBridge');
-      const result = await mountLlamaServer(model.localPath || model.file);
+      const result = await mountLlamaServer(model.localPath || model.file || model.downloadedPath);
       
       if (result.success) {
         setActiveModel(model);
-        return { success: true, mounted: true, port: result.port };
+        return { 
+          success: true, 
+          mounted: true, 
+          port: result.port || 8080,
+          message: 'Local inference server started'
+        };
       }
-      return { success: false, error: result.error };
+      return { success: false, error: result.error || 'Failed to start local server' };
     } catch (err) {
       console.error('Failed to mount model:', err);
-      return { success: false, error: err.message };
+      return { success: false, error: err.message || 'Unknown error during mount' };
     }
   }, [setActiveModel]);
 
   const unmountModel = useCallback(async () => {
     if (!isNative) {
       setActiveModel(null);
-      return { success: true };
+      return { success: true, message: 'Model deselected' };
     }
 
     try {
       const { unmountLlamaServer } = await import('../nativeBridge');
-      await unmountLlamaServer();
+      const result = await unmountLlamaServer();
       setActiveModel(null);
-      return { success: true };
+      return { success: true, message: 'Local server stopped' };
     } catch (err) {
       console.error('Failed to unmount model:', err);
-      return { success: false, error: err.message };
+      setActiveModel(null); // Still clear the model even if unmount fails
+      return { success: false, error: err.message || 'Failed to stop server' };
     }
   }, [setActiveModel]);
 

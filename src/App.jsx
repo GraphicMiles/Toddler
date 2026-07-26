@@ -16,6 +16,7 @@ import { ApprovalGate } from './tools/toolApproval.js';
 import { fileSystem } from './nativeBridge.js';
 import { buildFileIndex, searchFiles } from './utils/fileIndex.js';
 import { retrieveRelevantContext, formatContextForPrompt } from './utils/rag.js';
+import { virtualWorkspace } from './utils/virtualWorkspace.js';
 import './styles/index.css';
 
 const defaultConversationTitle = () => `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -90,53 +91,42 @@ export default function App() {
     }
   }, []);
 
-  // Load workspace file tree
+  // Load workspace file tree (supports both Android and Web virtual workspace)
   const loadWorkspace = useCallback(async () => {
-    if (!isNative) return;
     setWorkspaceLoading(true);
     try {
-      // Use proper writable paths for Android
-      // Prefer app's private data directory or Documents (more reliable with Capacitor)
-      let rootPath = '';
-      
-      if (window.Capacitor?.getPlatform?.() === 'android') {
-        // Try common writable locations in order of preference
+      if (isNative) {
+        // Android: Use real filesystem
+        let rootPath = '';
         const candidates = [
-          '/storage/emulated/0/Download/ForgeAI',           // User-visible Downloads
-          '/storage/emulated/0/Documents/ForgeAI',         // Documents folder
-          '/data/data/ai.forgeai.app/files/ForgeAI',       // App private (may need adjustment)
+          '/storage/emulated/0/Download/ForgeAI',
+          '/storage/emulated/0/Documents/ForgeAI',
         ];
         
         for (const candidate of candidates) {
           try {
-            // Create the directory if it doesn't exist
             await fileSystem.createDirectory(candidate).catch(() => {});
             const exists = await fileSystem.exists(candidate);
             if (exists) {
               rootPath = candidate;
               break;
             }
-          } catch (e) {
-            console.warn(`Candidate path failed: ${candidate}`, e);
-          }
+          } catch (e) {}
         }
         
-        // Final fallback - use app's external files dir equivalent
         if (!rootPath) {
-          rootPath = '/storage/emulated/0/Download';
-          try {
-            await fileSystem.createDirectory(rootPath + '/ForgeAI').catch(() => {});
-            rootPath = rootPath + '/ForgeAI';
-          } catch {}
+          rootPath = '/storage/emulated/0/Download/ForgeAI';
+          await fileSystem.createDirectory(rootPath).catch(() => {});
         }
-      }
-      
-      if (rootPath) {
+        
         setWorkspaceRootPath(rootPath);
         const tree = await fileSystem.loadTree(rootPath);
         setWorkspaceTree(tree);
       } else {
-        console.warn('No suitable workspace root path found on this device');
+        // Web/Desktop: Use virtual workspace
+        setWorkspaceRootPath('virtual://workspace');
+        const tree = virtualWorkspace.getTree();
+        setWorkspaceTree(tree);
       }
     } catch (err) {
       console.warn('Failed to load workspace:', err);

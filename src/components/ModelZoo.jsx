@@ -140,12 +140,11 @@ export default function ModelZoo({
   const activeDownloadId = Object.keys(downloads).find(id =>
     downloads[id]?.status === 'downloading' || downloads[id]?.status === 'paused'
   ) || null;
-  const progress = activeDownloadId ? (downloads[activeDownloadId]?.progress ?? 0) : 0;
-  const paused = activeDownloadId ? downloads[activeDownloadId]?.status === 'paused' : false;
-  // Show error for any failed download that isn't currently active
-  const failedEntry = Object.entries(downloads).find(([, v]) => v?.status === 'failed');
-  const error = failedEntry ? (failedEntry[1]?.error || 'Download failed') : null;
-  const failedModelId = failedEntry ? failedEntry[0] : null;
+  const activeProgress = activeDownloadId ? (downloads[activeDownloadId]?.progress ?? 0) : 0;
+  const activePaused = activeDownloadId ? downloads[activeDownloadId]?.status === 'paused' : false;
+
+  // Get per-model download info
+  const getModelDownload = (id) => downloads[id] || null;
 
   const ram = ramGigabytesForCompatibility(deviceCapability.ramBytes, deviceCapability.ram || 4);
   const usedStorageBytes = downloadedModels.reduce((sum, m) => sum + getModelSizeBytes(m), 0);
@@ -207,7 +206,12 @@ export default function ModelZoo({
     const TaskIcon = TASK_ICONS[model.task];
     const downloaded = isDownloaded(model.id);
     const compatible = isCompatible(model);
-    const isActive = activeDownloadId === model.id;
+    const dl = getModelDownload(model.id);
+    const isDownloading = dl?.status === 'downloading';
+    const isPaused = dl?.status === 'paused';
+    const isActive = isDownloading || isPaused;
+    const hasError = dl?.status === 'failed' || dl?.status === 'cancelled';
+    const modelProgress = dl?.progress ?? 0;
     const otherActive = activeDownloadId && activeDownloadId !== model.id;
 
     return (
@@ -264,12 +268,12 @@ export default function ModelZoo({
             <div className="download-progress-wrap">
               <div className="download-progress">
                 <div className="progress-bar">
-                  <div className="progress-fill" style={{ width: `${progress}%` }} />
+                  <div className="progress-fill" style={{ width: `${modelProgress}%` }} />
                 </div>
-                <span className="progress-text mono">{Math.round(progress)}%</span>
+                <span className="progress-text mono">{Math.round(modelProgress)}%</span>
               </div>
               <div className="download-actions">
-                {paused ? (
+                {isPaused ? (
                   <button className="btn-pause-download resume" onClick={() => handleResume(model)}>
                     <Play size={14} /> Resume
                   </button>
@@ -283,9 +287,9 @@ export default function ModelZoo({
                 </button>
               </div>
             </div>
-          ) : error && failedModelId === model.id ? (
+          ) : hasError ? (
             <div className="download-error">
-              <span className="error-text">{error}</span>
+              <span className="error-text">{dl?.error || 'Download cancelled'}</span>
               <button className="btn-retry" onClick={() => handleRetry(model)}>
                 Retry
               </button>
@@ -302,7 +306,7 @@ export default function ModelZoo({
                 : !isNative && !ollamaConnected
                   ? 'Ollama offline'
                   : otherActive
-                    ? 'Download in progress...'
+                    ? 'Busy'
                     : 'Download'}
             </button>
           )}

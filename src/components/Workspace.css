@@ -295,6 +295,30 @@
   white-space: nowrap;
 }
 
+.ws-viewer-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ws-viewer-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--accent-border);
+  border-radius: 7px;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ws-viewer-pick:hover {
+  background: var(--accent-dim);
+}
+
 .ws-viewer-save {
   display: flex;
   align-items: center;

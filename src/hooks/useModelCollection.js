@@ -27,7 +27,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     });
   }, []);
 
-  const downloadModel = useCallback(async (model, onProgress) => {
+  const downloadModel = useCallback(async (model, externalOnProgress) => {
     if (models.some(m => m.id === model.id)) return { success: false, error: 'Model already downloaded' };
 
     const name = model.ollamaName || model.id;
@@ -35,18 +35,21 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     const controller = new AbortController();
     controllers.current.set(model.id, controller);
 
+    // Internal progress handler that always updates downloads state
+    const trackProgress = (p) => {
+      setDownloads(d => ({ ...d, [model.id]: { ...d[model.id], ...p } }));
+      externalOnProgress?.(p);
+    };
+
     try {
       let result;
       if (isNative && model.downloadUrl) {
         // Android native download via Capacitor plugin
-        result = await downloadOnDeviceModel(model.downloadUrl, model.file || `${model.id}.gguf`, onProgress);
-        onProgress?.({ status: 'completed', progress: 100, completed: result.size || 0, total: result.size || 0 });
+        result = await downloadOnDeviceModel(model.downloadUrl, model.file || `${model.id}.gguf`, trackProgress);
+        trackProgress({ status: 'completed', progress: 100, completed: result.size || 0, total: result.size || 0 });
       } else {
         // Ollama pull (web/desktop)
-        result = await pullOllamaModel(name, endpoint, (p) => {
-          setDownloads(d => ({ ...d, [model.id]: p }));
-          onProgress?.(p);
-        }, controller.signal);
+        result = await pullOllamaModel(name, endpoint, trackProgress, controller.signal);
       }
 
       // Check if the result indicates a pause
@@ -69,31 +72,42 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
       setDownloads(d => { const n = { ...d }; delete n[model.id]; return n; });
       return { success: true, model: installed };
     } catch (error) {
+      // Guard: if a newer download replaced this one, don't touch state
+      if (controllers.current.get(model.id) !== controller) {
+        return { success: false, error: error.message };
+      }
       controllers.current.delete(model.id);
       const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
-      setDownloads(d => ({ ...d, [model.id]: { status: isAbort ? 'cancelled' : 'failed', error: error.message } }));
+      setDownloads(d => {
+        if (!d[model.id]) return d; // already cleared by cancel
+        return { ...d, [model.id]: { status: isAbort ? 'cancelled' : 'failed', error: error.message } };
+      });
       return { success: false, error: error.message };
     }
   }, [models, saveModels, endpoint]);
 
   const pauseDownload = useCallback(async (model) => {
     if (isNative) {
-      // Tell native plugin to pause
       return pauseOnDeviceDownload(model.file || `${model.id}.gguf`);
     }
-    // On web/Ollama: abort the fetch (download will need to restart, Ollama pull doesn't support resume)
     controllers.current.get(model.id)?.abort();
     setDownloads(d => ({ ...d, [model.id]: { ...d[model.id], status: 'paused' } }));
     return { paused: true };
   }, []);
 
   const cancelDownload = useCallback((modelId) => {
+    // Abort the network request
     controllers.current.get(modelId)?.abort();
     controllers.current.delete(modelId);
+    // Remove from downloads entirely so it can be retried immediately
     setDownloads(d => { const n = { ...d }; delete n[modelId]; return n; });
   }, []);
 
-  const retryDownload = useCallback((model, onProgress) => downloadModel(model, onProgress), [downloadModel]);
+  const retryDownload = useCallback((model, onProgress) => {
+    // Clear any stale entry before retrying
+    setDownloads(d => { const n = { ...d }; delete n[model.id]; return n; });
+    return downloadModel(model, onProgress);
+  }, [downloadModel]);
 
   const deleteModel = useCallback(async (modelId) => {
     const model = models.find(m => m.id === modelId);

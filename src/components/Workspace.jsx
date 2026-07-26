@@ -74,10 +74,13 @@ function FileNode({ node, depth = 0, selectedPath, onSelect, onContextMenu }) {
 }
 
 /* ── Context menu for file/folder actions ── */
-function ContextMenu({ x, y, node, onClose, onRename, onDelete, onNewFile, onNewFolder }) {
+function ContextMenu({ x, y, node, onClose, onPick, onRename, onDelete, onNewFile, onNewFolder }) {
   const isFolder = node.type === 'folder';
   return (
     <div className="ws-context-menu" style={{ left: x, top: y }} onClick={(e) => e.stopPropagation()}>
+      <button onClick={() => { onPick(node); onClose(); }}>
+        <FileText size={13} /> Select
+      </button>
       {isFolder && (
         <>
           <button onClick={() => { onNewFile(node.path); onClose(); }}>
@@ -99,7 +102,7 @@ function ContextMenu({ x, y, node, onClose, onRename, onDelete, onNewFile, onNew
 }
 
 /* ── File viewer/editor panel ── */
-function FileViewer({ path, content, onClose, onSave, readOnly }) {
+function FileViewer({ path, content, onClose, onSave, onPick, readOnly }) {
   const [editContent, setEditContent] = useState(content);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -128,11 +131,18 @@ function FileViewer({ path, content, onClose, onSave, readOnly }) {
         <span className="ws-viewer-name mono" style={{ color: fileInfo?.color }}>
           {fileInfo?.label} {fileName}
         </span>
-        {!readOnly && (
-          <button className="ws-viewer-save" onClick={handleSave} disabled={!dirty || saving}>
-            <Save size={14} /> {saving ? 'Saving...' : 'Save'}
-          </button>
-        )}
+        <div className="ws-viewer-actions">
+          {onPick && (
+            <button className="ws-viewer-pick" onClick={() => onPick(path)}>
+              <FileText size={14} /> Select
+            </button>
+          )}
+          {!readOnly && (
+            <button className="ws-viewer-save" onClick={handleSave} disabled={!dirty || saving}>
+              <Save size={14} /> {saving ? 'Saving...' : 'Save'}
+            </button>
+          )}
+        </div>
       </div>
       <textarea
         className="ws-viewer-content mono"
@@ -150,6 +160,7 @@ export default function Workspace({
   workspace = {},
   workspaceLoading = false,
   onFileSelect,
+  onFilePick,
   onFileRead,
   onFileSave,
   onFileCreate,
@@ -199,6 +210,10 @@ export default function Workspace({
       }
     }
   }, [onFileSelect, onFileRead]);
+
+  const handlePick = useCallback((node) => {
+    onFilePick?.(node.path, node);
+  }, [onFilePick]);
 
   const handleContextMenu = useCallback((e, node) => {
     setContextMenu({ x: e.clientX, y: e.clientY, node });
@@ -268,6 +283,7 @@ export default function Workspace({
         content={viewerFile.content}
         onClose={() => setViewerFile(null)}
         onSave={handleSave}
+        onPick={(path) => handlePick({ path, type: 'file', name: path.split('/').pop() })}
         readOnly={false}
       />
     );
@@ -370,6 +386,7 @@ export default function Workspace({
           y={contextMenu.y}
           node={contextMenu.node}
           onClose={() => setContextMenu(null)}
+          onPick={handlePick}
           onRename={handleRename}
           onDelete={handleDelete}
           onNewFile={handleNewFile}

@@ -123,6 +123,16 @@ export default function App() {
     addSystemMessage(`Deleted: ${path.split('/').pop()}`, 'warn');
   }, [loadWorkspace]);
 
+  const handleFilePick = useCallback((path, node) => {
+    const name = path.split('/').pop();
+    const type = node?.type === 'folder' ? 'folder' : 'file';
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(path).catch(() => {});
+    }
+    addSystemMessage(`Selected ${type}: ${name} (path copied)`, 'info');
+    setCurrentScreen(SCREENS.CHAT);
+  }, []);
+
   // Token windowing: trim conversation history to fit within context window
   const trimHistory = useCallback((msgs, maxTokens = 2500) => {
     const userAssistant = msgs.filter(m => m.role === 'user' || m.role === 'assistant');
@@ -554,6 +564,7 @@ export default function App() {
               workspace={{ name: 'Device Storage', path: workspaceRootPath, tree: workspaceTree }}
               workspaceLoading={workspaceLoading}
               onFileSelect={(path) => addSystemMessage(`Selected: ${path}`, 'info')}
+              onFilePick={handleFilePick}
               onFileRead={handleFileRead}
               onFileSave={handleFileSave}
               onFileCreate={handleFileCreate}

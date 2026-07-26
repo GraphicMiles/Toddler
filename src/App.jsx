@@ -108,16 +108,6 @@ export default function App() {
         return { command, output: `Executed: ${command}`, type: 'terminal', status: 'completed' };
       },
     });
-    // Search workspace files by query
-    registry.register({
-      name: 'search',
-      description: 'Search workspace files by name, extension, or folder',
-      permission: 'read',
-      execute: async ({ query, workspaceTree }) => {
-        const results = searchFiles(query || '', workspaceTree || []);
-        return { query, results, count: results.length, type: 'search' };
-      },
-    });
     // Index files by extension/folder for retrieval
     registry.register({
       name: 'index',
@@ -127,16 +117,6 @@ export default function App() {
         const index = buildFileIndex(workspaceTree || []);
         const result = filterType ? index.byExtension[filterType] || [] : index;
         return { index: result, type: 'index', count: Array.isArray(result) ? result.length : (result.count || 0) };
-      },
-    });
-    // Terminal execution (stub for future native integration)
-    registry.register({
-      name: 'terminal',
-      description: 'Execute a terminal command (approval required)',
-      permission: 'dangerous',
-      execute: async ({ command }) => {
-        if (typeof command !== 'string' || !command.trim()) throw new Error('A command is required.');
-        return { command, output: `Executed: ${command}`, type: 'terminal', status: 'completed' };
       },
     });
     return registry;

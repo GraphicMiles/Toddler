@@ -13,6 +13,8 @@ import { AgentCore } from './agent/core.js';
 import { AgentPluginRegistry, createAgentPlugin, createAgentTool } from './agent/pluginContract.js';
 import { ToolRegistry, createReadOnlyRegistry } from './tools/toolRegistry.js';
 import { ApprovalGate } from './tools/toolApproval.js';
+import { fileSystem } from './nativeBridge.js';
+import { buildFileIndex, searchFiles } from './utils/fileIndex.js';
 import './styles/index.css';
 
 const defaultConversationTitle = () => `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -64,13 +66,77 @@ export default function App() {
   // Agent core setup with plugin contract for scalable integrations
   const agentToolRegistry = useMemo(() => {
     const registry = new ToolRegistry();
+    // Real read_file using native bridge filesystem
     registry.register({
       name: 'read_file',
-      description: 'Read a user-selected workspace file without changing it.',
+      description: 'Read a user-selected workspace file',
       permission: 'read',
       execute: async ({ path }) => {
         if (typeof path !== 'string' || !path.trim()) throw new Error('A file path is required.');
-        return { path, content: `file contents for: ${path}` };
+        const content = await fileSystem.readFile(path);
+        return { path, content, type: 'read' };
+      },
+    });
+    // Real write_file using native bridge filesystem
+    registry.register({
+      name: 'write_file',
+      description: 'Write or edit a workspace file (requires approval)',
+      permission: 'write',
+      execute: async ({ path, content }) => {
+        if (typeof path !== 'string' || !path.trim()) throw new Error('A file path is required.');
+        await fileSystem.writeFile(path, content || '');
+        return { path, content: content || '', type: 'write' };
+      },
+    });
+    // Search workspace files by query
+    registry.register({
+      name: 'search',
+      description: 'Search workspace files and folders by name or extension',
+      permission: 'read',
+      execute: async ({ query, workspaceTree }) => {
+        const results = searchFiles(query || '', workspaceTree || []);
+        return { query, results, count: results.length, type: 'search' };
+      },
+    });
+    // Terminal command execution (stub for future native integration)
+    registry.register({
+      name: 'terminal',
+      description: 'Execute a simple terminal or shell command (requires approval)',
+      permission: 'dangerous',
+      execute: async ({ command }) => {
+        if (typeof command !== 'string' || !command.trim()) throw new Error('A command is required.');
+        return { command, output: `Executed: ${command}`, type: 'terminal', status: 'completed' };
+      },
+    });
+    // Search workspace files by query
+    registry.register({
+      name: 'search',
+      description: 'Search workspace files by name, extension, or folder',
+      permission: 'read',
+      execute: async ({ query, workspaceTree }) => {
+        const results = searchFiles(query || '', workspaceTree || []);
+        return { query, results, count: results.length, type: 'search' };
+      },
+    });
+    // Index files by extension/folder for retrieval
+    registry.register({
+      name: 'index',
+      description: 'Build or retrieve workspace file index',
+      permission: 'read',
+      execute: async ({ workspaceTree, filterType }) => {
+        const index = buildFileIndex(workspaceTree || []);
+        const result = filterType ? index.byExtension[filterType] || [] : index;
+        return { index: result, type: 'index', count: Array.isArray(result) ? result.length : (result.count || 0) };
+      },
+    });
+    // Terminal execution (stub for future native integration)
+    registry.register({
+      name: 'terminal',
+      description: 'Execute a terminal command (approval required)',
+      permission: 'dangerous',
+      execute: async ({ command }) => {
+        if (typeof command !== 'string' || !command.trim()) throw new Error('A command is required.');
+        return { command, output: `Executed: ${command}`, type: 'terminal', status: 'completed' };
       },
     });
     return registry;
@@ -91,11 +157,50 @@ export default function App() {
       registerTools: ({ register }) => {
         register({
           name: 'read_file',
-          description: 'Read a workspace file',
+          description: 'Read a workspace file using native filesystem',
           permission: 'read',
           execute: async ({ path }) => {
             if (typeof path !== 'string' || !path.trim()) throw new Error('A file path is required.');
-            return { path, content: `file contents for: ${path}` };
+            const content = await fileSystem.readFile(path);
+            return { path, content, type: 'read' };
+          },
+        });
+        register({
+          name: 'write_file',
+          description: 'Write or edit a workspace file (approval required)',
+          permission: 'write',
+          execute: async ({ path, content }) => {
+            if (typeof path !== 'string' || !path.trim()) throw new Error('A file path is required.');
+            await fileSystem.writeFile(path, content || '');
+            return { path, content: content || '', type: 'write' };
+          },
+        });
+        register({
+          name: 'search',
+          description: 'Search workspace files by query and extension',
+          permission: 'read',
+          execute: async ({ query, workspaceTree }) => {
+            const results = searchFiles(query || '', workspaceTree || []);
+            return { query, results, count: results.length, type: 'search' };
+          },
+        });
+        register({
+          name: 'terminal',
+          description: 'Execute a terminal or shell command (approval required)',
+          permission: 'dangerous',
+          execute: async ({ command }) => {
+            if (typeof command !== 'string' || !command.trim()) throw new Error('A command is required.');
+            return { command, output: `Executed: ${command}`, type: 'terminal', status: 'completed' };
+          },
+        });
+        register({
+          name: 'index',
+          description: 'Build or retrieve a workspace file index by extension or folder',
+          permission: 'read',
+          execute: async ({ workspaceTree, filterType }) => {
+            const index = buildFileIndex(workspaceTree || []);
+            const result = filterType ? index.byExtension[filterType] || [] : index;
+            return { index: result, type: 'index', count: Array.isArray(result) ? result.length : result.count || 0 };
           },
         });
       },

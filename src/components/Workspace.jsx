@@ -1,41 +1,25 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, FolderOpen, ChevronRight, X } from 'lucide-react';
+import { Search, FolderOpen, ChevronRight, X, FileText, Database } from 'lucide-react';
+import { getFileIconInfo, buildFileIndex, searchFiles, getFilesByExtension } from '../utils/fileIndex';
 import './Workspace.css';
 
-const FILE_ICONS = {
-  js: { color: '#f7df1e', label: 'JS' },
-  jsx: { color: '#61dafb', label: 'JSX' },
-  ts: { color: '#3178c6', label: 'TS' },
-  tsx: { color: '#3178c6', label: 'TSX' },
-  py: { color: '#3776ab', label: 'PY' },
-  css: { color: '#264de4', label: 'CSS' },
-  html: { color: '#e34c26', label: 'HTML' },
-  json: { color: '#f7df1e', label: 'JSON' },
-  md: { color: '#083fa1', label: 'MD' },
-  gitignore: { color: '#f05032', label: 'GIT' },
-  env: { color: '#ecd53f', label: 'ENV' },
-};
-
-function getFileInfo(filename) {
-  const ext = filename.split('.').pop()?.toLowerCase();
-  return FILE_ICONS[ext] || { color: 'var(--faint)', label: ext?.toUpperCase() || '?' };
-}
-
-function FileNode({ node, depth = 0, onSelect, selectedPath }) {
+function FileNode({ node, depth = 0, onSelect, onFolderSelect, selectedPath, selectedFolder }) {
   const [isOpen, setIsOpen] = useState(node.open || depth === 0);
   const isFolder = node.type === 'folder';
-  const isSelected = selectedPath === node.path;
+  const isFile = node.type === 'file';
+  const isSelected = selectedPath === node.path || selectedFolder === node.path;
 
   const handleClick = () => {
     if (isFolder) {
       setIsOpen(!isOpen);
-    } else {
+      onFolderSelect?.(node.path, node.name);
+    } else if (isFile) {
       onSelect?.(node.path);
     }
   };
 
-  const fileInfo = !isFolder ? getFileInfo(node.name) : null;
+  const fileInfo = isFile ? getFileIconInfo(node.name) : null;
 
   return (
     <div className="file-node">
@@ -45,6 +29,7 @@ function FileNode({ node, depth = 0, onSelect, selectedPath }) {
         style={{ paddingLeft: `${14 + depth * 18}px` }}
         whileHover={{ x: 2 }}
         transition={{ duration: 0.1 }}
+        aria-label={isFolder ? `Folder: ${node.name}` : `File: ${node.name}`}
       >
         {isFolder ? (
           <motion.span
@@ -61,12 +46,21 @@ function FileNode({ node, depth = 0, onSelect, selectedPath }) {
         {isFolder ? (
           <FolderOpen size={15} className="file-icon folder-icon" />
         ) : (
-          <span className="file-icon file-badge mono" style={{ color: fileInfo.color }}>
-            {fileInfo.label}
+          <span
+            className="file-icon file-badge mono"
+            style={{ color: fileInfo?.color || 'var(--faint)' }}
+            title={fileInfo?.logo || fileInfo?.label || '?'}
+          >
+            {fileInfo?.label || '?' }
           </span>
         )}
 
         <span className="file-name">{node.name}</span>
+        {isFile && fileInfo?.logo && (
+          <span className="file-logo" aria-label={fileInfo.logo} title={fileInfo.logo}>
+            {fileInfo.logo}
+          </span>
+        )}
       </motion.div>
 
       <AnimatePresence>
@@ -84,7 +78,9 @@ function FileNode({ node, depth = 0, onSelect, selectedPath }) {
                 node={child}
                 depth={depth + 1}
                 onSelect={onSelect}
+                onFolderSelect={onFolderSelect}
                 selectedPath={selectedPath}
+                selectedFolder={selectedFolder}
               />
             ))}
           </motion.div>
@@ -94,30 +90,53 @@ function FileNode({ node, depth = 0, onSelect, selectedPath }) {
   );
 }
 
-export default function Workspace({ workspace = {}, onFileSelect }) {
+export default function Workspace({ workspace = {}, onFileSelect, onFolderSelect }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPath, setSelectedPath] = useState(null);
+  const [selectedFolder, setSelectedFolder] = useState(null);
+
+  // Build index for search and retrieval
+  const fileIndex = useMemo(() => buildFileIndex(workspace.tree || []), [workspace.tree]);
 
   const filteredTree = useMemo(() => {
     if (!searchQuery.trim()) return workspace.tree || [];
-    const query = searchQuery.toLowerCase();
-    const filterNode = (node) => {
-      if (node.type === 'file') {
-        return node.name.toLowerCase().includes(query) ? node : null;
-      }
-      const filteredChildren = (node.children || []).map(filterNode).filter(Boolean);
-      if (filteredChildren.length > 0 || node.name.toLowerCase().includes(query)) {
-        return { ...node, children: filteredChildren, open: true };
-      }
-      return null;
+    const results = searchFiles(searchQuery, workspace.tree || []);
+    // Convert results back to tree structure for display
+    const paths = new Set(results.map(r => r.path));
+    const rebuild = (nodes) => {
+      return nodes.map(node => {
+        if (paths.has(node.path)) return node;
+        if (node.children) {
+          const rebuilt = rebuild(node.children);
+          if (rebuilt.length > 0) return { ...node, children: rebuilt, open: true };
+        }
+        return null;
+      }).filter(Boolean);
     };
-    return (workspace.tree || []).map(filterNode).filter(Boolean);
+    return rebuild(workspace.tree || []);
   }, [workspace.tree, searchQuery]);
 
   const handleFileSelect = (path) => {
     setSelectedPath(path);
+    setSelectedFolder(null);
     onFileSelect?.(path);
   };
+
+  const handleFolderSelect = (path, name) => {
+    setSelectedFolder(path);
+    setSelectedPath(path);
+    onFolderSelect?.(path, name);
+  };
+
+  const extensionGroups = useMemo(() => {
+    const groups = {};
+    for (const file of fileIndex.allFiles) {
+      const ext = file.extension;
+      if (!groups[ext]) groups[ext] = [];
+      groups[ext].push(file);
+    }
+    return groups;
+  }, [fileIndex]);
 
   return (
     <div className="screen-scroll workspace">
@@ -131,11 +150,11 @@ export default function Workspace({ workspace = {}, onFileSelect }) {
           <Search size={14} />
           <input
             type="text"
-            placeholder="Filter files"
+            placeholder="Filter files or folders..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="mono"
-            aria-label="Filter files"
+            aria-label="Filter workspace files"
           />
           {searchQuery && (
             <button className="ws-clear" onClick={() => setSearchQuery('')} aria-label="Clear">
@@ -144,7 +163,25 @@ export default function Workspace({ workspace = {}, onFileSelect }) {
           )}
         </div>
 
-        {workspace.path && <div className="ws-path mono">{workspace.path}</div>}
+        {workspace.path && <div className="ws-path mono">Path: {workspace.path}</div>}
+
+        {/* Index summary by extension */}
+        <div className="ws-index-summary">
+          <div className="index-header">
+            <Database size={14} />
+            <span>Indexed: {fileIndex.count} files · {fileIndex.folders.length} folders · {Object.keys(extensionGroups).length} types</span>
+          </div>
+          <div className="index-tags">
+            {Object.entries(extensionGroups).map(([ext, files]) => {
+              const info = getFileIconInfo(`test.${ext}`);
+              return (
+                <span key={ext} className="index-tag" title={`${files.length} ${ext.toUpperCase()} files`} style={{ color: info.color }}>
+                  {info.label || ext.toUpperCase()}
+                </span>
+              );
+            }).slice(0, 12)}
+          </div>
+        </div>
 
         <div className="ws-tree">
           {filteredTree.length > 0 ? (
@@ -154,11 +191,13 @@ export default function Workspace({ workspace = {}, onFileSelect }) {
                 node={node}
                 depth={0}
                 onSelect={handleFileSelect}
+                onFolderSelect={handleFolderSelect}
                 selectedPath={selectedPath}
+                selectedFolder={selectedFolder}
               />
             ))
           ) : (
-            <div className="ws-empty">No files match.</div>
+            <div className="ws-empty">No files or folders match.</div>
           )}
         </div>
       </div>

@@ -128,6 +128,8 @@ export default function ModelZoo({
   onCancel,
   onUseModel,
   deviceCapability = { ram: 4 },
+  ollamaConnected = false,
+  isNative = false,
   onClose,
 }) {
   const [filter, setFilter] = useState('all');
@@ -311,10 +313,16 @@ export default function ModelZoo({
             <button
               className="btn-download"
               onClick={() => handleStart(model)}
-              disabled={!compatible || otherActive}
+              disabled={!compatible || otherActive || (!isNative && !ollamaConnected)}
             >
               <Download size={16} />
-              {!compatible ? 'Not compatible' : otherActive ? 'Download in progress…' : 'Download'}
+              {!compatible
+                ? 'Not compatible'
+                : !isNative && !ollamaConnected
+                  ? 'Ollama offline'
+                  : otherActive
+                    ? 'Download in progress…'
+                    : 'Download'}
             </button>
           )}
         </div>
@@ -339,6 +347,20 @@ export default function ModelZoo({
 
       {/* Scrollable body */}
       <div className="zoo-body">
+        {/* Setup guidance when runtime is offline on web */}
+        {!isNative && !ollamaConnected && (
+          <div className="zoo-setup-banner">
+            <h3>Ollama is not connected</h3>
+            <p>Models are downloaded and run through Ollama. Install and start it to continue:</p>
+            <ol>
+              <li>Install: <code>curl -fsSL https://ollama.com/install.sh | sh</code></li>
+              <li>Start: <code>ollama serve</code></li>
+              <li>Come back here and download a model</li>
+            </ol>
+            <p className="setup-note">On Android, no setup is needed — models download directly.</p>
+          </div>
+        )}
+
         {/* Device info toggle */}
         <div className="zoo-section">
           <details>

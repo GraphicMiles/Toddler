@@ -228,6 +228,8 @@ export default function App() {
               onApproveAction={handleApproveAction}
               onDiscardAction={handleDiscardAction}
               noModelSelected={!activeModel}
+              ollamaConnected={ollamaConnected}
+              isNative={isNative}
               conversations={conversations}
               activeConversationId={activeConversationId}
               onConversationChange={switchConversation}
@@ -258,6 +260,8 @@ export default function App() {
               onCancel={(model) => cancelDownload(model.id)}
               onUseModel={handleSelectModel}
               deviceCapability={deviceCapability}
+              ollamaConnected={ollamaConnected}
+              isNative={isNative}
               onClose={() => setCurrentScreen(SCREENS.COLLECTION)}
             />
           </motion.div>

@@ -18,6 +18,8 @@ export default function ChatContainer({
   onDiscardAction,
   pendingActions = [],
   noModelSelected = false,
+  ollamaConnected = false,
+  isNative = false,
   conversations = [],
   activeConversationId,
   onConversationChange,
@@ -91,18 +93,33 @@ export default function ChatContainer({
                 <div className="no-model-icon">
                   <Database size={32} />
                 </div>
-                <h2 className="display">Select a model to start</h2>
-                <p>Download a model from the Model Zoo, then select it from your Collection to begin chatting.</p>
-                <div className="no-model-actions">
-                  <button className="btn-primary" onClick={onOpenZoo}>
-                    <Boxes size={14} />
-                    Browse Model Zoo
-                  </button>
-                  <button className="btn-secondary" onClick={onOpenCollection}>
-                    <Database size={14} />
-                    My Collection
-                  </button>
-                </div>
+                {!isNative && !ollamaConnected ? (
+                  <>
+                    <h2 className="display">Setup required</h2>
+                    <p>This app uses Ollama to download and run models. Install and start Ollama, then download a model to begin.</p>
+                    <div className="no-model-actions">
+                      <button className="btn-primary" onClick={onOpenZoo}>
+                        <Boxes size={14} />
+                        Model Zoo (setup guide)
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="display">Select a model to start</h2>
+                    <p>Download a model from the Model Zoo, then select it from your Collection to begin chatting.</p>
+                    <div className="no-model-actions">
+                      <button className="btn-primary" onClick={onOpenZoo}>
+                        <Boxes size={14} />
+                        Browse Model Zoo
+                      </button>
+                      <button className="btn-secondary" onClick={onOpenCollection}>
+                        <Database size={14} />
+                        My Collection
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
               <EmptyState onSuggestionClick={handleSuggestionClick} />

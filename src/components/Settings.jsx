@@ -9,6 +9,18 @@ export default function Settings({ endpoint, onEndpointChange, onClearChat, onRe
     <div className="section-head"><h2>User & Settings</h2><p>Runtime, privacy, and device diagnostics</p></div>
     <section className="settings-card"><h3><Wifi size={16}/> Ollama runtime</h3><label className="setting-label" htmlFor="ollama-endpoint">Endpoint</label><div className="setting-row"><input id="ollama-endpoint" value={value} onChange={e=>setValue(e.target.value)} placeholder="http://localhost:11434"/><button onClick={save}><RefreshCw size={14}/> Save</button></div><p className="setting-help">Use a reachable Ollama server. Browser requests may require CORS configuration.</p></section>
     <section className="settings-card"><h3>Local data</h3><p className="setting-help">Chats and model metadata stay locally. Android offline model files are stored in app-private storage; Ollama is optional on web.</p><div className="setting-row"><button onClick={onClearChat}>Clear chat history</button><button className="danger" onClick={onReset}><Trash2 size={14}/> Reset app data</button></div></section>
-    <section className="settings-card"><h3>Diagnostics</h3><p className="setting-help">Platform: {typeof window !== 'undefined' && window.Capacitor?.getPlatform?.() || 'web'} · Storage scope: browser quota on web</p></section>
+    <section className="settings-card">
+      <h3>Diagnostics</h3>
+      <p className="setting-help">Platform: {typeof window !== 'undefined' && window.Capacitor?.getPlatform?.() || 'web'} · Storage scope: browser quota on web</p>
+      
+      <div style={{ marginTop: '12px', padding: '10px', background: '#1f2937', borderRadius: '6px' }}>
+        <div style={{ fontSize: '13px', color: '#f59e0b' }}>
+          ⚠️ On-device inference (local models without Ollama) is currently in development.
+        </div>
+        <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>
+          The app currently uses Ollama for best reliability. True offline inference via MLC-LLM or llama-server is planned.
+        </div>
+      </div>
+    </section>
   </div></div>;
 }

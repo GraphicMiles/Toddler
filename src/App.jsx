@@ -18,6 +18,7 @@ import { buildFileIndex, searchFiles } from './utils/fileIndex.js';
 import { retrieveRelevantContext, formatContextForPrompt } from './utils/rag.js';
 import { virtualWorkspace } from './utils/virtualWorkspace.js';
 import { createLocalServerProvider } from './providers/localServerProvider.js';
+import { createMLCProvider } from './providers/mlcProvider.js';
 import './styles/index.css';
 
 const defaultConversationTitle = () => `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -225,10 +226,16 @@ export default function App() {
 
   const { deviceCapability, refresh: refreshDevice } = useDeviceCapability();
   const provider = useMemo(() => {
+    // Priority order:
+    // 1. Local llama-server (if mounted) → highest priority on Android
+    // 2. MLC-LLM (on-device) → when available
+    // 3. Ollama → reliable fallback (web + Android)
+
     if (isNative) {
-      // On Android, prefer local server when a model is mounted
+      // On Android: Try local server first, then MLC, then Ollama
       return createLocalServerProvider(8080);
     }
+    
     return createModelProvider({ mode: 'ollama', endpoint });
   }, [endpoint, isNative]);
 

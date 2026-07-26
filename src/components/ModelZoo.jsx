@@ -279,7 +279,7 @@ export default function ModelZoo({
                       }
                     }}
                   >
-                    Mount
+                    Mount (Local)
                   </button>
                 )}
               </div>

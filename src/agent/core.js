@@ -25,6 +25,7 @@ export class AgentCore {
       plan: [],
       review: null,
       activeModel: null,
+      previousActions: [], // Track what was done recently
     };
   }
 
@@ -53,6 +54,14 @@ export class AgentCore {
     this.context.history.push(turn);
     if (this.context.history.length > 20) {
       this.context.history = this.context.history.slice(-20);
+    }
+  }
+
+  // Track completed actions for better follow-up suggestions
+  addCompletedAction(action) {
+    this.context.previousActions.push(action);
+    if (this.context.previousActions.length > 8) {
+      this.context.previousActions.shift();
     }
   }
 
@@ -242,6 +251,15 @@ export class AgentCore {
       description: 'Review the proposed changes and results',
     });
 
+    // Smart follow-up suggestions based on recent actions
+    if (lastAction && lastAction.type === 'write_file' && intents.includes('read')) {
+      steps.push({
+        intent: 'read_file',
+        description: 'Verify the changes made',
+        targetPath: lastAction.path,
+      });
+    }
+
     // Remove duplicate intents
     const uniqueSteps = [];
     const seenIntents = new Set();
@@ -382,6 +400,15 @@ export class AgentCore {
       true
     );
     this.context.review = { actionId, result, status: 'completed', timestamp: Date.now() };
+    
+    // Record the action for future planning intelligence
+    this.addCompletedAction({ 
+      id: actionId, 
+      type: result?.type || 'unknown',
+      path: result?.path,
+      timestamp: Date.now() 
+    });
+    
     return result;
   }
 

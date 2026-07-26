@@ -178,6 +178,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     models, activeModel, isLoading, downloads,
     downloadModel, retryDownload, cancelDownload, pauseDownload,
     deleteModel, setActiveModel, stopModel, isDownloaded,
+    mountModel, unmountModel,
     refresh: async () => checkOllamaConnection(endpoint),
   };
 }

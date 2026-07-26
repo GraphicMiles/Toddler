@@ -116,7 +116,7 @@ export default function ChatContainer({
 
   return (
     <div className="chat-container">
-      {/* Local Server Status Banner - Enhanced for Testing */}
+      {/* Local Server Status Banner + Test Button */}
       {isNative && (
         <div style={{ 
           background: localServerStatus?.running ? '#166534' : '#334155',
@@ -125,16 +125,43 @@ export default function ChatContainer({
           fontSize: '13px',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          gap: '12px'
         }}>
           <span>
             {localServerStatus?.running ? '🟢 Local Server Active' : '⚪ Local Server Inactive'}
+            {localServerStatus?.running && ` • Port ${localServerStatus.port}`}
           </span>
-          {localServerStatus?.running && (
-            <span style={{ fontSize: '12px', opacity: 0.9 }}>
-              Port {localServerStatus.port}
-            </span>
-          )}
+          
+          <button 
+            onClick={async () => {
+              try {
+                const response = await fetch(`http://127.0.0.1:${localServerStatus?.port || 8080}/health`, {
+                  method: 'GET',
+                  signal: AbortSignal.timeout(3000)
+                });
+                
+                if (response.ok) {
+                  alert('✅ Local server is responding correctly!');
+                } else {
+                  alert(`❌ Server responded with status: ${response.status}`);
+                }
+              } catch (err) {
+                alert(`❌ Failed to connect to local server: ${err.message}`);
+              }
+            }}
+            style={{
+              background: 'rgba(255,255,255,0.15)',
+              color: 'inherit',
+              border: 'none',
+              padding: '4px 10px',
+              borderRadius: '4px',
+              fontSize: '12px',
+              cursor: 'pointer'
+            }}
+          >
+            Test Server
+          </button>
         </div>
       )}
 

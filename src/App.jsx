@@ -734,8 +734,24 @@ export default function App() {
     }
   }, [downloadModel]);
 
-  // Handle model selection
-  const handleSelectModel = useCallback((model) => {
+  // Handle model selection with health check for local server
+  const handleSelectModel = useCallback(async (model) => {
+    if (isNative && localServerStatus?.running) {
+      // If local server is running, verify it's healthy before allowing chat
+      try {
+        const { createLocalServerProvider } = await import('./providers/localServerProvider');
+        const provider = createLocalServerProvider(localServerStatus.port || 8080);
+        const status = await provider.getStatus();
+        
+        if (!status.connected) {
+          addSystemMessage('Local server is not responding. Please remount the model.', 'warn');
+          return;
+        }
+      } catch (err) {
+        console.warn('Health check failed:', err);
+      }
+    }
+
     setActiveModel(model);
     setModelStatus('idle');
     addSystemMessage(`Switched to **${model.name}**`, 'info');
@@ -743,7 +759,7 @@ export default function App() {
       haptics.medium();
     }
     setTimeout(() => setCurrentScreen(SCREENS.CHAT), 500);
-  }, [setActiveModel]);
+  }, [setActiveModel, isNative, localServerStatus]);
 
   // Handle model deletion
   const handleDeleteModel = useCallback((model) => {
@@ -807,6 +823,7 @@ export default function App() {
               noModelSelected={!activeModel}
               ollamaConnected={ollamaConnected}
               isNative={isNative}
+              localServerStatus={localServerStatus}
               conversations={conversations}
               activeConversationId={activeConversationId}
               onConversationChange={switchConversation}
@@ -881,6 +898,7 @@ export default function App() {
                   }
                 }}
                 isNative={isNative}
+                localServerStatus={localServerStatus}
               />
           </motion.div>
         )}
@@ -926,6 +944,8 @@ export default function App() {
               onReset={handleResetApp}
               smartMode={smartMode}
               onSmartModeChange={setSmartMode}
+              isNative={isNative}
+              localServerStatus={localServerStatus}
             />
           </motion.div>
         )}

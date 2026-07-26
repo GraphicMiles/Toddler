@@ -19,6 +19,7 @@ export default function ChatContainer({
   noModelSelected = false,
   ollamaConnected = false,
   isNative = false,
+  localServerStatus = null,
   conversations = [],
   activeConversationId,
   onConversationChange,
@@ -115,6 +116,14 @@ export default function ChatContainer({
 
   return (
     <div className="chat-container">
+      {/* Local Server Status Banner */}
+      {isNative && localServerStatus?.running && (
+        <div className="local-server-banner">
+          <span>🟢 Local Inference Active</span>
+          <span className="banner-detail">Port {localServerStatus.port} • {localServerStatus.model || 'Model mounted'}</span>
+        </div>
+      )}
+
       {/* Minimal top bar */}
       <div className="chat-topbar">
         <button

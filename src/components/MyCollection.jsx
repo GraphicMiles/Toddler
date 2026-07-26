@@ -21,7 +21,8 @@ export default function MyCollection({
   onRefreshDevice,
   onMountModel,
   onUnmountModel,
-  isNative = false
+  isNative = false,
+  localServerStatus = null
 }) {
   const [expandedId, setExpandedId] = useState(null);
   const usedStorageBytes = models.reduce(
@@ -167,6 +168,9 @@ export default function MyCollection({
                     <div className="model-item-right">
                       {isActive && isRunning && (
                         <span className="running-badge">Running</span>
+                      )}
+                      {isActive && localServerStatus?.running && (
+                        <span className="mounted-badge">Mounted</span>
                       )}
                       {isActive && (
                         <span className="active-badge">Active</span>

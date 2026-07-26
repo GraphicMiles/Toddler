@@ -68,6 +68,28 @@ export default function App() {
   useEffect(() => { localStorage.setItem('forgeai_conversations', JSON.stringify(conversations)); localStorage.setItem('forgeai_active_conversation', activeConversationId); }, [conversations, activeConversationId]);
   useEffect(() => { if (activeConversationId) setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, messages } : c)); }, [messages, activeConversationId]);
 
+  // Request storage permissions on Android (improves workspace reliability)
+  const requestStoragePermission = useCallback(async () => {
+    if (!isNative || window.Capacitor?.getPlatform?.() !== 'android') return true;
+
+    try {
+      // Try to use Capacitor's Permissions API if available
+      if (window.Capacitor?.Plugins?.Permissions) {
+        const result = await window.Capacitor.Plugins.Permissions.requestPermissions({
+          permissions: ['storage']
+        });
+        return result?.storage === 'granted';
+      }
+      
+      // Fallback: Try to access a writable path to trigger permission dialog
+      await fileSystem.createDirectory('/storage/emulated/0/Download/ForgeAI').catch(() => {});
+      return true;
+    } catch (err) {
+      console.warn('Permission request failed:', err);
+      return false;
+    }
+  }, []);
+
   // Load workspace file tree
   const loadWorkspace = useCallback(async () => {
     if (!isNative) return;
@@ -123,7 +145,14 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => { loadWorkspace(); }, [loadWorkspace]);
+  useEffect(() => { 
+    // Request permission on first load for Android
+    if (isNative) {
+      requestStoragePermission().then(() => loadWorkspace());
+    } else {
+      loadWorkspace(); 
+    }
+  }, [loadWorkspace, requestStoragePermission]);
 
   // File CRUD handlers
   const handleFileRead = useCallback(async (path) => {
@@ -448,7 +477,20 @@ export default function App() {
       // agent_review / plan_task items are informational and have no gate entry,
       // so they must NOT show Approve/Discard buttons.
       const toolActions = (agentResult.proposedActions || []).filter(a => a.type !== 'agent_review');
-      if (toolActions.length > 0) setPendingActions(prev => [...prev, ...toolActions]);
+      
+      // Auto-execute safe read-only tools for smoother experience
+      if (toolActions.length > 0) {
+        const hasWriteActions = toolActions.some(a => !SAFE_AUTO_APPROVE_TOOLS.includes(a.type));
+        
+        if (!hasWriteActions) {
+          // All safe → auto-execute
+          setTimeout(() => autoExecuteSafeActions(toolActions), 300);
+        } else {
+          // Has write actions → keep manual approval for those
+          setPendingActions(prev => [...prev, ...toolActions]);
+        }
+      }
+      
       agentResponseText = agentResult.agentResponse || '';
     } catch (agentErr) {
       console.warn('Agent processing skipped:', agentErr);
@@ -496,9 +538,12 @@ export default function App() {
         setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: friendly, level: 'error' } : m));
       }
     } finally { setIsTyping(false); setModelStatus('idle'); setAbortController(null); }
-  }, [activeModel, messages, provider, agentCore, trimHistory, workspaceTree, selectedFilePath]);
+  }, [activeModel, messages, provider, agentCore, trimHistory, workspaceTree, selectedFilePath, autoExecuteSafeActions]);
 
   const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
+
+  // Define safe (read-only) tools that can be auto-executed
+  const SAFE_AUTO_APPROVE_TOOLS = ['read_file', 'search', 'index'];
 
   // Handle action approval - executes through agent core (manual approval enforced)
   const handleApproveAction = useCallback(async (actionId) => {
@@ -528,6 +573,32 @@ export default function App() {
 
     if (isNative) await haptics.success();
   }, [pendingActions, agentCore]);
+
+  // Auto-execute safe read-only actions (smoother UX)
+  const autoExecuteSafeActions = useCallback(async (actions) => {
+    const safeActions = actions.filter(a => SAFE_AUTO_APPROVE_TOOLS.includes(a.type));
+    const remainingActions = actions.filter(a => !SAFE_AUTO_APPROVE_TOOLS.includes(a.type));
+
+    // Execute safe actions immediately
+    for (const action of safeActions) {
+      try {
+        const result = await agentCore.executeApprovedAction(action.id);
+        addSystemMessage(`Auto-executed: ${action.type}`, 'info');
+        
+        // Show result in chat for read operations
+        if (action.type === 'read_file' && result?.content) {
+          addMessage('assistant', `**File content** (${action.path}):\n\n\`\`\`\n${result.content.slice(0, 800)}${result.content.length > 800 ? '...' : ''}\n\`\`\``);
+        }
+      } catch (err) {
+        console.warn('Auto-execute failed:', err);
+      }
+    }
+
+    // Keep only write/dangerous actions for manual approval
+    if (remainingActions.length > 0) {
+      setPendingActions(prev => [...prev, ...remainingActions]);
+    }
+  }, [agentCore, addMessage, addSystemMessage]);
 
   // Handle action discard
   const handleDiscardAction = useCallback((actionId) => {

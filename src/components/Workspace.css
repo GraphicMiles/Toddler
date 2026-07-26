@@ -2,6 +2,41 @@
   background: var(--bg);
 }
 
+/* Header row with action buttons */
+.ws-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ws-header-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ws-action-btn {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--paper-dim);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.ws-action-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent-border);
+  background: var(--bg-elev-2);
+}
+
+/* Search */
 .ws-search {
   display: flex;
   align-items: center;
@@ -51,6 +86,7 @@
   color: var(--paper);
 }
 
+/* Path display */
 .ws-path {
   font-size: 11px;
   color: var(--faint);
@@ -63,6 +99,36 @@
   white-space: nowrap;
 }
 
+/* Index summary */
+.ws-index-summary {
+  margin-bottom: 14px;
+}
+
+.index-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--faint);
+  margin-bottom: 8px;
+}
+
+.index-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.index-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+}
+
+/* File tree */
 .ws-tree {
   font-size: 13.5px;
 }
@@ -101,6 +167,11 @@
   justify-content: center;
   color: var(--faint);
   flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+.chevron.open {
+  transform: rotate(90deg);
 }
 
 .chevron-placeholder {
@@ -137,4 +208,140 @@
   color: var(--faint);
   font-size: 13px;
   padding: 32px 0;
+}
+
+/* Context menu */
+.ws-context-menu {
+  position: fixed;
+  z-index: 200;
+  min-width: 160px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.ws-context-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  background: transparent;
+  border: none;
+  color: var(--paper-dim);
+  font-size: 12.5px;
+  cursor: pointer;
+  border-radius: 7px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.ws-context-menu button:hover {
+  color: var(--paper);
+  background: var(--bg-elev);
+}
+
+.ws-context-menu button.danger {
+  color: var(--danger);
+}
+
+.ws-context-menu button.danger:hover {
+  background: var(--danger-dim);
+}
+
+/* File viewer/editor */
+.ws-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+}
+
+.ws-viewer-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.ws-viewer-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--paper-dim);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.ws-viewer-back:hover {
+  color: var(--paper);
+  border-color: var(--border-strong);
+}
+
+.ws-viewer-name {
+  flex: 1;
+  font-size: 12px;
+  color: var(--paper-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-viewer-save {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--accent);
+  border: none;
+  border-radius: 7px;
+  color: var(--accent-ink);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s, opacity 0.15s;
+}
+
+.ws-viewer-save:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.ws-viewer-save:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ws-viewer-content {
+  flex: 1;
+  width: 100%;
+  padding: 16px;
+  background: var(--bg);
+  color: var(--paper);
+  border: none;
+  outline: none;
+  resize: none;
+  font-size: 13px;
+  line-height: 1.6;
+  font-family: 'JetBrains Mono', monospace;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .ws-header-actions {
+    gap: 4px;
+  }
+
+  .ws-action-btn {
+    width: 30px;
+    height: 30px;
+  }
 }

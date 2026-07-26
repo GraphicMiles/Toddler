@@ -130,43 +130,47 @@ export async function getDeviceCapacity() {
  */
 export const fileSystem = {
   /**
-   * Read a file from the device
+   * Read a file as text
    */
   async readFile(path) {
     if (isNative) {
-      const result = await Filesystem.readFile({ path });
-      return result.data;
+      try {
+        const result = await Filesystem.readFile({ path, encoding: undefined });
+        return typeof result.data === 'string' ? result.data : await result.data.text();
+      } catch (err) {
+        throw new Error(`Cannot read "${path}": ${err.message || 'file not found'}`);
+      }
     }
-    // Web fallback: use fetch
     try {
       const response = await fetch(path);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return await response.text();
-    } catch {
-      throw new Error('File not found');
+    } catch (err) {
+      throw new Error(`Cannot read "${path}": ${err.message}`);
     }
   },
 
   /**
-   * Write content to a file
+   * Write content to a file, creating parent directories as needed
    */
   async writeFile(path, content) {
     if (isNative) {
-      // Make sure directory exists
       const dir = path.substring(0, path.lastIndexOf('/'));
-      try {
-        await Filesystem.mkdir({ path: dir, recursive: true });
-      } catch {
-        // Directory might already exist
+      if (dir) {
+        try { await Filesystem.mkdir({ path: dir, recursive: true }); } catch { /* exists */ }
       }
-      const uri = await Filesystem.writeFile({ path, data: content });
-      return uri;
+      try {
+        const uri = await Filesystem.writeFile({ path, data: content || '' });
+        return uri;
+      } catch (err) {
+        throw new Error(`Cannot write "${path}": ${err.message}`);
+      }
     }
-    // Web fallback: download as blob
-    const blob = new Blob([content], { type: 'text/plain' });
+    const blob = new Blob([content || ''], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = path.split('/').pop();
+    a.download = path.split('/').pop() || 'file.txt';
     a.click();
     URL.revokeObjectURL(url);
   },
@@ -176,48 +180,98 @@ export const fileSystem = {
    */
   async listDirectory(path) {
     if (isNative) {
-      const result = await Filesystem.readDir({ path });
-      return result.files.map(f => ({
-        name: f.name,
-        type: f.type === 'directory' ? 'folder' : 'file',
-        path: `${path}/${f.name}`,
-      }));
+      try {
+        const result = await Filesystem.readDir({ path });
+        return result.files.map(f => ({
+          name: f.name,
+          type: f.type === 'directory' ? 'folder' : 'file',
+          path: `${path}/${f.name}`,
+        }));
+      } catch (err) {
+        throw new Error(`Cannot list "${path}": ${err.message}`);
+      }
     }
-    // Web fallback: return empty
     return [];
   },
 
   /**
-   * Check if file exists
+   * Check if file or folder exists
    */
   async exists(path) {
     if (isNative) {
-      try {
-        await Filesystem.stat({ path });
-        return true;
-      } catch {
-        return false;
-      }
+      try { await Filesystem.stat({ path }); return true; } catch { return false; }
     }
     return false;
   },
 
   /**
-   * Create directory
+   * Create directory (recursive)
    */
   async createDirectory(path) {
     if (isNative) {
-      await Filesystem.mkdir({ path, recursive: true });
+      try {
+        await Filesystem.mkdir({ path, recursive: true });
+      } catch (err) {
+        throw new Error(`Cannot create directory "${path}": ${err.message}`);
+      }
     }
   },
 
   /**
-   * Delete file
+   * Delete a file
    */
   async deleteFile(path) {
     if (isNative) {
-      await Filesystem.deleteFile({ path });
+      try {
+        await Filesystem.deleteFile({ path });
+      } catch (err) {
+        throw new Error(`Cannot delete "${path}": ${err.message}`);
+      }
     }
+  },
+
+  /**
+   * Rename or move a file/folder
+   */
+  async rename(oldPath, newPath) {
+    if (isNative) {
+      try {
+        await Filesystem.rename({ from: oldPath, to: newPath });
+      } catch (err) {
+        throw new Error(`Cannot rename "${oldPath}" to "${newPath}": ${err.message}`);
+      }
+    } else {
+      throw new Error('Rename is not supported in the browser.');
+    }
+  },
+
+  /**
+   * Recursively load a file tree from a directory (max depth 4)
+   */
+  async loadTree(rootPath, depth = 0) {
+    if (depth > 4) return [];
+    let entries;
+    try {
+      entries = await this.listDirectory(rootPath);
+    } catch {
+      return [];
+    }
+    const tree = [];
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue; // skip hidden
+      if (entry.type === 'folder') {
+        const children = await this.loadTree(entry.path, depth + 1);
+        tree.push({ ...entry, children });
+      } else {
+        tree.push(entry);
+      }
+    }
+    // folders first, then files, alphabetically
+    tree.sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    return tree;
   },
 };
 

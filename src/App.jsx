@@ -4,6 +4,7 @@ import Layout, { SCREENS } from './components/Layout';
 import ChatContainer from './components/ChatContainer';
 import ModelZoo from './components/ModelZoo';
 import MyCollection from './components/MyCollection';
+import Workspace from './components/Workspace';
 import Settings from './components/Settings';
 import useModelCollection from './hooks/useModelCollection';
 import useDeviceCapability from './hooks/useDeviceCapability';
@@ -35,6 +36,17 @@ export default function App() {
   const [endpoint, setEndpoint] = useState(() => localStorage.getItem('forgeai_endpoint') || import.meta.env.VITE_OLLAMA_URL || 'http://localhost:11434');
   const [pendingActions, setPendingActions] = useState([]);
   
+  // Workspace state
+  const [workspaceTree, setWorkspaceTree] = useState([]);
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
+  const workspacePath = useMemo(() => {
+    if (isNative) {
+      // On Android, use the app's internal files directory
+      try { return window.Capacitor?.getPlatform?.() === 'android' ? '/data' : ''; } catch { return ''; }
+    }
+    return '';
+  }, []);
+  
   // Ollama state
   const [ollamaConnected, setOllamaConnected] = useState(false);
   const [modelStatus, setModelStatus] = useState('off');
@@ -59,6 +71,77 @@ export default function App() {
   }, [activeConversationId, messages]);
   useEffect(() => { localStorage.setItem('forgeai_conversations', JSON.stringify(conversations)); localStorage.setItem('forgeai_active_conversation', activeConversationId); }, [conversations, activeConversationId]);
   useEffect(() => { if (activeConversationId) setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, messages } : c)); }, [messages, activeConversationId]);
+
+  // Load workspace file tree
+  const loadWorkspace = useCallback(async () => {
+    if (!isNative) return; // Only load on Android
+    setWorkspaceLoading(true);
+    try {
+      const rootPath = window.Capacitor?.getPlatform?.() === 'android'
+        ? (await fileSystem.exists('/data/data') ? '/data/data' : '/storage/emulated/0')
+        : '';
+      if (rootPath) {
+        const tree = await fileSystem.loadTree(rootPath);
+        setWorkspaceTree(tree);
+      }
+    } catch (err) {
+      console.warn('Failed to load workspace:', err);
+    } finally {
+      setWorkspaceLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadWorkspace(); }, [loadWorkspace]);
+
+  // File CRUD handlers
+  const handleFileRead = useCallback(async (path) => {
+    return await fileSystem.readFile(path);
+  }, []);
+
+  const handleFileSave = useCallback(async (path, content) => {
+    await fileSystem.writeFile(path, content);
+    addSystemMessage(`Saved: ${path.split('/').pop()}`, 'info');
+  }, []);
+
+  const handleFileCreate = useCallback(async (path) => {
+    await fileSystem.writeFile(path, '');
+    await loadWorkspace();
+    addSystemMessage(`Created: ${path.split('/').pop()}`, 'info');
+  }, [loadWorkspace]);
+
+  const handleFolderCreate = useCallback(async (path) => {
+    await fileSystem.createDirectory(path);
+    await loadWorkspace();
+    addSystemMessage(`Created folder: ${path.split('/').pop()}`, 'info');
+  }, [loadWorkspace]);
+
+  const handleFileRename = useCallback(async (oldPath, newPath) => {
+    await fileSystem.rename(oldPath, newPath);
+    await loadWorkspace();
+    addSystemMessage(`Renamed to: ${newPath.split('/').pop()}`, 'info');
+  }, [loadWorkspace]);
+
+  const handleFileDelete = useCallback(async (path, type) => {
+    await fileSystem.deleteFile(path);
+    await loadWorkspace();
+    addSystemMessage(`Deleted: ${path.split('/').pop()}`, 'warn');
+  }, [loadWorkspace]);
+
+  // Token windowing: trim conversation history to fit within context window
+  const trimHistory = useCallback((msgs, maxTokens = 2500) => {
+    const userAssistant = msgs.filter(m => m.role === 'user' || m.role === 'assistant');
+    if (userAssistant.length <= 2) return userAssistant;
+    // Rough estimate: ~4 chars per token
+    let total = 0;
+    const trimmed = [];
+    for (let i = userAssistant.length - 1; i >= 0; i--) {
+      const tokens = Math.ceil((userAssistant[i].content?.length || 0) / 4);
+      if (total + tokens > maxTokens && trimmed.length >= 2) break;
+      total += tokens;
+      trimmed.unshift(userAssistant[i]);
+    }
+    return trimmed;
+  }, []);
 
   const { deviceCapability, refresh: refreshDevice } = useDeviceCapability();
   const provider = useMemo(() => createModelProvider({ mode: isNative ? 'on-device' : 'ollama', endpoint }), [endpoint]);
@@ -241,7 +324,7 @@ export default function App() {
     try {
       const agentResult = await agentCore.processMessage({
         message: text,
-        workspace: { path: '', name: 'workspace', tree: [] },
+        workspace: { path: workspacePath, name: 'workspace', tree: workspaceTree },
       });
       // Only keep tool-based proposed actions (those that have a gate entry).
       // agent_review / plan_task items are informational and have no gate entry,
@@ -260,7 +343,7 @@ export default function App() {
     const controller = new AbortController(); setAbortController(controller);
     if (isNative) await haptics.light();
     try {
-      const history = [...messages, userMessage].filter(m => m.role === 'user' || m.role === 'assistant').map(({ role, content }) => ({ role, content }));
+      const history = trimHistory([...messages, userMessage]);
       await provider.loadModel?.(isNative ? activeModel.localPath : (activeModel.ollamaName || activeModel.id));
       await provider.stream({ model: activeModel.ollamaName || activeModel.id, messages: history, signal: controller.signal,
         onToken: (token) => setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: m.content + token } : m)),
@@ -274,7 +357,7 @@ export default function App() {
         setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: friendly, level: 'error' } : m));
       }
     } finally { setIsTyping(false); setModelStatus('idle'); setAbortController(null); }
-  }, [activeModel, messages, provider, agentCore]);
+  }, [activeModel, messages, provider, agentCore, trimHistory]);
 
   const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
 
@@ -458,6 +541,30 @@ export default function App() {
               deviceCapability={deviceCapability}
               onOpenZoo={() => setCurrentScreen(SCREENS.ZOO)}
               onRefreshDevice={refreshDevice}
+            />
+          </motion.div>
+        )}
+
+        {currentScreen === SCREENS.WORKSPACE && (
+          <motion.div
+            key="workspace"
+            variants={screenVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="screen-container"
+          >
+            <Workspace
+              workspace={{ name: 'Device Storage', path: workspacePath, tree: workspaceTree }}
+              workspaceLoading={workspaceLoading}
+              onFileSelect={(path) => addSystemMessage(`Selected: ${path}`, 'info')}
+              onFileRead={handleFileRead}
+              onFileSave={handleFileSave}
+              onFileCreate={handleFileCreate}
+              onFolderCreate={handleFolderCreate}
+              onFileRename={handleFileRename}
+              onFileDelete={handleFileDelete}
+              onRefresh={loadWorkspace}
             />
           </motion.div>
         )}

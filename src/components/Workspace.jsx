@@ -1,44 +1,37 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, FolderOpen, ChevronRight, X, FileText, Database } from 'lucide-react';
-import { getFileIconInfo, buildFileIndex, searchFiles, getFilesByExtension } from '../utils/fileIndex';
+import {
+  Search, FolderOpen, ChevronRight, X, FileText, Database,
+  Plus, Pencil, Trash2, FilePlus, FolderPlus, Save, ArrowLeft,
+} from 'lucide-react';
+import { getFileIconInfo, buildFileIndex, searchFiles } from '../utils/fileIndex';
 import './Workspace.css';
 
-function FileNode({ node, depth = 0, onSelect, onFolderSelect, selectedPath, selectedFolder }) {
+/* ── File tree node ── */
+function FileNode({ node, depth = 0, selectedPath, onSelect, onContextMenu }) {
   const [isOpen, setIsOpen] = useState(node.open || depth === 0);
   const isFolder = node.type === 'folder';
   const isFile = node.type === 'file';
-  const isSelected = selectedPath === node.path || selectedFolder === node.path;
+  const isSelected = selectedPath === node.path;
+  const fileInfo = isFile ? getFileIconInfo(node.name) : null;
 
   const handleClick = () => {
-    if (isFolder) {
-      setIsOpen(!isOpen);
-      onFolderSelect?.(node.path, node.name);
-    } else if (isFile) {
-      onSelect?.(node.path);
-    }
+    if (isFolder) setIsOpen(!isOpen);
+    onSelect?.(node.path, node);
   };
-
-  const fileInfo = isFile ? getFileIconInfo(node.name) : null;
 
   return (
     <div className="file-node">
-      <motion.div
+      <div
         className={`file-row ${isFolder ? 'folder' : 'file'} ${isSelected ? 'selected' : ''}`}
         onClick={handleClick}
+        onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(e, node); }}
         style={{ paddingLeft: `${14 + depth * 18}px` }}
-        whileHover={{ x: 2 }}
-        transition={{ duration: 0.1 }}
-        aria-label={isFolder ? `Folder: ${node.name}` : `File: ${node.name}`}
       >
         {isFolder ? (
-          <motion.span
-            className={`chevron ${isOpen ? 'open' : ''}`}
-            animate={{ rotate: isOpen ? 90 : 0 }}
-            transition={{ duration: 0.15 }}
-          >
+          <span className={`chevron ${isOpen ? 'open' : ''}`}>
             <ChevronRight size={13} />
-          </motion.span>
+          </span>
         ) : (
           <span className="chevron-placeholder" />
         )}
@@ -46,17 +39,13 @@ function FileNode({ node, depth = 0, onSelect, onFolderSelect, selectedPath, sel
         {isFolder ? (
           <FolderOpen size={15} className="file-icon folder-icon" />
         ) : (
-          <span
-            className="file-icon file-badge mono"
-            style={{ color: fileInfo?.color || 'var(--faint)' }}
-            title={fileInfo?.label || '?'}
-          >
-            {fileInfo?.label || '?' }
+          <span className="file-icon file-badge mono" style={{ color: fileInfo?.color || 'var(--faint)' }}>
+            {fileInfo?.label || '?'}
           </span>
         )}
 
         <span className="file-name">{node.name}</span>
-      </motion.div>
+      </div>
 
       <AnimatePresence>
         {isFolder && isOpen && node.children && (
@@ -65,17 +54,16 @@ function FileNode({ node, depth = 0, onSelect, onFolderSelect, selectedPath, sel
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
+            transition={{ duration: 0.15 }}
           >
             {node.children.map((child, i) => (
               <FileNode
                 key={child.path || child.name + i}
                 node={child}
                 depth={depth + 1}
-                onSelect={onSelect}
-                onFolderSelect={onFolderSelect}
                 selectedPath={selectedPath}
-                selectedFolder={selectedFolder}
+                onSelect={onSelect}
+                onContextMenu={onContextMenu}
               />
             ))}
           </motion.div>
@@ -85,43 +73,166 @@ function FileNode({ node, depth = 0, onSelect, onFolderSelect, selectedPath, sel
   );
 }
 
-export default function Workspace({ workspace = {}, onFileSelect, onFolderSelect }) {
+/* ── Context menu for file/folder actions ── */
+function ContextMenu({ x, y, node, onClose, onRename, onDelete, onNewFile, onNewFolder }) {
+  const isFolder = node.type === 'folder';
+  return (
+    <div className="ws-context-menu" style={{ left: x, top: y }} onClick={(e) => e.stopPropagation()}>
+      {isFolder && (
+        <>
+          <button onClick={() => { onNewFile(node.path); onClose(); }}>
+            <FilePlus size={13} /> New file
+          </button>
+          <button onClick={() => { onNewFolder(node.path); onClose(); }}>
+            <FolderPlus size={13} /> New folder
+          </button>
+        </>
+      )}
+      <button onClick={() => { onRename(node); onClose(); }}>
+        <Pencil size={13} /> Rename
+      </button>
+      <button className="danger" onClick={() => { onDelete(node); onClose(); }}>
+        <Trash2 size={13} /> Delete
+      </button>
+    </div>
+  );
+}
+
+/* ── File viewer/editor panel ── */
+function FileViewer({ path, content, onClose, onSave, readOnly }) {
+  const [editContent, setEditContent] = useState(content);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave(path, editContent);
+      setDirty(false);
+    } catch (err) {
+      alert('Save failed: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fileName = path.split('/').pop();
+  const fileInfo = getFileIconInfo(fileName);
+
+  return (
+    <div className="ws-viewer">
+      <div className="ws-viewer-header">
+        <button className="ws-viewer-back" onClick={onClose}>
+          <ArrowLeft size={16} /> Back
+        </button>
+        <span className="ws-viewer-name mono" style={{ color: fileInfo?.color }}>
+          {fileInfo?.label} {fileName}
+        </span>
+        {!readOnly && (
+          <button className="ws-viewer-save" onClick={handleSave} disabled={!dirty || saving}>
+            <Save size={14} /> {saving ? 'Saving...' : 'Save'}
+          </button>
+        )}
+      </div>
+      <textarea
+        className="ws-viewer-content mono"
+        value={editContent}
+        onChange={(e) => { setEditContent(e.target.value); setDirty(true); }}
+        readOnly={readOnly}
+        spellCheck={false}
+      />
+    </div>
+  );
+}
+
+/* ── Main Workspace component ── */
+export default function Workspace({
+  workspace = {},
+  workspaceLoading = false,
+  onFileSelect,
+  onFileRead,
+  onFileSave,
+  onFileCreate,
+  onFolderCreate,
+  onFileRename,
+  onFileDelete,
+  onRefresh,
+}) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPath, setSelectedPath] = useState(null);
-  const [selectedFolder, setSelectedFolder] = useState(null);
+  const [selectedNode, setSelectedNode] = useState(null);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [viewerFile, setViewerFile] = useState(null); // { path, content }
+  const [viewerLoading, setViewerLoading] = useState(false);
 
-  // Build index for search and retrieval
   const fileIndex = useMemo(() => buildFileIndex(workspace.tree || []), [workspace.tree]);
 
   const filteredTree = useMemo(() => {
     if (!searchQuery.trim()) return workspace.tree || [];
     const results = searchFiles(searchQuery, workspace.tree || []);
-    // Convert results back to tree structure for display
     const paths = new Set(results.map(r => r.path));
-    const rebuild = (nodes) => {
-      return nodes.map(node => {
-        if (paths.has(node.path)) return node;
-        if (node.children) {
-          const rebuilt = rebuild(node.children);
-          if (rebuilt.length > 0) return { ...node, children: rebuilt, open: true };
-        }
-        return null;
-      }).filter(Boolean);
-    };
+    const rebuild = (nodes) => nodes.map(node => {
+      if (paths.has(node.path)) return node;
+      if (node.children) {
+        const rebuilt = rebuild(node.children);
+        if (rebuilt.length > 0) return { ...node, children: rebuilt, open: true };
+      }
+      return null;
+    }).filter(Boolean);
     return rebuild(workspace.tree || []);
   }, [workspace.tree, searchQuery]);
 
-  const handleFileSelect = (path) => {
+  const handleSelect = useCallback(async (path, node) => {
     setSelectedPath(path);
-    setSelectedFolder(null);
+    setSelectedNode(node);
     onFileSelect?.(path);
-  };
+    // Open file in viewer
+    if (node?.type === 'file' && onFileRead) {
+      setViewerLoading(true);
+      try {
+        const content = await onFileRead(path);
+        setViewerFile({ path, content: content ?? '' });
+      } catch (err) {
+        setViewerFile({ path, content: `Error reading file: ${err.message}` });
+      } finally {
+        setViewerLoading(false);
+      }
+    }
+  }, [onFileSelect, onFileRead]);
 
-  const handleFolderSelect = (path, name) => {
-    setSelectedFolder(path);
-    setSelectedPath(path);
-    onFolderSelect?.(path, name);
-  };
+  const handleContextMenu = useCallback((e, node) => {
+    setContextMenu({ x: e.clientX, y: e.clientY, node });
+  }, []);
+
+  const handleNewFile = useCallback(async (parentPath) => {
+    const name = prompt('New file name (e.g. notes.txt):');
+    if (!name?.trim()) return;
+    await onFileCreate?.(parentPath + '/' + name.trim());
+  }, [onFileCreate]);
+
+  const handleNewFolder = useCallback(async (parentPath) => {
+    const name = prompt('New folder name:');
+    if (!name?.trim()) return;
+    await onFolderCreate?.(parentPath + '/' + name.trim());
+  }, [onFolderCreate]);
+
+  const handleRename = useCallback(async (node) => {
+    const oldName = node.name;
+    const newName = prompt(`Rename "${oldName}" to:`, oldName);
+    if (!newName?.trim() || newName.trim() === oldName) return;
+    const parentPath = node.path.substring(0, node.path.lastIndexOf('/'));
+    const newPath = parentPath + '/' + newName.trim();
+    await onFileRename?.(node.path, newPath);
+  }, [onFileRename]);
+
+  const handleDelete = useCallback(async (node) => {
+    if (!confirm(`Delete "${node.name}"${node.type === 'folder' ? ' and all its contents' : ''}?`)) return;
+    await onFileDelete?.(node.path, node.type);
+  }, [onFileDelete]);
+
+  const handleSave = useCallback(async (path, content) => {
+    await onFileSave?.(path, content);
+  }, [onFileSave]);
 
   const extensionGroups = useMemo(() => {
     const groups = {};
@@ -133,12 +244,40 @@ export default function Workspace({ workspace = {}, onFileSelect, onFolderSelect
     return groups;
   }, [fileIndex]);
 
+  // If a file is open in the viewer, show that instead of the tree
+  if (viewerFile) {
+    return (
+      <FileViewer
+        path={viewerFile.path}
+        content={viewerFile.content}
+        onClose={() => setViewerFile(null)}
+        onSave={handleSave}
+        readOnly={false}
+      />
+    );
+  }
+
   return (
-    <div className="screen-scroll workspace">
+    <div className="screen-scroll workspace" onClick={() => setContextMenu(null)}>
       <div className="screen-pad">
         <div className="section-head">
-          <h2>Workspace</h2>
-          <p>{workspace.name || 'Local project'}</p>
+          <div className="ws-header-row">
+            <div>
+              <h2>Files</h2>
+              <p>{workspace.name || 'Device storage'}</p>
+            </div>
+            <div className="ws-header-actions">
+              <button className="ws-action-btn" onClick={() => handleNewFile(workspace.path || '')} title="New file">
+                <FilePlus size={16} />
+              </button>
+              <button className="ws-action-btn" onClick={() => handleNewFolder(workspace.path || '')} title="New folder">
+                <FolderPlus size={16} />
+              </button>
+              <button className="ws-action-btn" onClick={onRefresh} title="Refresh">
+                <Database size={16} />
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="ws-search">
@@ -160,42 +299,67 @@ export default function Workspace({ workspace = {}, onFileSelect, onFolderSelect
 
         {workspace.path && <div className="ws-path mono">Path: {workspace.path}</div>}
 
-        {/* Index summary by extension */}
-        <div className="ws-index-summary">
-          <div className="index-header">
-            <Database size={14} />
-            <span>Indexed: {fileIndex.count} files · {fileIndex.folders.length} folders · {Object.keys(extensionGroups).length} types</span>
+        {/* Index summary */}
+        {fileIndex.count > 0 && (
+          <div className="ws-index-summary">
+            <div className="index-header">
+              <Database size={14} />
+              <span>{fileIndex.count} files, {fileIndex.folders.length} folders, {Object.keys(extensionGroups).length} types</span>
+            </div>
+            <div className="index-tags">
+              {Object.entries(extensionGroups).map(([ext, files]) => {
+                const info = getFileIconInfo(`test.${ext}`);
+                return (
+                  <span key={ext} className="index-tag" title={`${files.length} ${ext.toUpperCase()} files`} style={{ color: info.color }}>
+                    {info.label || ext.toUpperCase()}
+                  </span>
+                );
+              }).slice(0, 12)}
+            </div>
           </div>
-          <div className="index-tags">
-            {Object.entries(extensionGroups).map(([ext, files]) => {
-              const info = getFileIconInfo(`test.${ext}`);
-              return (
-                <span key={ext} className="index-tag" title={`${files.length} ${ext.toUpperCase()} files`} style={{ color: info.color }}>
-                  {info.label || ext.toUpperCase()}
-                </span>
-              );
-            }).slice(0, 12)}
-          </div>
-        </div>
+        )}
 
-        <div className="ws-tree">
-          {filteredTree.length > 0 ? (
-            filteredTree.map((node, i) => (
-              <FileNode
-                key={node.path || node.name + i}
-                node={node}
-                depth={0}
-                onSelect={handleFileSelect}
-                onFolderSelect={handleFolderSelect}
-                selectedPath={selectedPath}
-                selectedFolder={selectedFolder}
-              />
-            ))
-          ) : (
-            <div className="ws-empty">No files or folders match.</div>
-          )}
-        </div>
+        {/* Loading state */}
+        {workspaceLoading && (
+          <div className="ws-empty">Loading files...</div>
+        )}
+
+        {/* File tree */}
+        {!workspaceLoading && (
+          <div className="ws-tree">
+            {filteredTree.length > 0 ? (
+              filteredTree.map((node, i) => (
+                <FileNode
+                  key={node.path || node.name + i}
+                  node={node}
+                  depth={0}
+                  selectedPath={selectedPath}
+                  onSelect={handleSelect}
+                  onContextMenu={handleContextMenu}
+                />
+              ))
+            ) : (
+              <div className="ws-empty">
+                {searchQuery ? 'No files match.' : 'No files found. Tap + to create a file or folder.'}
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Context menu overlay */}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          node={contextMenu.node}
+          onClose={() => setContextMenu(null)}
+          onRename={handleRename}
+          onDelete={handleDelete}
+          onNewFile={handleNewFile}
+          onNewFolder={handleNewFolder}
+        />
+      )}
     </div>
   );
 }

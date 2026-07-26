@@ -1,17 +1,19 @@
-import { MessageSquare, Boxes, Database, Settings as SettingsIcon } from 'lucide-react';
+import { MessageSquare, Boxes, Database, Settings as SettingsIcon, FolderOpen } from 'lucide-react';
 import './Layout.css';
 
 export const SCREENS = {
   CHAT: 'chat',
   ZOO: 'zoo',
   COLLECTION: 'collection',
+  WORKSPACE: 'workspace',
   SETTINGS: 'settings',
 };
 
 const TABS = [
   { id: SCREENS.CHAT, label: 'Chat', icon: MessageSquare },
-  { id: SCREENS.ZOO, label: 'Model Zoo', icon: Boxes },
+  { id: SCREENS.ZOO, label: 'Zoo', icon: Boxes },
   { id: SCREENS.COLLECTION, label: 'Collection', icon: Database },
+  { id: SCREENS.WORKSPACE, label: 'Files', icon: FolderOpen },
   { id: SCREENS.SETTINGS, label: 'Settings', icon: SettingsIcon },
 ];
 

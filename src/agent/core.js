@@ -80,22 +80,41 @@ export class AgentCore {
     const steps = [];
     const msgLower = (userMessage || '').toLowerCase();
     const workspacePath = workspace?.path || this.context.workspace?.path || '';
+    const selectedPath = workspace?.selectedPath || this.context.workspace?.selectedPath || '';
 
-    // Simple heuristics for planning - future: LLM-driven planning
-    if (msgLower.includes('read') || msgLower.includes('show') || msgLower.includes('look')) {
+    // Resolve target path: prefer selected file, then workspace root
+    const resolvePath = () => selectedPath || workspacePath;
+
+    if (msgLower.includes('read') || msgLower.includes('show') || msgLower.includes('open') || msgLower.includes('look') || msgLower.includes('view')) {
       steps.push({
         intent: 'read_file',
         description: 'Read a file in the workspace',
-        targetPath: workspacePath,
+        targetPath: resolvePath(),
       });
     }
 
-    if (msgLower.includes('write') || msgLower.includes('create') || msgLower.includes('add')) {
+    if (msgLower.includes('write') || msgLower.includes('create') || msgLower.includes('add') || msgLower.includes('save')) {
       steps.push({
         intent: 'write_file',
         description: 'Write content to a file',
-        targetPath: workspacePath,
-        proposedContent: `// Proposed file content based on user request: ${userMessage}`,
+        targetPath: resolvePath(),
+        proposedContent: `// Content based on: ${userMessage}`,
+      });
+    }
+
+    if (msgLower.includes('delete') || msgLower.includes('remove')) {
+      steps.push({
+        intent: 'delete',
+        description: 'Delete a file or folder',
+        targetPath: resolvePath(),
+      });
+    }
+
+    if (msgLower.includes('rename') || msgLower.includes('move')) {
+      steps.push({
+        intent: 'rename',
+        description: 'Rename a file or folder',
+        targetPath: resolvePath(),
       });
     }
 
@@ -210,9 +229,14 @@ export class AgentCore {
     if (step.proposedContent) input.content = step.proposedContent;
     if (step.query) input.query = step.query;
     if (step.originalRequest) input.request = step.originalRequest;
-    if (toolName === 'read_file' && workspace.tree) {
-      // Default to first file in workspace tree if no target specified
-      input.path = input.path || workspace.name || 'workspace';
+    // For rename, extract new name from the message if available
+    if (toolName === 'rename' && step.originalRequest) {
+      const match = step.originalRequest.match(/rename\s+.+\s+to\s+(.+)/i);
+      if (match) input.newName = match[1].trim();
+    }
+    // For read_file, ensure we have a meaningful path
+    if (toolName === 'read_file' && !input.path) {
+      input.path = workspace.selectedPath || workspace.path || '';
     }
     return input;
   }

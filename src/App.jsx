@@ -40,6 +40,7 @@ export default function App() {
   const [workspaceTree, setWorkspaceTree] = useState([]);
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [workspaceRootPath, setWorkspaceRootPath] = useState('');
+  const [selectedFilePath, setSelectedFilePath] = useState('');
   
   // Ollama state
   const [ollamaConnected, setOllamaConnected] = useState(false);
@@ -126,6 +127,7 @@ export default function App() {
   const handleFilePick = useCallback((path, node) => {
     const name = path.split('/').pop();
     const type = node?.type === 'folder' ? 'folder' : 'file';
+    setSelectedFilePath(path);
     if (navigator.clipboard) {
       navigator.clipboard.writeText(path).catch(() => {});
     }
@@ -208,6 +210,30 @@ export default function App() {
         return { index: result, type: 'index', count: Array.isArray(result) ? result.length : (result.count || 0) };
       },
     });
+    // Rename a file or folder
+    registry.register({
+      name: 'rename',
+      description: 'Rename a file or folder (requires approval)',
+      permission: 'write',
+      execute: async ({ path, newName }) => {
+        if (!path || !newName) throw new Error('Both path and newName are required.');
+        const parentPath = path.substring(0, path.lastIndexOf('/'));
+        const newPath = parentPath + '/' + newName;
+        await fileSystem.rename(path, newPath);
+        return { oldPath: path, newPath, type: 'rename' };
+      },
+    });
+    // Delete a file or folder
+    registry.register({
+      name: 'delete',
+      description: 'Delete a file or folder (requires approval)',
+      permission: 'dangerous',
+      execute: async ({ path }) => {
+        if (!path) throw new Error('A file path is required.');
+        await fileSystem.deleteFile(path);
+        return { path, type: 'delete' };
+      },
+    });
     return registry;
   }, []);
 
@@ -272,6 +298,28 @@ export default function App() {
             return { index: result, type: 'index', count: Array.isArray(result) ? result.length : result.count || 0 };
           },
         });
+        register({
+          name: 'rename',
+          description: 'Rename a file or folder (approval required)',
+          permission: 'write',
+          execute: async ({ path, newName }) => {
+            if (!path || !newName) throw new Error('Both path and newName are required.');
+            const parentPath = path.substring(0, path.lastIndexOf('/'));
+            const newPath = parentPath + '/' + newName;
+            await fileSystem.rename(path, newPath);
+            return { oldPath: path, newPath, type: 'rename' };
+          },
+        });
+        register({
+          name: 'delete',
+          description: 'Delete a file or folder (approval required)',
+          permission: 'dangerous',
+          execute: async ({ path }) => {
+            if (!path) throw new Error('A file path is required.');
+            await fileSystem.deleteFile(path);
+            return { path, type: 'delete' };
+          },
+        });
       },
     });
     return core;
@@ -330,7 +378,7 @@ export default function App() {
     try {
       const agentResult = await agentCore.processMessage({
         message: text,
-        workspace: { path: workspaceRootPath, name: 'workspace', tree: workspaceTree },
+        workspace: { path: workspaceRootPath, name: 'workspace', tree: workspaceTree, selectedPath: selectedFilePath },
       });
       // Only keep tool-based proposed actions (those that have a gate entry).
       // agent_review / plan_task items are informational and have no gate entry,

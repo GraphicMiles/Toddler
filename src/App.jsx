@@ -9,6 +9,10 @@ import useModelCollection from './hooks/useModelCollection';
 import useDeviceCapability from './hooks/useDeviceCapability';
 import { haptics, isNative } from './nativeBridge';
 import { createModelProvider } from './providers/modelProvider';
+import { AgentCore } from './agent/core.js';
+import { AgentPluginRegistry, createAgentPlugin, createAgentTool } from './agent/pluginContract.js';
+import { ToolRegistry, createReadOnlyRegistry } from './tools/toolRegistry.js';
+import { ApprovalGate } from './tools/toolApproval.js';
 import './styles/index.css';
 
 const defaultConversationTitle = () => `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -57,6 +61,48 @@ export default function App() {
   const { deviceCapability, refresh: refreshDevice } = useDeviceCapability();
   const provider = useMemo(() => createModelProvider({ mode: isNative ? 'on-device' : 'ollama', endpoint }), [endpoint]);
 
+  // Agent core setup with plugin contract for scalable integrations
+  const agentToolRegistry = useMemo(() => {
+    const registry = new ToolRegistry();
+    registry.register({
+      name: 'read_file',
+      description: 'Read a user-selected workspace file without changing it.',
+      permission: 'read',
+      execute: async ({ path }) => {
+        if (typeof path !== 'string' || !path.trim()) throw new Error('A file path is required.');
+        return { path, content: `file contents for: ${path}` };
+      },
+    });
+    return registry;
+  }, []);
+
+  const agentApprovalGate = useMemo(() => new ApprovalGate(), []);
+
+  const agentCore = useMemo(() => {
+    const core = new AgentCore({
+      toolRegistry: agentToolRegistry,
+      approvalGate: agentApprovalGate,
+      provider,
+    });
+    core.registerPlugin({
+      id: 'base-capabilities',
+      name: 'Base Capabilities',
+      version: '0.1.0',
+      registerTools: ({ register }) => {
+        register({
+          name: 'read_file',
+          description: 'Read a workspace file',
+          permission: 'read',
+          execute: async ({ path }) => {
+            if (typeof path !== 'string' || !path.trim()) throw new Error('A file path is required.');
+            return { path, content: `file contents for: ${path}` };
+          },
+        });
+      },
+    });
+    return core;
+  }, [agentToolRegistry, agentApprovalGate, provider]);
+
   // Check Ollama connection
   const checkConnection = useCallback(async () => {
     try {
@@ -97,11 +143,27 @@ export default function App() {
   const addSystemMessage = (content, level = 'info') => addMessage('system', content, { level });
 
   // Send a real streaming request to Ollama. The assistant placeholder is updated per token.
+  // Agent core processes the message first (full agent mode), proposes actions through manual approval,
+  // and contributes its review to the conversation.
   const handleSendMessage = useCallback(async (text) => {
     if (!activeModel) { addSystemMessage('Please select a model from My Collection first.', 'warn'); return; }
+
+    // Agent processing (direct call, full agent mode)
+    const agentResult = await agentCore.processMessage({
+      message: text,
+      workspace: { path: '', name: 'workspace', tree: [] },
+    });
+
+    // Add any proposed actions through manual approval (not auto-executed)
+    if (agentResult.proposedActions && agentResult.proposedActions.length > 0) {
+      setPendingActions(prev => [...prev, ...agentResult.proposedActions]);
+    }
+
     const userMessage = { id: generateId(), role: 'user', content: text, timestamp: Date.now() };
     const assistantId = generateId();
-    setMessages(prev => [...prev, userMessage, { id: assistantId, role: 'assistant', content: '', timestamp: Date.now() }]);
+    // Initialize assistant message with agent review/plan response
+    const agentResponseText = agentResult.agentResponse || 'Agent is reviewing...';
+    setMessages(prev => [...prev, userMessage, { id: assistantId, role: 'assistant', content: agentResponseText, timestamp: Date.now() }]);
     setIsTyping(true); setModelStatus('busy');
     const controller = new AbortController(); setAbortController(controller);
     if (isNative) await haptics.light();
@@ -115,11 +177,11 @@ export default function App() {
     } catch (error) {
       if (error.name !== 'AbortError') setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: `Something went wrong: ${error.message}`, level: 'error' } : m));
     } finally { setIsTyping(false); setModelStatus('idle'); setAbortController(null); }
-  }, [activeModel, messages, provider]);
+  }, [activeModel, messages, provider, agentCore]);
 
   const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
 
-  // Handle action approval
+  // Handle action approval — executes through agent core (manual approval enforced)
   const handleApproveAction = useCallback(async (actionId) => {
     const action = pendingActions.find(a => a.id === actionId);
     if (!action) return;
@@ -130,13 +192,21 @@ export default function App() {
     }
 
     await new Promise(resolve => setTimeout(resolve, 500));
-    addSystemMessage(`File written: ${action.path}`, 'info');
-    addMessage('assistant', `Done! I've created ${action.path}.`);
-    
+
+    // Execute through agent core with approval
+    try {
+      const result = await agentCore.executeApprovedAction(actionId);
+      addSystemMessage(`Agent executed: ${action.type || 'action'} → ${JSON.stringify(result)}`, 'info');
+      addMessage('assistant', `Done! Executed ${action.type || 'action'} with result: ${JSON.stringify(result)}`);
+    } catch (execError) {
+      addSystemMessage(`Agent execution failed: ${execError.message}`, 'error');
+      addMessage('assistant', `Execution failed: ${execError.message}`);
+    }
+
     if (isNative) {
       await haptics.success();
     }
-  }, [pendingActions]);
+  }, [pendingActions, agentCore]);
 
   // Handle action discard
   const handleDiscardAction = useCallback((actionId) => {

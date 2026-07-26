@@ -81,7 +81,7 @@ export class AgentCore {
     const msgLower = (userMessage || '').toLowerCase();
     const workspacePath = workspace?.path || this.context.workspace?.path || '';
 
-    // Simple heuristics for planning — future: LLM-driven planning
+    // Simple heuristics for planning - future: LLM-driven planning
     if (msgLower.includes('read') || msgLower.includes('show') || msgLower.includes('look')) {
       steps.push({
         intent: 'read_file',
@@ -260,7 +260,7 @@ export class AgentCore {
     // 1. Plan
     const plan = this.planTask(message, workspace);
 
-    // 2. Propose actions (manual approval path — does not auto-execute)
+    // 2. Propose actions (manual approval path - does not auto-execute)
     const proposedActions = this.proposeActions(plan);
 
     // 3. Build review summary

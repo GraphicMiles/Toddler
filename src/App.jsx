@@ -236,7 +236,7 @@ export default function App() {
     const userMessage = { id: generateId(), role: 'user', content: text, timestamp: Date.now() };
     const assistantId = generateId();
 
-    // Agent processing — best-effort, non-blocking. Never let agent errors abort the chat.
+    // Agent processing - best-effort, non-blocking. Never let agent errors abort the chat.
     let agentResponseText = '';
     try {
       const agentResult = await agentCore.processMessage({
@@ -269,7 +269,7 @@ export default function App() {
     } catch (error) {
       if (error.name !== 'AbortError') {
         const friendly = error.message?.includes('loaded safely')
-          ? 'Model could not be loaded. It may still be downloading, or the file may be corrupted — try re-downloading from Model Zoo.'
+          ? 'Model could not be loaded. It may still be downloading, or the file may be corrupted - try re-downloading from Model Zoo.'
           : `Something went wrong: ${error.message}`;
         setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: friendly, level: 'error' } : m));
       }
@@ -278,7 +278,7 @@ export default function App() {
 
   const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
 
-  // Handle action approval — executes through agent core (manual approval enforced)
+  // Handle action approval - executes through agent core (manual approval enforced)
   const handleApproveAction = useCallback(async (actionId) => {
     const action = pendingActions.find(a => a.id === actionId);
     if (!action) return;
@@ -286,7 +286,7 @@ export default function App() {
     setPendingActions(prev => prev.filter(a => a.id !== actionId));
     if (isNative) await haptics.medium();
 
-    // Informational / plan actions have no gate entry — just acknowledge them
+    // Informational / plan actions have no gate entry - just acknowledge them
     if (action.type === 'agent_review' || !action.type) {
       addSystemMessage('Plan acknowledged.', 'info');
       if (isNative) await haptics.success();
@@ -298,7 +298,7 @@ export default function App() {
     // Execute through agent core with approval
     try {
       const result = await agentCore.executeApprovedAction(actionId);
-      addSystemMessage(`Agent executed: ${action.type} → ${JSON.stringify(result)}`, 'info');
+      addSystemMessage(`Agent executed: ${action.type} -> ${JSON.stringify(result)}`, 'info');
       addMessage('assistant', `Done! Executed ${action.type} with result: ${JSON.stringify(result)}`);
     } catch (execError) {
       addSystemMessage(`Agent execution failed: ${execError.message}`, 'error');

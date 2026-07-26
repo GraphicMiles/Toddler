@@ -61,7 +61,7 @@ export default function MessageInput({ onSend, onStop, disabled = false, prefill
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message…"
+            placeholder="Type a message..."
             rows={1}
             disabled={disabled}
           />

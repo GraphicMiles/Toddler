@@ -45,7 +45,7 @@ export default function EmptyState({ onSuggestionClick }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
       >
-        Ask me anything — write code, explain concepts, debug errors, or have a conversation. I'll show you edits before writing anything.
+        Ask me anything - write code, explain concepts, debug errors, or have a conversation. I'll show you edits before writing anything.
       </motion.p>
 
       <motion.div

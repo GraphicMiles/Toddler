@@ -55,7 +55,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
         return { success: false, paused: true };
       }
 
-      // Success — save to collection
+      // Success - save to collection
       const installed = {
         ...model,
         ollamaName: name,

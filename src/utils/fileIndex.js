@@ -6,87 +6,87 @@
 
 export const EXTENSION_ICONS = {
   // Web / Frontend
-  html: { color: '#e34c26', label: 'HTML', logo: '🌐' },
-  htm: { color: '#e34c26', label: 'HTML', logo: '🌐' },
-  css: { color: '#264de4', label: 'CSS', logo: '🎨' },
-  scss: { color: '#cf649a', label: 'SCSS', logo: '🎨' },
-  sass: { color: '#cf649a', label: 'SASS', logo: '🎨' },
-  less: { color: '#1d365d', label: 'LESS', logo: '🎨' },
+  html: { color: '#e34c26', label: 'HTML' },
+  htm: { color: '#e34c26', label: 'HTML' },
+  css: { color: '#264de4', label: 'CSS' },
+  scss: { color: '#cf649a', label: 'SCSS' },
+  sass: { color: '#cf649a', label: 'SASS' },
+  less: { color: '#1d365d', label: 'LESS' },
 
   // JavaScript / TypeScript
-  js: { color: '#f7df1e', label: 'JS', logo: '⚡' },
-  jsx: { color: '#61dafb', label: 'JSX', logo: '⚛️' },
-  ts: { color: '#3178c6', label: 'TS', logo: '🔷' },
-  tsx: { color: '#3178c6', label: 'TSX', logo: '🔷' },
-  mjs: { color: '#f7df1e', label: 'MJS', logo: '📦' },
-  cjs: { color: '#f7df1e', label: 'CJS', logo: '📦' },
+  js: { color: '#f7df1e', label: 'JS' },
+  jsx: { color: '#61dafb', label: 'JSX' },
+  ts: { color: '#3178c6', label: 'TS' },
+  tsx: { color: '#3178c6', label: 'TSX' },
+  mjs: { color: '#f7df1e', label: 'MJS' },
+  cjs: { color: '#f7df1e', label: 'CJS' },
 
   // Python
-  py: { color: '#3776ab', label: 'PY', logo: '🐍' },
-  pyw: { color: '#3776ab', label: 'PY', logo: '🐍' },
-  pyc: { color: '#3776ab', label: 'PY', logo: '🐍' },
+  py: { color: '#3776ab', label: 'PY' },
+  pyw: { color: '#3776ab', label: 'PY' },
+  pyc: { color: '#3776ab', label: 'PY' },
 
   // Java / Android / Kotlin
-  java: { color: '#b07219', label: 'JAVA', logo: '☕' },
-  kt: { color: '#7f52ff', label: 'KT', logo: '🍃' },
-  gradle: { color: '#02303a', label: 'GRADLE', logo: '🐘' },
-  properties: { color: '#ecd53f', label: 'PROP', logo: '⚙️' },
-  xml: { color: '#e34c26', label: 'XML', logo: '📄' },
-  manifest: { color: '#e34c26', label: 'XML', logo: '📱' },
+  java: { color: '#b07219', label: 'JAVA' },
+  kt: { color: '#7f52ff', label: 'KT' },
+  gradle: { color: '#02303a', label: 'GRADLE' },
+  properties: { color: '#ecd53f', label: 'PROP' },
+  xml: { color: '#e34c26', label: 'XML' },
+  manifest: { color: '#e34c26', label: 'XML' },
 
   // Mobile / Build
-  apk: { color: '#3ddc84', label: 'APK', logo: '📱' },
-  aab: { color: '#3ddc84', label: 'AAB', logo: '📦' },
-  jar: { color: '#b07219', label: 'JAR', logo: '☕' },
-  aar: { color: '#b07219', label: 'AAR', logo: '📦' },
-  pro: { color: '#f05032', label: 'PRO', logo: '🛡️' },
+  apk: { color: '#3ddc84', label: 'APK' },
+  aab: { color: '#3ddc84', label: 'AAB' },
+  jar: { color: '#b07219', label: 'JAR' },
+  aar: { color: '#b07219', label: 'AAR' },
+  pro: { color: '#f05032', label: 'PRO' },
 
   // Config / Data
-  json: { color: '#f7df1e', label: 'JSON', logo: '📋' },
-  yaml: { color: '#cb171e', label: 'YAML', logo: '⚓' },
-  yml: { color: '#cb171e', label: 'YAML', logo: '⚓' },
-  toml: { color: '#9c4221', label: 'TOML', logo: '⚙️' },
-  ini: { color: '#68686c', label: 'INI', logo: '⚙️' },
-  conf: { color: '#68686c', label: 'CONF', logo: '⚙️' },
+  json: { color: '#f7df1e', label: 'JSON' },
+  yaml: { color: '#cb171e', label: 'YAML' },
+  yml: { color: '#cb171e', label: 'YAML' },
+  toml: { color: '#9c4221', label: 'TOML' },
+  ini: { color: '#68686c', label: 'INI' },
+  conf: { color: '#68686c', label: 'CONF' },
 
   // Documentation
-  md: { color: '#083fa1', label: 'MD', logo: '📘' },
-  txt: { color: '#68686c', label: 'TXT', logo: '📄' },
-  text: { color: '#68686c', label: 'TXT', logo: '📄' },
-  log: { color: '#68686c', label: 'LOG', logo: '📝' },
+  md: { color: '#083fa1', label: 'MD' },
+  txt: { color: '#68686c', label: 'TXT' },
+  text: { color: '#68686c', label: 'TXT' },
+  log: { color: '#68686c', label: 'LOG' },
 
   // Git / Version Control
-  gitignore: { color: '#f05032', label: 'GIT', logo: '🌿' },
-  gitmodules: { color: '#f05032', label: 'GIT', logo: '🌿' },
+  gitignore: { color: '#f05032', label: 'GIT' },
+  gitmodules: { color: '#f05032', label: 'GIT' },
 
   // Environment / Secrets
-  env: { color: '#ecd53f', label: 'ENV', logo: '🔑' },
-  dotenv: { color: '#ecd53f', label: 'ENV', logo: '🔑' },
+  env: { color: '#ecd53f', label: 'ENV' },
+  dotenv: { color: '#ecd53f', label: 'ENV' },
 
   // Shell / Scripts
-  sh: { color: '#89e051', label: 'SH', logo: '🐚' },
-  bash: { color: '#89e051', label: 'SH', logo: '🐚' },
-  zsh: { color: '#89e051', label: 'SH', logo: '🐚' },
-  bat: { color: '#c1f12e', label: 'BAT', logo: '🐚' },
-  ps1: { color: '#012456', label: 'PS', logo: '🐚' },
+  sh: { color: '#89e051', label: 'SH' },
+  bash: { color: '#89e051', label: 'SH' },
+  zsh: { color: '#89e051', label: 'SH' },
+  bat: { color: '#c1f12e', label: 'BAT' },
+  ps1: { color: '#012456', label: 'PS' },
 
   // Images / Assets
-  png: { color: '#d6604d', label: 'PNG', logo: '🖼️' },
-  jpg: { color: '#d6604d', label: 'JPG', logo: '🖼️' },
-  jpeg: { color: '#d6604d', label: 'JPG', logo: '🖼️' },
-  gif: { color: '#d6604d', label: 'GIF', logo: '🖼️' },
-  svg: { color: '#ffb13b', label: 'SVG', logo: '🎨' },
-  ico: { color: '#ffb13b', label: 'ICO', logo: '🖼️' },
-  webp: { color: '#d6604d', label: 'WEBP', logo: '🖼️' },
+  png: { color: '#d6604d', label: 'PNG' },
+  jpg: { color: '#d6604d', label: 'JPG' },
+  jpeg: { color: '#d6604d', label: 'JPG' },
+  gif: { color: '#d6604d', label: 'GIF' },
+  svg: { color: '#ffb13b', label: 'SVG' },
+  ico: { color: '#ffb13b', label: 'ICO' },
+  webp: { color: '#d6604d', label: 'WEBP' },
 
   // Models / AI
-  gguf: { color: '#8e44ad', label: 'GGUF', logo: '🤖' },
-  ggml: { color: '#8e44ad', label: 'GGML', logo: '🤖' },
-  bin: { color: '#8e44ad', label: 'BIN', logo: '🤖' },
+  gguf: { color: '#8e44ad', label: 'GGUF' },
+  ggml: { color: '#8e44ad', label: 'GGML' },
+  bin: { color: '#8e44ad', label: 'BIN' },
 
   // Other
-  lock: { color: '#68686c', label: 'LOCK', logo: '🔒' },
-  map: { color: '#68686c', label: 'MAP', logo: '🗺️' },
+  lock: { color: '#68686c', label: 'LOCK' },
+  map: { color: '#68686c', label: 'MAP' },
 };
 
 export function getFileIconInfo(filename) {
@@ -98,7 +98,7 @@ export function getFileIconInfo(filename) {
   if (baseName === '.well-known' || baseName.endsWith('.json')) return EXTENSION_ICONS['json'];
 
   const ext = name.split('.').pop()?.toLowerCase();
-  if (!ext || ext === name.toLowerCase()) return { color: 'var(--faint)', label: '?', logo: '📄' };
+  if (!ext || ext === name.toLowerCase()) return { color: 'var(--faint)', label: '?' };
 
   const info = EXTENSION_ICONS[ext];
   if (info) return info;
@@ -108,7 +108,7 @@ export function getFileIconInfo(filename) {
   if (baseName.includes('manifest') || baseName.includes('androidmanifest')) return EXTENSION_ICONS['manifest'];
   if (baseName.includes('proguard')) return EXTENSION_ICONS['pro'];
 
-  return { color: 'var(--faint)', label: ext.toUpperCase(), logo: '📄' };
+  return { color: 'var(--faint)', label: ext.toUpperCase() };
 }
 
 /**

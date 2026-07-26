@@ -29,7 +29,7 @@ export default function Layout({
     status === 'busy'
       ? { color: 'var(--warn)', label: 'Working' }
       : status === 'off'
-        ? { color: 'var(--danger)', label: isConnecting ? 'Connecting…' : 'Offline' }
+        ? { color: 'var(--danger)', label: isConnecting ? 'Connecting...' : 'Offline' }
         : { color: 'var(--success)', label: ollamaConnected ? 'Ready' : 'Idle' };
 
   return (

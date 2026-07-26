@@ -49,18 +49,13 @@ function FileNode({ node, depth = 0, onSelect, onFolderSelect, selectedPath, sel
           <span
             className="file-icon file-badge mono"
             style={{ color: fileInfo?.color || 'var(--faint)' }}
-            title={fileInfo?.logo || fileInfo?.label || '?'}
+            title={fileInfo?.label || '?'}
           >
             {fileInfo?.label || '?' }
           </span>
         )}
 
         <span className="file-name">{node.name}</span>
-        {isFile && fileInfo?.logo && (
-          <span className="file-logo" aria-label={fileInfo.logo} title={fileInfo.logo}>
-            {fileInfo.logo}
-          </span>
-        )}
       </motion.div>
 
       <AnimatePresence>

@@ -136,7 +136,7 @@ export default function MyCollection({
                   transition={{ delay: index * 0.05 }}
                   layout
                 >
-                  {/* Main Row — tap to select & chat */}
+                  {/* Main Row - tap to select & chat */}
                   <div 
                     className="model-item-main"
                     onClick={() => handleTap(model)}

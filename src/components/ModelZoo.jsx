@@ -302,7 +302,7 @@ export default function ModelZoo({
                 : !isNative && !ollamaConnected
                   ? 'Ollama offline'
                   : otherActive
-                    ? 'Download in progress…'
+                    ? 'Download in progress...'
                     : 'Download'}
             </button>
           )}
@@ -313,7 +313,7 @@ export default function ModelZoo({
 
   return (
     <motion.div className="model-zoo" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      {/* Compact header: title left, close right — subtitle removed */}
+      {/* Compact header: title left, close right - subtitle removed */}
       <div className="zoo-header">
         <h2 className="display">Model Zoo</h2>
         {onClose && (
@@ -335,15 +335,15 @@ export default function ModelZoo({
               <li>Start: <code>ollama serve</code></li>
               <li>Come back here and download a model</li>
             </ol>
-            <p className="setup-note">On Android, no setup is needed — models download directly.</p>
+            <p className="setup-note">On Android, no setup is needed - models download directly.</p>
           </div>
         )}
 
-        {/* Inline chip bar + filters — single compact row */}
+        {/* Inline chip bar + filters - single compact row */}
         <div className="zoo-toolbar">
           <div className="zoo-chips">
             <span className="zoo-chip" title={`${memoryValue} RAM · ${storageDetail}`}>
-              <HardDrive size={12} /> {storageValue || '—'}
+              <HardDrive size={12} /> {storageValue || '-'}
             </span>
             <span className="zoo-chip">{filteredModels.length} models</span>
           </div>
@@ -370,7 +370,7 @@ export default function ModelZoo({
           </div>
         </div>
 
-        {/* Device info — collapsible, tucked under toolbar */}
+        {/* Device info - collapsible, tucked under toolbar */}
         <details className="zoo-device-details">
           <summary className="zoo-device-toggle">
             <Smartphone size={12} /> Device info

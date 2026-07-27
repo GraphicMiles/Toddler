@@ -116,55 +116,6 @@ export default function ChatContainer({
 
   return (
     <div className="chat-container">
-      {/* Local Server Status Banner + Test Button */}
-      {isNative && (
-        <div style={{ 
-          background: localServerStatus?.running ? '#166534' : '#334155',
-          color: localServerStatus?.running ? '#86efac' : '#94a3b8',
-          padding: '8px 16px',
-          fontSize: '13px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '12px'
-        }}>
-          <span>
-            {localServerStatus?.running ? '🟢 Local Server Active' : '⚪ Local Server Inactive'}
-            {localServerStatus?.running && ` • Port ${localServerStatus.port}`}
-          </span>
-          
-          <button 
-            onClick={async () => {
-              try {
-                const response = await fetch(`http://127.0.0.1:${localServerStatus?.port || 8080}/health`, {
-                  method: 'GET',
-                  signal: AbortSignal.timeout(3000)
-                });
-                
-                if (response.ok) {
-                  alert('✅ Local server is responding correctly!');
-                } else {
-                  alert(`❌ Server responded with status: ${response.status}`);
-                }
-              } catch (err) {
-                alert(`❌ Failed to connect to local server: ${err.message}`);
-              }
-            }}
-            style={{
-              background: 'rgba(255,255,255,0.15)',
-              color: 'inherit',
-              border: 'none',
-              padding: '4px 10px',
-              borderRadius: '4px',
-              fontSize: '12px',
-              cursor: 'pointer'
-            }}
-          >
-            Test Server
-          </button>
-        </div>
-      )}
-
       {/* Minimal top bar */}
       <div className="chat-topbar">
         <button

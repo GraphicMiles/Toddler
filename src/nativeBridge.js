@@ -26,6 +26,7 @@ export async function createWorkspaceFolder(uri, path) { return WorkspaceStorage
 export async function renameWorkspaceItem(uri, path, newName) { return WorkspaceStorage.rename({ uri, path, newName }); }
 export async function deleteWorkspaceItem(uri, path) { return WorkspaceStorage.delete({ uri, path }); }
 export async function inspectWorkspaceItem(uri, path) { return WorkspaceStorage.inspect({ uri, path }); }
+export async function downloadModelToWorkspace(uri, url, path) { return WorkspaceStorage.download({ uri, url, path }); }
 
 export async function getOnDeviceRuntimeInfo() {
   if (!isNative) return { available: false, reason: 'On-device runtime is available only in the Android build.' };

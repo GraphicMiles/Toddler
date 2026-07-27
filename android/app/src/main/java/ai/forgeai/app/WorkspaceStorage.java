@@ -12,6 +12,8 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.ByteArrayOutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
 @CapacitorPlugin(name = "WorkspaceStorage")
@@ -106,4 +108,23 @@ public class WorkspaceStorage extends Plugin {
 
     @PluginMethod
     public void inspect(PluginCall call) { try { DocumentFile f = resolve(root(call), call.getString("path", ""), false); String mime = f.getType() == null ? "" : f.getType(); boolean binary = !mime.startsWith("text/") && !mime.contains("json") && !mime.contains("javascript") && !mime.contains("xml"); JSObject result = new JSObject(); result.put("binary", binary); result.put("mimeType", mime); call.resolve(result); } catch (Exception e) { call.reject(e.getMessage()); } }
+
+    @PluginMethod
+    public void download(PluginCall call) {
+        new Thread(() -> {
+            try {
+                String url = call.getString("url", ""); String path = call.getString("path", "");
+                if (!url.startsWith("https://") || blocked(path)) throw new IllegalArgumentException("Only HTTPS model downloads are allowed.");
+                DocumentFile folder = root(call); int slash = path.lastIndexOf('/');
+                DocumentFile dir = resolve(folder, slash < 0 ? "" : path.substring(0, slash), true);
+                String name = slash < 0 ? path : path.substring(slash + 1);
+                DocumentFile target = dir.findFile(name); if (target == null) target = dir.createFile("application/octet-stream", name);
+                if (target == null) throw new IllegalArgumentException("Unable to create model file.");
+                HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection(); connection.setConnectTimeout(20000); connection.setReadTimeout(120000); connection.connect();
+                if (connection.getResponseCode() < 200 || connection.getResponseCode() >= 300) throw new IllegalArgumentException("Model download failed: HTTP " + connection.getResponseCode());
+                try (InputStream in = connection.getInputStream(); OutputStream out = getContext().getContentResolver().openOutputStream(target.getUri(), "wt")) { byte[] buffer = new byte[262144]; int n; long total = 0; while ((n = in.read(buffer)) != -1) { out.write(buffer, 0, n); total += n; } JSObject result = new JSObject(); result.put("path", path); result.put("size", total); call.resolve(result); }
+                connection.disconnect();
+            } catch (Exception e) { call.reject(e.getMessage()); }
+        }).start();
+    }
 }

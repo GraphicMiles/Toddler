@@ -11,6 +11,7 @@ import { App } from '@capacitor/app';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { StatusBar } from '@capacitor/status-bar';
 import { registerPlugin } from '@capacitor/core';
+import { profileForModel, formatPrompt } from './models/promptProfiles.js';
 
 const DeviceCapacity = registerPlugin('DeviceCapacity');
 const OnDeviceRuntime = registerPlugin('OnDeviceRuntime');
@@ -46,11 +47,12 @@ export async function unloadOnDeviceModel() {
   if (isNative) return OnDeviceRuntime.unload();
 }
 
-export async function runOnDeviceChat({ messages, signal, onToken }) {
+export async function runOnDeviceChat({ model, messages, signal, onToken }) {
   if (!isNative) throw new Error('On-device inference requires Android.');
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-  const prompt = messages.map(message => `${message.role}: ${message.content}`).join('\n') + '\nassistant:';
-  const result = await OnDeviceRuntime.generate({ prompt, maxTokens: 256 });
+  const profile = profileForModel({ id: model || '' });
+  const prompt = formatPrompt(messages, profile);
+  const result = await OnDeviceRuntime.generate({ prompt, maxTokens: profile.maxOutputTokens, requestId: crypto.randomUUID?.() || `${Date.now()}-${Math.random()}` });
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
   onToken?.(result.text || '');
   return result;

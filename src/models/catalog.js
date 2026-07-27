@@ -1,3 +1,5 @@
+import { profileForModel } from './promptProfiles.js';
+
 export const MODEL_CATALOG = Object.freeze([
   { id: 'smollm-135m-q3', name: 'SmolLM 135M Test', file: 'smollm-135m-q3.gguf', size: 94, sizeUnit: 'MB', task: 'smoke-test', description: 'Under-100 MB offline runtime smoke test; not coding-capable.', downloadUrl: 'https://huggingface.co/second-state/SmolLM-135M-Instruct-GGUF/resolve/main/smollm-135m-instruct-q3_k_m.gguf?download=true', sha256: null, runtime: 'llama.cpp', android: true, minRam: 2 },
   { id: 'smollm2-360m-q3', name: 'SmolLM2 360M', file: 'smollm2-360m-q3.gguf', size: 235, sizeUnit: 'MB', task: 'chat', description: 'Small offline Android test model.', downloadUrl: 'https://huggingface.co/bartowski/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q3_K_M.gguf?download=true', sha256: null, runtime: 'llama.cpp', android: true, minRam: 3 },
@@ -16,4 +18,8 @@ export function validateCatalog(catalog = MODEL_CATALOG, { requireChecksums = fa
   }
   return true;
 }
+export function getModelProfile(model) {
+  return { ...profileForModel(model), ...(model?.profile || {}) };
+}
+
 validateCatalog();

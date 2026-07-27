@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(OnDeviceRuntime.class);
+        registerPlugin(WorkspaceStorage.class);
         registerPlugin(DeviceCapacityPlugin.class);
         super.onCreate(savedInstanceState);
     }

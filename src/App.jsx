@@ -8,7 +8,7 @@ import Workspace from './components/Workspace';
 import Settings from './components/Settings';
 import useModelCollection from './hooks/useModelCollection';
 import useDeviceCapability from './hooks/useDeviceCapability';
-import { haptics, isNative } from './nativeBridge';
+import { haptics, isNative, pickWorkspaceFolder, listWorkspace, readWorkspaceFile, writeWorkspaceFile, createWorkspaceFile, createWorkspaceFolder } from './nativeBridge';
 import { createModelProvider } from './providers/modelProvider';
 import { AgentCore } from './agent/core.js';
 import { ToolRegistry } from './tools/toolRegistry.js';
@@ -50,7 +50,7 @@ export default function App() {
   // Workspace state
   const [workspaceTree, setWorkspaceTree] = useState([]);
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
-  const [workspaceRootPath, setWorkspaceRootPath] = useState('');
+  const [workspaceRootPath, setWorkspaceRootPath] = useState(() => localStorage.getItem('forgeai_workspace_uri') || '');
   const [selectedFilePath, setSelectedFilePath] = useState('');
   
   // Ollama state
@@ -105,7 +105,14 @@ export default function App() {
     setWorkspaceLoading(true);
     try {
       if (isNative) {
-        // Android: Use real filesystem
+        const savedUri = localStorage.getItem('forgeai_workspace_uri');
+        if (savedUri?.startsWith('content://')) {
+          const result = await listWorkspace(savedUri);
+          setWorkspaceRootPath(savedUri);
+          setWorkspaceTree(result?.value || result || []);
+          return;
+        }
+        // Android fallback until a folder is selected
         let rootPath = '';
         const candidates = [
           '/storage/emulated/0/Download/ForgeAI',
@@ -153,16 +160,30 @@ export default function App() {
     }
   }, [loadWorkspace, requestStoragePermission]);
 
+  const chooseWorkspace = useCallback(async () => {
+    if (!isNative) return;
+    const result = await pickWorkspaceFolder();
+    if (result?.uri) {
+      localStorage.setItem('forgeai_workspace_uri', result.uri);
+      setWorkspaceRootPath(result.uri);
+      await loadWorkspace();
+    }
+  }, [loadWorkspace]);
+
   // File CRUD handlers
   const safePath = useCallback((path) => normalizeWorkspacePath(workspaceRootPath, path), [workspaceRootPath]);
 
   const handleFileRead = useCallback(async (path) => {
+    const uri = localStorage.getItem('forgeai_workspace_uri');
+    if (uri?.startsWith('content://')) return readWorkspaceFile(uri, path);
     const target = safePath(path);
     if (isSensitiveWorkspaceFile(target)) throw new Error('Secret and private-key files are blocked by default.');
     return await fileSystem.readFile(target);
   }, [safePath]);
 
   const handleFileSave = useCallback(async (path, content) => {
+    const uri = localStorage.getItem('forgeai_workspace_uri');
+    if (uri?.startsWith('content://')) { await writeWorkspaceFile(uri, path, content); await loadWorkspace(); return; }
     const target = safePath(path);
     if (isSensitiveWorkspaceFile(target)) throw new Error('Secret and private-key files are blocked by default.');
     await fileSystem.writeFile(target, content);
@@ -171,7 +192,8 @@ export default function App() {
 
   const handleFileCreate = useCallback(async (path) => {
     try {
-      await fileSystem.writeFile(safePath(path), '');
+      const uri = localStorage.getItem('forgeai_workspace_uri');
+      if (uri?.startsWith('content://')) await createWorkspaceFile(uri, path); else await fileSystem.writeFile(safePath(path), '');
       await loadWorkspace();
     } catch (err) {
       console.error('File creation failed:', err);
@@ -183,7 +205,8 @@ export default function App() {
 
   const handleFolderCreate = useCallback(async (path) => {
     try {
-      await fileSystem.createDirectory(safePath(path));
+      const uri = localStorage.getItem('forgeai_workspace_uri');
+      if (uri?.startsWith('content://')) await createWorkspaceFolder(uri, path); else await fileSystem.createDirectory(safePath(path));
       await loadWorkspace();
     } catch (err) {
       console.error('Folder creation failed:', err);
@@ -867,6 +890,7 @@ export default function App() {
               onFileRename={handleFileRename}
               onFileDelete={handleFileDelete}
               onRefresh={loadWorkspace}
+              onChooseWorkspace={chooseWorkspace}
             />
           </motion.div>
         )}

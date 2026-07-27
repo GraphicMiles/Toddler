@@ -168,6 +168,7 @@ export default function Workspace({
   onFileRename,
   onFileDelete,
   onRefresh,
+  onChooseWorkspace,
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPath, setSelectedPath] = useState(null);
@@ -307,6 +308,9 @@ export default function Workspace({
               </button>
               <button className="ws-action-btn" onClick={onRefresh} title="Refresh">
                 <Database size={16} />
+              </button>
+              <button className="ws-action-btn" onClick={onChooseWorkspace} title="Choose device folder">
+                <FolderOpen size={16} />
               </button>
             </div>
           </div>

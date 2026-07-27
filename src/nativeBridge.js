@@ -15,6 +15,14 @@ import { profileForModel, formatPrompt } from './models/promptProfiles.js';
 
 const DeviceCapacity = registerPlugin('DeviceCapacity');
 const OnDeviceRuntime = registerPlugin('OnDeviceRuntime');
+const WorkspaceStorage = registerPlugin('WorkspaceStorage');
+
+export async function pickWorkspaceFolder() { return WorkspaceStorage.pickFolder(); }
+export async function listWorkspace(uri) { return WorkspaceStorage.list({ uri }); }
+export async function readWorkspaceFile(uri, path) { return (await WorkspaceStorage.readFile({ uri, path })).content; }
+export async function writeWorkspaceFile(uri, path, content) { return WorkspaceStorage.writeFile({ uri, path, content }); }
+export async function createWorkspaceFile(uri, path) { return WorkspaceStorage.createFile({ uri, path }); }
+export async function createWorkspaceFolder(uri, path) { return WorkspaceStorage.createFolder({ uri, path }); }
 
 export async function getOnDeviceRuntimeInfo() {
   if (!isNative) return { available: false, reason: 'On-device runtime is available only in the Android build.' };

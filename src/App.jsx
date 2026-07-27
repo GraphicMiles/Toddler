@@ -489,6 +489,24 @@ export default function App() {
     return core;
   }, [agentToolRegistry, agentApprovalGate, provider]);
 
+  // Execute read-only agent actions without showing an approval prompt.
+  // The approval gate still consumes each request and the tool registry remains the authority.
+  async function autoExecuteSafeActions(actions) {
+    for (const action of actions || []) {
+      try {
+        const result = await agentCore.executeApprovedAction(action.id);
+        setPendingActions(prev => prev.filter(item => item.id !== action.id));
+        addSystemMessage(`Agent read ${action.type} completed.`, 'info');
+        if (result?.content && action.type === 'read_file') {
+          setMessages(prev => [...prev, { id: generateId(), role: 'assistant', content: result.content, timestamp: Date.now() }]);
+        }
+      } catch (error) {
+        console.warn('Safe agent action failed:', error);
+        setPendingActions(prev => prev.filter(item => item.id !== action.id));
+      }
+    }
+  }
+
   // Check Ollama connection
   const checkConnection = useCallback(async () => {
     try {
@@ -621,7 +639,7 @@ export default function App() {
         setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: friendly, level: 'error' } : m));
       }
     } finally { setIsTyping(false); setModelStatus('idle'); setAbortController(null); }
-  }, [activeModel, messages, provider, agentCore, trimHistory, workspaceTree, selectedFilePath]);
+  }, [activeModel, messages, provider, agentCore, trimHistory, workspaceTree, workspaceRootPath, selectedFilePath]);
 
   const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
 

@@ -43,18 +43,30 @@ public class OnDeviceRuntime extends Plugin {
         result.put("backend", "llama.cpp-cpu");
         result.put("abi", Build.SUPPORTED_ABIS.length > 0 ? Build.SUPPORTED_ABIS[0] : "unknown");
         result.put("loaded", nativeIsLoaded());
+        result.put("state", runtimeState);
+        result.put("activeRequestId", activeRequestId == null ? "" : activeRequestId);
         call.resolve(result);
     }
 
     @PluginMethod
     public void load(PluginCall call) {
+        synchronized (this) {
+            if ("GENERATING".equals(runtimeState) || "CANCELLING".equals(runtimeState)) { call.reject("Cannot load a model during generation"); return; }
+            runtimeState = "LOADING";
+        }
         String path = call.getString("path", "");
-        if (path.isEmpty()) { call.reject("A model path is required"); return; }
-        if (nativeLoad(path)) call.resolve(); else call.reject("Model could not be loaded safely");
+        if (path.isEmpty()) { runtimeState = nativeIsLoaded() ? "READY" : "IDLE"; call.reject("A model path is required"); return; }
+        if (nativeLoad(path)) { runtimeState = "READY"; call.resolve(); } else { runtimeState = "ERROR"; call.reject("Model could not be loaded safely"); }
     }
 
     @PluginMethod
-    public void unload(PluginCall call) { nativeUnload(); call.resolve(); }
+    public void unload(PluginCall call) {
+        synchronized (this) {
+            if ("GENERATING".equals(runtimeState) || "CANCELLING".equals(runtimeState)) { call.reject("Cancel generation before unloading"); return; }
+            nativeUnload(); runtimeState = "IDLE"; activeRequestId = null;
+        }
+        call.resolve();
+    }
 
     @PluginMethod
     public void download(PluginCall call) {
@@ -179,6 +191,9 @@ public class OnDeviceRuntime extends Plugin {
 
     @PluginMethod
     public void deleteModel(PluginCall call) {
+        synchronized (this) {
+            if ("GENERATING".equals(runtimeState) || "CANCELLING".equals(runtimeState)) { call.reject("Cancel generation before deleting a model"); return; }
+        }
         String path = call.getString("path", "");
         File models = new File(getContext().getFilesDir(), "models").getAbsoluteFile();
         File target = new File(path).getAbsoluteFile();

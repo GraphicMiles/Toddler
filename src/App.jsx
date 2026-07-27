@@ -112,7 +112,8 @@ export default function App() {
           setWorkspaceTree(result?.children || result?.value || result || []);
           return;
         }
-        // Android fallback until a folder is selected
+        // Do not attempt raw shared-storage paths on modern Android. Require SAF.
+        if (!savedUri) { setWorkspaceRootPath(''); setWorkspaceTree([]); return; }
         let rootPath = '';
         const candidates = [
           '/storage/emulated/0/Download/ForgeAI',
@@ -193,6 +194,7 @@ export default function App() {
   const handleFileCreate = useCallback(async (path) => {
     try {
       const uri = localStorage.getItem('forgeai_workspace_uri');
+      if (isNative && !uri?.startsWith('content://')) throw new Error('Choose a device folder first using the folder button in Files.');
       if (uri?.startsWith('content://')) await createWorkspaceFile(uri, path); else await fileSystem.writeFile(safePath(path), '');
       await loadWorkspace();
     } catch (err) {
@@ -206,6 +208,7 @@ export default function App() {
   const handleFolderCreate = useCallback(async (path) => {
     try {
       const uri = localStorage.getItem('forgeai_workspace_uri');
+      if (isNative && !uri?.startsWith('content://')) throw new Error('Choose a device folder first using the folder button in Files.');
       if (uri?.startsWith('content://')) await createWorkspaceFolder(uri, path); else await fileSystem.createDirectory(safePath(path));
       await loadWorkspace();
     } catch (err) {

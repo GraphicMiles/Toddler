@@ -15,6 +15,9 @@ import java.io.ByteArrayOutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.security.MessageDigest;
 
 @CapacitorPlugin(name = "WorkspaceStorage")
 public class WorkspaceStorage extends Plugin {
@@ -108,6 +111,24 @@ public class WorkspaceStorage extends Plugin {
 
     @PluginMethod
     public void inspect(PluginCall call) { try { DocumentFile f = resolve(root(call), call.getString("path", ""), false); String mime = f.getType() == null ? "" : f.getType(); boolean binary = !mime.startsWith("text/") && !mime.contains("json") && !mime.contains("javascript") && !mime.contains("xml"); JSObject result = new JSObject(); result.put("binary", binary); result.put("mimeType", mime); call.resolve(result); } catch (Exception e) { call.reject(e.getMessage()); } }
+
+    @PluginMethod
+    public void importToRuntime(PluginCall call) {
+        new Thread(() -> {
+            try {
+                DocumentFile source = resolve(root(call), call.getString("path", ""), false);
+                String name = source.getName() == null ? "model.gguf" : source.getName();
+                if (!name.toLowerCase().endsWith(".gguf")) throw new IllegalArgumentException("Only GGUF models can be imported.");
+                File dir = new File(getContext().getFilesDir(), "models"); if (!dir.exists() && !dir.mkdirs()) throw new IllegalArgumentException("Unable to create runtime model directory.");
+                File temp = new File(dir, name + ".part"); File target = new File(dir, name);
+                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                try (InputStream in = getContext().getContentResolver().openInputStream(source.getUri()); FileOutputStream out = new FileOutputStream(temp)) { byte[] buffer = new byte[262144]; int n; while ((n = in.read(buffer)) != -1) { out.write(buffer, 0, n); digest.update(buffer, 0, n); } }
+                if (!temp.renameTo(target)) throw new IllegalArgumentException("Unable to finalize imported model.");
+                StringBuilder hash = new StringBuilder(); for (byte b : digest.digest()) hash.append(String.format("%02x", b));
+                JSObject result = new JSObject(); result.put("runtimePath", target.getAbsolutePath()); result.put("sha256", hash.toString()); result.put("size", target.length()); call.resolve(result);
+            } catch (Exception e) { call.reject(e.getMessage()); }
+        }).start();
+    }
 
     @PluginMethod
     public void download(PluginCall call) {

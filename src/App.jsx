@@ -160,14 +160,12 @@ export default function App() {
   const handleFileSave = useCallback(async (path, content) => {
     await fileSystem.writeFile(path, content);
     await loadWorkspace();
-    addSystemMessage(`Saved: ${path.split('/').pop()}`, 'info');
   }, [loadWorkspace]);
 
   const handleFileCreate = useCallback(async (path) => {
     try {
       await fileSystem.writeFile(path, '');
       await loadWorkspace();
-      addSystemMessage(`Created: ${path.split('/').pop()}`, 'info');
     } catch (err) {
       console.error('File creation failed:', err);
       addSystemMessage(`Failed to create file: ${err.message}`, 'error');
@@ -180,7 +178,6 @@ export default function App() {
     try {
       await fileSystem.createDirectory(path);
       await loadWorkspace();
-      addSystemMessage(`Created folder: ${path.split('/').pop()}`, 'info');
     } catch (err) {
       console.error('Folder creation failed:', err);
       addSystemMessage(`Failed to create folder: ${err.message}`, 'error');
@@ -191,13 +188,11 @@ export default function App() {
   const handleFileRename = useCallback(async (oldPath, newPath) => {
     await fileSystem.rename(oldPath, newPath);
     await loadWorkspace();
-    addSystemMessage(`Renamed to: ${newPath.split('/').pop()}`, 'info');
   }, [loadWorkspace]);
 
   const handleFileDelete = useCallback(async (path, type) => {
     await fileSystem.deleteFile(path);
     await loadWorkspace();
-    addSystemMessage(`Deleted: ${path.split('/').pop()}`, 'warn');
   }, [loadWorkspace]);
 
   const handleFilePick = useCallback((path, node) => {
@@ -856,7 +851,7 @@ export default function App() {
             <Workspace
               workspace={{ name: 'Device Storage', path: workspaceRootPath, tree: workspaceTree }}
               workspaceLoading={workspaceLoading}
-              onFileSelect={(path) => addSystemMessage(`Selected: ${path}`, 'info')}
+              onFileSelect={() => {}}
               onFilePick={handleFilePick}
               onFileRead={handleFileRead}
               onFileSave={handleFileSave}

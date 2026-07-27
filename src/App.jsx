@@ -106,6 +106,7 @@ export default function App() {
     try {
       if (isNative) {
         const savedUri = localStorage.getItem('forgeai_workspace_uri');
+        if (!savedUri || !savedUri.startsWith('content://')) { if (savedUri) localStorage.removeItem('forgeai_workspace_uri'); setWorkspaceRootPath(''); setWorkspaceTree([]); return; }
         if (savedUri?.startsWith('content://')) {
           const result = await listWorkspace(savedUri);
           setWorkspaceRootPath(savedUri);

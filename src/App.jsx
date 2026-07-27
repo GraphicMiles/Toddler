@@ -109,7 +109,7 @@ export default function App() {
         if (savedUri?.startsWith('content://')) {
           const result = await listWorkspace(savedUri);
           setWorkspaceRootPath(savedUri);
-          setWorkspaceTree(result?.value || result || []);
+          setWorkspaceTree(result?.children || result?.value || result || []);
           return;
         }
         // Android fallback until a folder is selected

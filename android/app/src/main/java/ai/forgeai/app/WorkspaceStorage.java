@@ -64,14 +64,20 @@ public class WorkspaceStorage extends Plugin {
 
     @PluginMethod
     public void list(PluginCall call) {
-        try { call.resolve(listNode(root(call), "", 0)); } catch (Exception e) { call.reject(e.getMessage()); }
+        try {
+            JSObject result = new JSObject();
+            result.put("children", listNode(root(call), "", 0));
+            call.resolve(result);
+        } catch (Exception e) { call.reject(e.getMessage()); }
     }
 
     private JSArray listNode(DocumentFile dir, String parent, int depth) {
         JSArray array = new JSArray(); if (depth > 8) return array;
         for (DocumentFile f : dir.listFiles()) {
-            JSObject item = new JSObject(); item.put("name", f.getName()); item.put("type", f.isDirectory() ? "folder" : "file");
-            String path = parent.isEmpty() ? f.getName() : parent + "/" + f.getName(); item.put("path", path);
+            String name = f.getName() == null ? "" : f.getName();
+            if (name.isEmpty()) continue;
+            JSObject item = new JSObject(); item.put("name", name); item.put("type", f.isDirectory() ? "folder" : "file");
+            String path = parent.isEmpty() ? name : parent + "/" + name; item.put("path", path);
             if (f.isDirectory()) item.put("children", listNode(f, path, depth + 1));
             array.put(item);
         }

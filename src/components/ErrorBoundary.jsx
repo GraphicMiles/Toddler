@@ -1,9 +1,10 @@
 import { Component } from 'react';
+import { recordError } from '../utils/errorLog.js';
 
 export default class ErrorBoundary extends Component {
   state = { error: null };
   static getDerivedStateFromError(error) { return { error }; }
-  componentDidCatch(error, info) { console.error('ForgeAI UI error', error, info); }
+  componentDidCatch(error, info) { recordError(error, 'react-boundary'); console.error('ForgeAI UI error', error, info); }
   reset = () => { this.setState({ error: null }); };
   reload = () => { window.location.reload(); };
   render() {

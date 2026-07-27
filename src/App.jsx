@@ -17,6 +17,7 @@ import { fileSystem } from './nativeBridge.js';
 import { buildFileIndex, searchFiles } from './utils/fileIndex.js';
 import { retrieveRelevantContext, formatContextForPrompt } from './utils/rag.js';
 import { virtualWorkspace } from './utils/virtualWorkspace.js';
+import { normalizeWorkspacePath, isSensitiveWorkspaceFile } from './workspace/safePath.js';
 import './styles/index.css';
 
 const defaultConversationTitle = () => `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -153,18 +154,24 @@ export default function App() {
   }, [loadWorkspace, requestStoragePermission]);
 
   // File CRUD handlers
+  const safePath = useCallback((path) => normalizeWorkspacePath(workspaceRootPath, path), [workspaceRootPath]);
+
   const handleFileRead = useCallback(async (path) => {
-    return await fileSystem.readFile(path);
-  }, []);
+    const target = safePath(path);
+    if (isSensitiveWorkspaceFile(target)) throw new Error('Secret and private-key files are blocked by default.');
+    return await fileSystem.readFile(target);
+  }, [safePath]);
 
   const handleFileSave = useCallback(async (path, content) => {
-    await fileSystem.writeFile(path, content);
+    const target = safePath(path);
+    if (isSensitiveWorkspaceFile(target)) throw new Error('Secret and private-key files are blocked by default.');
+    await fileSystem.writeFile(target, content);
     await loadWorkspace();
-  }, [loadWorkspace]);
+  }, [loadWorkspace, safePath]);
 
   const handleFileCreate = useCallback(async (path) => {
     try {
-      await fileSystem.writeFile(path, '');
+      await fileSystem.writeFile(safePath(path), '');
       await loadWorkspace();
     } catch (err) {
       console.error('File creation failed:', err);
@@ -172,28 +179,28 @@ export default function App() {
       // Re-throw so Workspace.jsx can also show alert if needed
       throw err;
     }
-  }, [loadWorkspace]);
+  }, [loadWorkspace, safePath]);
 
   const handleFolderCreate = useCallback(async (path) => {
     try {
-      await fileSystem.createDirectory(path);
+      await fileSystem.createDirectory(safePath(path));
       await loadWorkspace();
     } catch (err) {
       console.error('Folder creation failed:', err);
       addSystemMessage(`Failed to create folder: ${err.message}`, 'error');
       throw err;
     }
-  }, [loadWorkspace]);
+  }, [loadWorkspace, safePath]);
 
   const handleFileRename = useCallback(async (oldPath, newPath) => {
-    await fileSystem.rename(oldPath, newPath);
+    await fileSystem.rename(safePath(oldPath), safePath(newPath));
     await loadWorkspace();
-  }, [loadWorkspace]);
+  }, [loadWorkspace, safePath]);
 
   const handleFileDelete = useCallback(async (path, type) => {
-    await fileSystem.deleteFile(path);
+    await fileSystem.deleteFile(safePath(path));
     await loadWorkspace();
-  }, [loadWorkspace]);
+  }, [loadWorkspace, safePath]);
 
   const handleFilePick = useCallback((path, node) => {
     const name = path.split('/').pop();
@@ -378,7 +385,7 @@ export default function App() {
       permission: 'dangerous',
       execute: async ({ path }) => {
         if (!path) throw new Error('A file path is required.');
-        await fileSystem.deleteFile(path);
+        await fileSystem.deleteFile(safePath(path));
         return { path, type: 'delete' };
       },
     });
@@ -475,7 +482,7 @@ export default function App() {
           permission: 'dangerous',
           execute: async ({ path }) => {
             if (!path) throw new Error('A file path is required.');
-            await fileSystem.deleteFile(path);
+            await fileSystem.deleteFile(safePath(path));
             return { path, type: 'delete' };
           },
         });

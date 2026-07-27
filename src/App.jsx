@@ -20,6 +20,8 @@ import { virtualWorkspace } from './utils/virtualWorkspace.js';
 import './styles/index.css';
 
 const defaultConversationTitle = () => `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+const generateId = () => Math.random().toString(36).substring(2, 15);
+const SAFE_AUTO_APPROVE_TOOLS = ['read_file', 'search', 'index'];
 
 // Screen types are imported from ./components/Layout (SCREENS)
 
@@ -508,9 +510,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [checkConnection]);
 
-  // Generate unique ID
-  const generateId = () => Math.random().toString(36).substring(2, 15);
-
   // Add message to chat. level can be 'info', 'error', or 'warn'.
   const addMessage = (role, content, metadata = {}) => {
     const message = {
@@ -625,9 +624,6 @@ export default function App() {
   }, [activeModel, messages, provider, agentCore, trimHistory, workspaceTree, selectedFilePath]);
 
   const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
-
-  // Define safe (read-only) tools that can be auto-executed
-  const SAFE_AUTO_APPROVE_TOOLS = ['read_file', 'search', 'index'];
 
   // Handle action approval - executes through agent core (manual approval enforced)
   const handleApproveAction = useCallback(async (actionId) => {

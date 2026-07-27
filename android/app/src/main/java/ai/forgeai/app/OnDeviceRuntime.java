@@ -15,6 +15,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.UUID;
 
 @CapacitorPlugin(name = "OnDeviceRuntime")
 public class OnDeviceRuntime extends Plugin {
@@ -23,6 +26,10 @@ public class OnDeviceRuntime extends Plugin {
     private static native void nativeUnload();
     private static native boolean nativeIsLoaded();
     private static native String nativeGenerate(String prompt, int maxTokens);
+    private static native void nativeCancel();
+    private final ExecutorService inferenceExecutor = Executors.newSingleThreadExecutor();
+    private volatile String activeRequestId = null;
+    private volatile String runtimeState = "IDLE";
 
     /** Tracks which downloads are paused. Key = filename. */
     private final Map<String, Boolean> pausedDownloads = new ConcurrentHashMap<>();
@@ -186,9 +193,35 @@ public class OnDeviceRuntime extends Plugin {
     public void generate(PluginCall call) {
         String prompt = call.getString("prompt", "");
         int maxTokens = Math.min(Math.max(call.getInt("maxTokens", 128), 1), 512);
+        String requestId = call.getString("requestId", UUID.randomUUID().toString());
         if (prompt.isEmpty()) { call.reject("A prompt is required"); return; }
-        String output = nativeGenerate(prompt, maxTokens);
-        if (output == null) { call.reject("The model is not loaded or could not generate safely"); return; }
-        JSObject result = new JSObject(); result.put("text", output); call.resolve(result);
+        synchronized (this) {
+            if (!"IDLE".equals(runtimeState) && !"READY".equals(runtimeState)) { call.reject("A generation is already active"); return; }
+            if (!nativeIsLoaded()) { call.reject("The model is not loaded"); return; }
+            activeRequestId = requestId; runtimeState = "GENERATING";
+        }
+        inferenceExecutor.execute(() -> {
+            try {
+                String output = nativeGenerate(prompt, maxTokens);
+                JSObject result = new JSObject();
+                result.put("requestId", requestId);
+                result.put("text", output == null ? "" : output);
+                result.put("cancelled", output == null);
+                new Handler(Looper.getMainLooper()).post(() -> call.resolve(result));
+            } catch (Exception error) {
+                new Handler(Looper.getMainLooper()).post(() -> call.reject(error.getMessage()));
+            } finally {
+                synchronized (this) { activeRequestId = null; runtimeState = nativeIsLoaded() ? "READY" : "IDLE"; }
+            }
+        });
+    }
+
+    @PluginMethod
+    public void cancel(PluginCall call) {
+        String requestId = call.getString("requestId", "");
+        if (activeRequestId == null || !activeRequestId.equals(requestId)) { call.resolve(); return; }
+        runtimeState = "CANCELLING";
+        nativeCancel();
+        call.resolve();
     }
 }

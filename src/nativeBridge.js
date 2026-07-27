@@ -52,8 +52,12 @@ export async function runOnDeviceChat({ model, messages, signal, onToken }) {
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
   const profile = profileForModel({ id: model || '' });
   const prompt = formatPrompt(messages, profile);
-  const result = await OnDeviceRuntime.generate({ prompt, maxTokens: profile.maxOutputTokens, requestId: crypto.randomUUID?.() || `${Date.now()}-${Math.random()}` });
-  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  const requestId = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+  const cancel = () => OnDeviceRuntime.cancel({ requestId }).catch(() => {});
+  signal?.addEventListener('abort', cancel, { once: true });
+  const result = await OnDeviceRuntime.generate({ prompt, maxTokens: profile.maxOutputTokens, requestId });
+  signal?.removeEventListener('abort', cancel);
+  if (signal?.aborted || result?.cancelled) throw new DOMException('Aborted', 'AbortError');
   onToken?.(result.text || '');
   return result;
 }

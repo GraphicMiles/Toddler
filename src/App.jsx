@@ -686,6 +686,7 @@ export default function App() {
   }, [isNative]);
 
   // Auto-execute safe read-only actions (smoother UX)
+  // NOTE: This must be defined BEFORE handleSendMessage because handleSendMessage depends on it
   const autoExecuteSafeActions = useCallback(async (actions) => {
     const safeActions = actions.filter(a => SAFE_AUTO_APPROVE_TOOLS.includes(a.type));
     const remainingActions = actions.filter(a => !SAFE_AUTO_APPROVE_TOOLS.includes(a.type));

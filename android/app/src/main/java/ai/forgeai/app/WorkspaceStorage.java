@@ -49,8 +49,13 @@ public class WorkspaceStorage extends Plugin {
         return root;
     }
 
+    private boolean blocked(String path) {
+        String name = path == null ? "" : path.substring(path.lastIndexOf('/') + 1).toLowerCase();
+        return name.equals(".env") || name.startsWith(".env.") || name.equals("id_rsa") || name.equals("id_ed25519") || name.endsWith(".pem") || name.endsWith(".key") || name.contains("credential") || name.contains("secret");
+    }
+
     private DocumentFile resolve(DocumentFile root, String relative, boolean createFolders) {
-        if (relative == null || relative.contains("..")) throw new IllegalArgumentException("Unsafe workspace path.");
+        if (relative == null || relative.contains("..") || relative.startsWith("/") || blocked(relative)) throw new IllegalArgumentException("Unsafe or protected workspace path.");
         DocumentFile current = root;
         for (String part : relative.split("/")) {
             if (part.isEmpty()) continue;
@@ -92,4 +97,13 @@ public class WorkspaceStorage extends Plugin {
     public void readFile(PluginCall call) { try { DocumentFile f = resolve(root(call), call.getString("path", ""), false); try (InputStream in = getContext().getContentResolver().openInputStream(f.getUri()); ByteArrayOutputStream bytes = new ByteArrayOutputStream()) { byte[] buffer = new byte[8192]; int n; while ((n = in.read(buffer)) != -1) bytes.write(buffer, 0, n); JSObject result = new JSObject(); result.put("content", new String(bytes.toByteArray(), StandardCharsets.UTF_8)); call.resolve(result); } } catch (Exception e) { call.reject(e.getMessage()); } }
     @PluginMethod
     public void writeFile(PluginCall call) { try { DocumentFile f = resolve(root(call), call.getString("path", ""), false); try (OutputStream out = getContext().getContentResolver().openOutputStream(f.getUri(), "wt")) { out.write(call.getString("content", "").getBytes(StandardCharsets.UTF_8)); } call.resolve(); } catch (Exception e) { call.reject(e.getMessage()); } }
+
+    @PluginMethod
+    public void rename(PluginCall call) { try { String path = call.getString("path", ""); String name = call.getString("newName", ""); if (name.isEmpty() || name.contains("/") || blocked(name)) throw new IllegalArgumentException("Invalid or protected name."); DocumentFile f = resolve(root(call), path, false); if (!f.renameTo(name)) throw new IllegalArgumentException("Unable to rename item."); call.resolve(); } catch (Exception e) { call.reject(e.getMessage()); } }
+
+    @PluginMethod
+    public void delete(PluginCall call) { try { String path = call.getString("path", ""); if (blocked(path)) throw new IllegalArgumentException("Protected files cannot be deleted."); DocumentFile f = resolve(root(call), path, false); if (!f.delete()) throw new IllegalArgumentException("Unable to delete item."); call.resolve(); } catch (Exception e) { call.reject(e.getMessage()); } }
+
+    @PluginMethod
+    public void inspect(PluginCall call) { try { DocumentFile f = resolve(root(call), call.getString("path", ""), false); String mime = f.getType() == null ? "" : f.getType(); boolean binary = !mime.startsWith("text/") && !mime.contains("json") && !mime.contains("javascript") && !mime.contains("xml"); JSObject result = new JSObject(); result.put("binary", binary); result.put("mimeType", mime); call.resolve(result); } catch (Exception e) { call.reject(e.getMessage()); } }
 }

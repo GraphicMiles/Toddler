@@ -8,7 +8,7 @@ import Workspace from './components/Workspace';
 import Settings from './components/Settings';
 import useModelCollection from './hooks/useModelCollection';
 import useDeviceCapability from './hooks/useDeviceCapability';
-import { haptics, isNative, pickWorkspaceFolder, listWorkspace, readWorkspaceFile, writeWorkspaceFile, createWorkspaceFile, createWorkspaceFolder } from './nativeBridge';
+import { haptics, isNative, pickWorkspaceFolder, listWorkspace, readWorkspaceFile, writeWorkspaceFile, createWorkspaceFile, createWorkspaceFolder, renameWorkspaceItem, deleteWorkspaceItem } from './nativeBridge';
 import { createModelProvider } from './providers/modelProvider';
 import { AgentCore } from './agent/core.js';
 import { ToolRegistry } from './tools/toolRegistry.js';
@@ -216,11 +216,15 @@ export default function App() {
   }, [loadWorkspace, safePath]);
 
   const handleFileRename = useCallback(async (oldPath, newPath) => {
+    const uri = localStorage.getItem('forgeai_workspace_uri');
+    if (uri?.startsWith('content://')) { await renameWorkspaceItem(uri, oldPath, newPath.split('/').pop()); await loadWorkspace(); return; }
     await fileSystem.rename(safePath(oldPath), safePath(newPath));
     await loadWorkspace();
   }, [loadWorkspace, safePath]);
 
   const handleFileDelete = useCallback(async (path, type) => {
+    const uri = localStorage.getItem('forgeai_workspace_uri');
+    if (uri?.startsWith('content://')) { await deleteWorkspaceItem(uri, path); await loadWorkspace(); return; }
     await fileSystem.deleteFile(safePath(path));
     await loadWorkspace();
   }, [loadWorkspace, safePath]);

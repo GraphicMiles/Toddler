@@ -132,67 +132,19 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     else localStorage.removeItem(ACTIVE_MODEL_KEY);
   }, []);
 
-  // Mount/Unmount for local llama-server (Android)
   const mountModel = useCallback(async (model) => {
-    if (!isNative) {
-      setActiveModel(model);
-      return { success: true, mounted: false, message: 'Web mode - model set as active' };
+    if (isNative && model.localPath) {
+      try { await (await import('../nativeBridge')).loadOnDeviceModel(model.localPath); }
+      catch (error) { return { success: false, error: error.message }; }
     }
-
-    try {
-      const { mountLlamaServer } = await import('../nativeBridge');
-      const result = await mountLlamaServer(
-        model.localPath || model.file || model.downloadedPath
-      );
-      
-      if (result.success) {
-        setActiveModel(model);
-        return { 
-          success: true, 
-          mounted: true, 
-          port: result.port || 8080,
-          message: 'Local inference server started'
-        };
-      }
-      
-      // Even if the plugin isn't fully registered, still set the model as active
-      // so the app can attempt to use it
-      setActiveModel(model);
-      return { 
-        success: true, 
-        mounted: false, 
-        warning: result.error || 'Local server plugin not fully registered. You may need to build llama-server first.',
-        fallback: true
-      };
-    } catch (err) {
-      console.error('Failed to mount model:', err);
-      // Still set the model as active even if mount fails
-      setActiveModel(model);
-      return { 
-        success: true, 
-        mounted: false, 
-        warning: err.message || 'Could not start local server. Falling back to active model selection.',
-        fallback: true
-      };
-    }
+    setActiveModel(model);
+    return { success: true, mounted: isNative };
   }, [setActiveModel]);
 
   const unmountModel = useCallback(async () => {
-    if (!isNative) {
-      setActiveModel(null);
-      return { success: true, message: 'Model deselected' };
-    }
-
-    try {
-      const { unmountLlamaServer } = await import('../nativeBridge');
-      await unmountLlamaServer().catch(() => {});
-      setActiveModel(null);
-      return { success: true, message: 'Model unmounted' };
-    } catch (err) {
-      console.error('Failed to unmount model:', err);
-      setActiveModel(null);
-      return { success: true, message: 'Model deselected (server may still be running)' };
-    }
+    if (isNative) await (await import('../nativeBridge')).unloadOnDeviceModel().catch(() => {});
+    setActiveModel(null);
+    return { success: true, message: 'Model unloaded' };
   }, [setActiveModel]);
 
   const stopModel = useCallback(() => setActiveModel(null), [setActiveModel]);

@@ -20,67 +20,6 @@ export async function getOnDeviceRuntimeInfo() {
   try { return await OnDeviceRuntime.getInfo(); } catch { return { available: false, reason: 'Native inference runtime is not installed in this build.' }; }
 }
 
-// === Llama Server Mount/Unmount (new local inference approach) ===
-export async function mountLlamaServer(modelPath, port = 8080) {
-  if (!isNative) {
-    return { success: false, error: 'Local server only available on Android' };
-  }
-  
-  try {
-    const { Capacitor } = window;
-    
-    // Try the plugin first
-    if (Capacitor?.Plugins?.LlamaServerService) {
-      const result = await Capacitor.Plugins.LlamaServerService.start({
-        modelPath: modelPath,
-        port: port
-      });
-      return result;
-    }
-    
-    // Fallback - start service via intent (less reliable)
-    console.warn('[NativeBridge] LlamaServerService plugin not registered. Service may not start.');
-    return { 
-      success: true, 
-      port, 
-      message: 'Plugin not registered - using fallback',
-      fallback: true 
-    };
-  } catch (err) {
-    console.error('Failed to mount llama-server:', err);
-    return { success: false, error: err.message || 'Unknown error' };
-  }
-}
-
-export async function unmountLlamaServer() {
-  if (!isNative) return { success: true };
-  
-  try {
-    const { Capacitor } = window;
-    if (Capacitor?.Plugins?.LlamaServerService) {
-      return await Capacitor.Plugins.LlamaServerService.stop();
-    }
-    return { success: true, message: 'No plugin - assuming stopped' };
-  } catch (err) {
-    console.error('Failed to unmount llama-server:', err);
-    return { success: false, error: err.message };
-  }
-}
-
-export async function getLlamaServerStatus() {
-  if (!isNative) return { running: false };
-  
-  try {
-    const { Capacitor } = window;
-    if (Capacitor?.Plugins?.LlamaServerService) {
-      return await Capacitor.Plugins.LlamaServerService.getStatus();
-    }
-    return { running: false };
-  } catch {
-    return { running: false };
-  }
-}
-
 export async function downloadOnDeviceModel(url, filename, onProgress) {
   if (!isNative) throw new Error('On-device model downloads require Android.');
   const listener = await OnDeviceRuntime.addListener('downloadProgress', event => {

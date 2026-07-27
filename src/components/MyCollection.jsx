@@ -249,7 +249,7 @@ export default function MyCollection({
                             </button>
                           )}
 
-                          {/* Mount/Unmount for local llama-server */}
+                          {/* Load/unload direct on-device model */}
                           {isNative && (
                             isActive ? (
                               <button 

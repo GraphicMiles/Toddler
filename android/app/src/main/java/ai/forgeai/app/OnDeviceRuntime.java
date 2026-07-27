@@ -171,6 +171,18 @@ public class OnDeviceRuntime extends Plugin {
     }
 
     @PluginMethod
+    public void deleteModel(PluginCall call) {
+        String path = call.getString("path", "");
+        File models = new File(getContext().getFilesDir(), "models").getAbsoluteFile();
+        File target = new File(path).getAbsoluteFile();
+        try {
+            if (!target.toPath().startsWith(models.toPath()) || target.equals(models)) { call.reject("Model path is outside app-private storage"); return; }
+            if (target.exists() && !target.delete()) { call.reject("Unable to delete model"); return; }
+            call.resolve();
+        } catch (Exception e) { call.reject("Unable to delete model safely"); }
+    }
+
+    @PluginMethod
     public void generate(PluginCall call) {
         String prompt = call.getString("prompt", "");
         int maxTokens = Math.min(Math.max(call.getInt("maxTokens", 128), 1), 512);

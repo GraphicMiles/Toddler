@@ -22,12 +22,12 @@ export default function Settings({
       <h3>Diagnostics</h3>
       <p className="setting-help">Platform: {typeof window !== 'undefined' && window.Capacitor?.getPlatform?.() || 'web'} · Storage scope: browser quota on web</p>
       
-      {/* Local Server Debug Panel - Enhanced for Testing */}
+      {/* On-device Runtime Panel - Enhanced for Testing */}
       {isNative && (
         <div style={{ marginTop: '16px', padding: '14px', background: '#0f172a', borderRadius: '10px', border: '1px solid #334155' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontWeight: 600, fontSize: '14px' }}>Local Server Debug</span>
+              <span style={{ fontWeight: 600, fontSize: '14px' }}>On-device Runtime</span>
               <span style={{ 
                 padding: '3px 10px', 
                 borderRadius: '9999px', 
@@ -43,7 +43,7 @@ export default function Settings({
           <div style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '1.6' }}>
             <div><strong>Port:</strong> <span className="mono">{localServerStatus?.port || 8080}</span></div>
             <div><strong>Model:</strong> <span className="mono" style={{ wordBreak: 'break-all' }}>{localServerStatus?.model || 'None mounted'}</span></div>
-            <div><strong>Status:</strong> {localServerStatus?.running ? 'llama-server is active' : 'No local server running'}</div>
+            <div><strong>Status:</strong> {localServerStatus?.running ? 'llama.cpp runtime is active' : 'Runtime not loaded'}</div>
           </div>
 
           <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -65,7 +65,7 @@ export default function Settings({
             </button>
             <button 
               onClick={() => {
-                alert('Check the console (Logcat) for detailed logs from LlamaServerService');
+                alert('Check GitHub Actions build logs and Android system logs');
               }}
               style={{ 
                 padding: '6px 12px', 
@@ -81,17 +81,17 @@ export default function Settings({
           </div>
 
           <div style={{ marginTop: '10px', fontSize: '11px', color: '#64748b' }}>
-            Tip: If the server fails to start, check that <code>libllama-server.so</code> exists in <code>jniLibs/arm64-v8a/</code>
+            Tip: If the server fails to start, check that <code>libllama.so</code> exists in <code>jniLibs/arm64-v8a/</code>
           </div>
         </div>
       )}
 
       <div style={{ marginTop: '12px', padding: '10px', background: '#1f2937', borderRadius: '6px' }}>
         <div style={{ fontSize: '13px', color: '#f59e0b' }}>
-          ⚠️ On-device inference (local models without Ollama) is currently in development.
+          On-device inference uses the bundled llama.cpp runtime on Android.
         </div>
         <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>
-          The app currently uses Ollama for best reliability. True offline inference via MLC-LLM or llama-server is planned.
+          Download a GGUF model once, then inference can run offline. Ollama remains a browser development preview.
         </div>
       </div>
     </section>

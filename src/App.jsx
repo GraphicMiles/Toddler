@@ -17,8 +17,6 @@ import { fileSystem } from './nativeBridge.js';
 import { buildFileIndex, searchFiles } from './utils/fileIndex.js';
 import { retrieveRelevantContext, formatContextForPrompt } from './utils/rag.js';
 import { virtualWorkspace } from './utils/virtualWorkspace.js';
-import { createLocalServerProvider } from './providers/localServerProvider.js';
-import { createMLCProvider } from './providers/mlcProvider.js';
 import './styles/index.css';
 
 const defaultConversationTitle = () => `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -43,7 +41,7 @@ export default function App() {
     try { return localStorage.getItem('forgeai_smart_mode') === 'true'; } catch { return false; }
   });
 
-  // Local server status (for llama-server approach)
+  // Native runtime status
   const [localServerStatus, setLocalServerStatus] = useState({ running: false, port: 8080, model: null });
   
   // Workspace state
@@ -229,17 +227,9 @@ export default function App() {
 
   const { deviceCapability, refresh: refreshDevice } = useDeviceCapability();
   const provider = useMemo(() => {
-    // === Inference Provider Selection (Android) ===
-    // Priority:
-    // 1. MLC-LLM (best on-device experience when ready)
-    // 2. Local llama-server (good offline option)
-    // 3. Ollama (reliable fallback)
+    // Android uses direct llama.cpp JNI; the browser keeps Ollama as a development preview.
 
-    if (isNative) {
-      // Try MLC first (when integrated), then local server
-      return createMLCProvider();
-    }
-    
+    if (isNative) return createModelProvider({ mode: 'on-device', endpoint });
     return createModelProvider({ mode: 'ollama', endpoint });
   }, [endpoint, isNative]);
 

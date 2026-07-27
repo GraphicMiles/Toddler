@@ -632,7 +632,7 @@ export default function App() {
         setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: friendly, level: 'error' } : m));
       }
     } finally { setIsTyping(false); setModelStatus('idle'); setAbortController(null); }
-  }, [activeModel, messages, provider, agentCore, trimHistory, workspaceTree, selectedFilePath, autoExecuteSafeActions]);
+  }, [activeModel, messages, provider, agentCore, trimHistory, workspaceTree, selectedFilePath]);
 
   const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
 
@@ -667,65 +667,6 @@ export default function App() {
 
     if (isNative) await haptics.success();
   }, [pendingActions, agentCore]);
-
-  // Check local server status periodically (when on Android)
-  useEffect(() => {
-    if (!isNative) return;
-
-    const checkStatus = async () => {
-      try {
-        const { getLlamaServerStatus } = await import('./nativeBridge');
-        const status = await getLlamaServerStatus();
-        setLocalServerStatus(status);
-      } catch (e) {}
-    };
-
-    const interval = setInterval(checkStatus, 8000);
-    checkStatus(); // initial check
-    return () => clearInterval(interval);
-  }, [isNative]);
-
-  // Auto-execute safe read-only actions (smoother UX)
-  // NOTE: This must be defined BEFORE handleSendMessage because handleSendMessage depends on it
-  const autoExecuteSafeActions = useCallback(async (actions) => {
-    const safeActions = actions.filter(a => SAFE_AUTO_APPROVE_TOOLS.includes(a.type));
-    const remainingActions = actions.filter(a => !SAFE_AUTO_APPROVE_TOOLS.includes(a.type));
-
-    // Execute safe actions immediately
-    for (const action of safeActions) {
-      try {
-        const result = await agentCore.executeApprovedAction(action.id);
-        addSystemMessage(`Auto-executed: ${action.type}`, 'info');
-        
-        if (action.type === 'read_file' && result?.content) {
-          addMessage('assistant', `**File content** (${action.path}):\n\n\`\`\`\n${result.content.slice(0, 800)}${result.content.length > 800 ? '...' : ''}\n\`\`\``);
-        }
-      } catch (err) {
-        console.warn('Auto-execute failed:', err);
-      }
-    }
-
-    // Smart Mode: Auto-approve low-risk write operations (with safety warning)
-    const lowRiskWrite = remainingActions.filter(a => 
-      smartMode && ['write_file', 'rename'].includes(a.type)
-    );
-    const highRiskActions = remainingActions.filter(a => 
-      !smartMode || !['write_file', 'rename'].includes(a.type)
-    );
-
-    for (const action of lowRiskWrite) {
-      try {
-        const result = await agentCore.executeApprovedAction(action.id);
-        addSystemMessage(`[Smart Mode] Auto-executed: ${action.type}`, 'info');
-      } catch (err) {
-        console.warn('Smart Mode auto-execute failed:', err);
-      }
-    }
-
-    if (highRiskActions.length > 0) {
-      setPendingActions(prev => [...prev, ...highRiskActions]);
-    }
-  }, [agentCore, addMessage, addSystemMessage, smartMode]);
 
   // Handle action discard
   const handleDiscardAction = useCallback((actionId) => {

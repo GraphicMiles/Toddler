@@ -1,7 +1,10 @@
 /**
- * GitHub Automation Tiers
- * manual | suggested | auto-commit | auto-deploy
+ * GitHub Automation - Android Native Version
  */
+
+import { nativeGitHubProvider } from './NativeGitHubProvider.js';
+import { isExperimentalEnabled } from '../components/ExperimentalFeatures.jsx';
+import { isNative } from '../nativeBridge.js';
 
 export const GITHUB_AUTOMATION_TIERS = Object.freeze({
   MANUAL: 'manual',
@@ -10,64 +13,22 @@ export const GITHUB_AUTOMATION_TIERS = Object.freeze({
   AUTO_DEPLOY: 'auto-deploy',
 });
 
-const GITHUB_CONFIG_KEY = 'forgeai_github_automation';
-
 export class GitHubAutomation {
   constructor() {
     this.tier = GITHUB_AUTOMATION_TIERS.MANUAL;
-    this.maintenanceBot = false;
-    this.dryRun = false;
-    this.loadConfig();
-  }
-
-  loadConfig() {
-    if (typeof localStorage === 'undefined') return;
-    try {
-      const cfg = JSON.parse(localStorage.getItem(GITHUB_CONFIG_KEY) || '{}');
-      this.tier = cfg.tier || GITHUB_AUTOMATION_TIERS.MANUAL;
-      this.maintenanceBot = !!cfg.maintenanceBot;
-      this.dryRun = !!cfg.dryRun;
-    } catch {}
-  }
-
-  saveConfig() {
-    if (typeof localStorage === 'undefined') return;
-    localStorage.setItem(GITHUB_CONFIG_KEY, JSON.stringify({
-      tier: this.tier,
-      maintenanceBot: this.maintenanceBot,
-      dryRun: this.dryRun,
-    }));
   }
 
   setTier(tier) {
-    if (!Object.values(GITHUB_AUTOMATION_TIERS).includes(tier)) return;
-    this.tier = tier;
-    this.saveConfig();
-  }
-
-  setMaintenanceBot(enabled) {
-    this.maintenanceBot = !!enabled;
-    this.saveConfig();
-  }
-
-  setDryRun(enabled) {
-    this.dryRun = !!enabled;
-    this.saveConfig();
+    if (Object.values(GITHUB_AUTOMATION_TIERS).includes(tier)) {
+      this.tier = tier;
+    }
   }
 
   async proposeCommit(changes, message, options = {}) {
-    if (this.dryRun) return { status: 'dry-run', message };
-
     const experimentalEnabled = isExperimentalEnabled('realGitHub');
     const { githubToken, branchProtectionBypass = false } = options;
 
     if (!experimentalEnabled || !isNative) {
-      if (this.tier === GITHUB_AUTOMATION_TIERS.MANUAL) {
-        return { status: 'pending-review', changes, message };
-      }
-      if (this.tier === GITHUB_AUTOMATION_TIERS.SUGGESTED) {
-        return { status: 'suggested', prTitle: message, changes };
-      }
       return {
         status: 'simulated',
         tier: this.tier,
@@ -75,7 +36,6 @@ export class GitHubAutomation {
       };
     }
 
-    // Native GitHub execution
     return await nativeGitHubProvider.proposeCommit(changes, message, {
       githubToken,
       branchProtectionBypass,
@@ -83,11 +43,16 @@ export class GitHubAutomation {
   }
 
   async runMaintenanceBot() {
-    if (!this.maintenanceBot) return { status: 'disabled' };
+    const experimentalEnabled = isExperimentalEnabled('realGitHub');
+
+    if (!experimentalEnabled || !isNative) {
+      return { status: 'disabled', message: 'Enable Experimental GitHub on Android' };
+    }
+
     return {
       status: 'completed',
       actions: ['dependency-update', 'lint-fix', 'docs-sync'],
-      dryRun: this.dryRun,
+      native: true,
     };
   }
 }

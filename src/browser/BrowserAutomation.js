@@ -1,58 +1,60 @@
-/**
- * Browser Automation (Placeholder)
- * 
- * NOTE: Real-time browser automation is currently limited on Android.
- * - WebView automation is possible but slow and restricted.
- * - Full Playwright support on Android is experimental.
- * 
- * This module is a placeholder for future native implementation.
- */
-
-import { realBrowserAutomation } from './RealBrowserAutomation.js';
+import { nativeBrowserAutomation } from './NativeBrowserAutomation.js';
 import { isExperimentalEnabled } from '../components/ExperimentalFeatures.jsx';
+import { isNative } from '../nativeBridge.js';
 
 export class BrowserAutomation {
-  constructor() {
-    this.sessions = new Map();
-  }
-
   async navigate(url) {
-    if (!isExperimentalEnabled('realBrowser')) {
-      return {
-        status: 'simulated',
-        url,
-        warning: 'Enable "Real Browser Automation" in Experimental Features.',
-      };
+    const experimentalEnabled = isExperimentalEnabled('realBrowser');
+
+    if (experimentalEnabled && isNative) {
+      return await nativeBrowserAutomation.navigate(url);
     }
-    return await realBrowserAutomation.navigate(url);
+
+    return {
+      status: 'simulated',
+      url,
+      warning: 'Enable "Real Browser Automation" on Android',
+    };
   }
 
   async click(selector) {
-    if (!isExperimentalEnabled('realBrowser')) {
-      return { status: 'simulated', selector };
+    const experimentalEnabled = isExperimentalEnabled('realBrowser');
+
+    if (experimentalEnabled && isNative) {
+      return await nativeBrowserAutomation.click(selector);
     }
-    return await realBrowserAutomation.click(selector);
+
+    return { status: 'simulated', selector };
   }
 
   async fill(selector, value) {
-    if (!isExperimentalEnabled('realBrowser')) {
-      return { status: 'simulated', selector, value };
+    const experimentalEnabled = isExperimentalEnabled('realBrowser');
+
+    if (experimentalEnabled && isNative) {
+      return await nativeBrowserAutomation.fill(selector, value);
     }
-    return await realBrowserAutomation.fill(selector, value);
+
+    return { status: 'simulated', selector, value };
   }
 
   async extract(selector) {
-    if (!isExperimentalEnabled('realBrowser')) {
-      return { status: 'simulated', selector, data: [] };
+    const experimentalEnabled = isExperimentalEnabled('realBrowser');
+
+    if (experimentalEnabled && isNative) {
+      return await nativeBrowserAutomation.extract(selector);
     }
-    return await realBrowserAutomation.extract(selector);
+
+    return { status: 'simulated', selector, data: [] };
   }
 
   async screenshot() {
-    if (!isExperimentalEnabled('realBrowser')) {
-      return { status: 'simulated' };
+    const experimentalEnabled = isExperimentalEnabled('realBrowser');
+
+    if (experimentalEnabled && isNative) {
+      return await nativeBrowserAutomation.screenshot();
     }
-    return await realBrowserAutomation.screenshot();
+
+    return { status: 'simulated' };
   }
 }
 

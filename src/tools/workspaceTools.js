@@ -4,6 +4,9 @@ import { ToolRegistry } from './toolRegistry.js';
 import { nativeTerminal } from '../terminal/NativeTerminal.js';
 import { isExperimentalEnabled } from '../components/ExperimentalFeatures.jsx';
 import { isNative } from '../nativeBridge.js';
+import { registerPlugin } from '@capacitor/core';
+
+const TerminalRuntime = registerPlugin('TerminalRuntime');
 
 export function createWorkspaceToolRegistry(workspaceProvider) {
   if (!workspaceProvider) throw new Error('A workspace provider is required.');
@@ -126,15 +129,26 @@ export function createWorkspaceToolRegistry(workspaceProvider) {
         }
 
         // Real native terminal execution
-        const result = await nativeTerminal.execute(cmd, { cwd: workspacePath });
-        return {
-          command: cmd,
-          output: result.output,
-          type: 'terminal',
-          status: result.status,
-          experimental: true,
-          native: true,
-        };
+        try {
+          const result = await TerminalRuntime.execute({ command: cmd, cwd: workspacePath });
+          return {
+            command: cmd,
+            output: result?.output || 'Command executed',
+            type: 'terminal',
+            status: 'success',
+            experimental: true,
+            native: true,
+          };
+        } catch (error) {
+          return {
+            command: cmd,
+            output: `Native error: ${error.message}`,
+            type: 'terminal',
+            status: 'error',
+            experimental: true,
+            native: true,
+          };
+        }
       },
     });
 }

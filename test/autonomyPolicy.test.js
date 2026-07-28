@@ -4,6 +4,8 @@ assert.equal(autonomyAllows(AUTONOMY_LEVELS.READ_ONLY, 'read'), true);
 assert.equal(autonomyAllows(AUTONOMY_LEVELS.PREPARE, 'prepare-patch'), true);
 assert.equal(autonomyAllows(AUTONOMY_LEVELS.PREPARE, 'write'), false);
 assert.equal(autonomyAllows(AUTONOMY_LEVELS.READ_ONLY, 'execute'), false);
+assert.equal(autonomyAllows(AUTONOMY_LEVELS.FULL, 'execute'), true);
+assert.equal(autonomyAllows(AUTONOMY_LEVELS.FULL, 'write'), true);
 assert.throws(() => writeAutonomyLevel('full-auto'), /Invalid autonomy/);
 const suggestions = suggestNextActions({ tasks: [{ status: 'verified' }], workspaceTree: [{ name: 'src', type: 'folder', children: [] }] });
 assert.ok(suggestions.some(item => item.type === 'consider-tests'));

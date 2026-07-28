@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { AgentRunBudget, emitSubagentStage } from '../src/agent/subagentOrchestrator.js';
-import { deterministicAnswer } from '../src/agent/deterministicAnswers.js';
+import { deterministicAnswer, deterministicDeviceFact } from '../src/agent/deterministicAnswers.js';
+import { isOnlineResearchRequest } from '../src/agent/onlineResearch.js';
+import { isAutonomousToolRequest } from '../src/agent/fullAutonomyRunner.js';
 import { RESPONSE_QUALITY, generateQualityResponse } from '../src/agent/responseQuality.js';
 import { enqueueAutonomousTask, readAutonomousQueue, removeAutonomousTask, updateAutonomousTask } from '../src/agent/autonomousQueue.js';
 import { buildRepositoryIndex, queryRepositoryIndex } from '../src/context/repositoryIndex.js';
@@ -15,6 +17,11 @@ globalThis.localStorage = {
 assert.equal(deterministicAnswer('What is 4 plus 4?'), '4 + 4 = 8');
 assert.equal(deterministicAnswer('10 divided by 0'), 'Division by zero is undefined.');
 assert.equal(deterministicAnswer('Explain this code'), null);
+const fixedDate = new Date(2026, 6, 28, 19, 19, 0);
+assert.match(deterministicDeviceFact('What time is it?', fixedDate), /(?:19:19|07:19 PM)/);
+assert.match(deterministicDeviceFact("What's the date?", fixedDate), /July/);
+assert.equal(isOnlineResearchRequest('Who won the latest Spain vs France match?'), true);
+assert.equal(isAutonomousToolRequest('Clone https://github.com/owner/repo'), true);
 
 const budget = new AgentRunBudget({ maxModelCalls: 2, maxFiles: 2, maxDurationMs: 1000 });
 budget.beforeModelCall();

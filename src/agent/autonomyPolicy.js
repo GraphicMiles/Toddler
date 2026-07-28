@@ -3,6 +3,7 @@ export const AUTONOMY_LEVELS = Object.freeze({
   SUGGEST: 'suggest',
   READ_ONLY: 'read-only',
   PREPARE: 'prepare',
+  FULL: 'full',
 });
 
 const STORAGE_KEY = 'forgeai_autonomy_level';
@@ -20,6 +21,7 @@ export function writeAutonomyLevel(level) {
 }
 
 export function autonomyAllows(level, capability) {
+  if (level === AUTONOMY_LEVELS.FULL) return true;
   if (capability === 'write' || capability === 'execute' || capability === 'dangerous') return false;
   if (level === AUTONOMY_LEVELS.OFF || level === AUTONOMY_LEVELS.SUGGEST) return false;
   if (level === AUTONOMY_LEVELS.READ_ONLY) return capability === 'read';

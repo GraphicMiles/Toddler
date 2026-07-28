@@ -61,7 +61,7 @@ Implemented:
 - rejection marks it cancelled;
 - queue items can be removed.
 
-Hard Android limits remain unchanged:
+Restricted modes retain these limits:
 
 - no automatic writes, deletes, or renames;
 - no command execution;
@@ -69,5 +69,7 @@ Hard Android limits remain unchanged:
 - no permission escalation;
 - no network for external skills;
 - no desktop or MCP dependency.
+
+Full Autonomous mode is an explicit separate opt-in with app-sandbox terminal, network research, autonomous workspace changes, app-private JGit operations, and GitHub writes. It remains foreground-only and cannot gain root or other-app access. See `ANDROID_FULL_AUTONOMY.md`.
 
 These phases are complete for the defined Android-safe scope. Further quality gains depend primarily on larger local models, device performance, and physical-device UX testing.

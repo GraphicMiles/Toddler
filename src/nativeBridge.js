@@ -17,6 +17,12 @@ import { getModelProfile } from './models/catalog.js';
 const DeviceCapacity = registerPlugin('DeviceCapacity');
 const OnDeviceRuntime = registerPlugin('OnDeviceRuntime');
 const WorkspaceStorage = registerPlugin('WorkspaceStorage');
+const TerminalRuntime = registerPlugin('TerminalRuntime');
+const ResearchRuntime = registerPlugin('ResearchRuntime');
+const CredentialVault = registerPlugin('CredentialVault');
+const AutonomyRuntime = registerPlugin('AutonomyRuntime');
+const GithubRuntime = registerPlugin('GithubRuntime');
+const GitRuntime = registerPlugin('GitRuntime');
 
 export async function pickWorkspaceFolder() { return WorkspaceStorage.pickFolder(); }
 export async function listWorkspace(uri, path = '') { return WorkspaceStorage.list({ uri, path }); }
@@ -39,6 +45,33 @@ export async function importModelToRuntime(uri, path) { return WorkspaceStorage.
 export async function pickModelFile() { return WorkspaceStorage.pickModelFile(); }
 export async function pickSkillFile() { return WorkspaceStorage.pickSkillFile(); }
 export async function importDocumentToRuntime(uri, name) { return WorkspaceStorage.importDocumentToRuntime({ uri, name }); }
+
+export async function setFullAutonomy(enabled) { if (!isNative) throw new Error('Full autonomy requires Android.'); return AutonomyRuntime.setEnabled({ enabled }); }
+export async function getFullAutonomyStatus() { return isNative ? AutonomyRuntime.getStatus() : { enabled: false }; }
+export async function runTerminalCommand({ command, cwd = '', timeoutSeconds = 120, requestId }, onOutput) {
+  if (!isNative) throw new Error('Terminal requires Android.');
+  const listener = await TerminalRuntime.addListener('terminalOutput', event => { if (!requestId || event.requestId === requestId) onOutput?.(event.text); });
+  try { return await TerminalRuntime.execute({ command, cwd, timeoutSeconds, requestId }); }
+  finally { await listener.remove(); }
+}
+export async function cancelTerminalCommand(requestId) { return TerminalRuntime.cancel({ requestId }); }
+export async function getTerminalInfo() { return isNative ? TerminalRuntime.getInfo() : { shell: null }; }
+export async function searchOnline({ query, googleApiKey = '', googleCx = '' }) { if (!isNative) throw new Error('Native research requires Android.'); return ResearchRuntime.search({ query, googleApiKey, googleCx }); }
+export async function fetchPublicUrl(url) { if (!isNative) throw new Error('Native research requires Android.'); return ResearchRuntime.fetchUrl({ url }); }
+export async function storeGithubToken(token) { return CredentialVault.storeGithubToken({ token }); }
+export async function hasGithubToken() { return CredentialVault.hasGithubToken(); }
+export async function clearGithubToken() { return CredentialVault.clearGithubToken(); }
+export async function githubApi({ method = 'GET', path, body = '' }) { return GithubRuntime.api({ method, path, body }); }
+export async function importGithubArchive(repository, ref = 'HEAD') { return GithubRuntime.importArchive({ repository, ref }); }
+export async function gitClone(repository, branch = '') { return GitRuntime.cloneRepository({ repository, branch }); }
+export async function gitStatus(path) { return GitRuntime.status({ path }); }
+export async function gitLog(path, max = 20) { return GitRuntime.log({ path, max }); }
+export async function gitFetch(path) { return GitRuntime.fetch({ path }); }
+export async function gitPull(path) { return GitRuntime.pull({ path }); }
+export async function gitCheckout(path, branch, create = false, startPoint = 'HEAD') { return GitRuntime.checkout({ path, branch, create, startPoint }); }
+export async function gitCommit(path, message, authorName, authorEmail) { return GitRuntime.commit({ path, message, authorName, authorEmail }); }
+export async function gitPush(path, force = false) { return GitRuntime.push({ path, force }); }
+export async function gitRebase(path, upstream) { return GitRuntime.rebase({ path, upstream }); }
 
 export async function getOnDeviceRuntimeInfo() {
   if (!isNative) return { available: false, reason: 'On-device runtime is available only in the Android build.' };

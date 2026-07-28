@@ -18,4 +18,7 @@ assert.equal(validateStructuredAction({
 const create = validateStructuredAction({ type: 'create_file', paths: ['body.css'], rationale: 'Create the requested stylesheet.', content: 'body { color: white; }' });
 assert.equal(create.content, 'body { color: white; }');
 assert.throws(() => validateStructuredAction({ type: 'create_file', paths: ['../body.css'], rationale: 'Unsafe', content: 'x' }), /unsafe/);
+assert.equal(validateStructuredAction({ type: 'terminal', paths: [], rationale: 'Inspect app sandbox.', command: 'ls -la' }).command, 'ls -la');
+assert.equal(validateStructuredAction({ type: 'git_clone', paths: [], rationale: 'Clone requested repository.', repository: 'owner/repo' }).repository, 'owner/repo');
+assert.equal(validateStructuredAction({ type: 'git', paths: [], rationale: 'Update clone.', operation: 'pull', repositoryPath: '/app/repo' }).operation, 'pull');
 console.log('action protocol tests passed');

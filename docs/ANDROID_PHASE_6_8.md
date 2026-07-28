@@ -62,7 +62,7 @@ Implemented presentation:
 - missing-README suggestion;
 - one tap pre-fills the suggested prompt but never sends it automatically.
 
-Hard Android rules:
+Restricted-mode Android rules:
 
 - no automatic writes;
 - no automatic deletes/renames;
@@ -70,6 +70,8 @@ Hard Android rules:
 - no tool can elevate its own permission;
 - prepared patches still require exact user approval;
 - network remains disabled for external local skills.
+
+A later explicit Full Autonomous mode overrides the first three restrictions for the app sandbox and app-private JGit clones; see `ANDROID_FULL_AUTONOMY.md`.
 
 ## Android Workspace Editor
 

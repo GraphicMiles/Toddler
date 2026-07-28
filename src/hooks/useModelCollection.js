@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   checkOllamaConnection, pullOllamaModel, deleteOllamaModel,
-  downloadOnDeviceModel, pauseOnDeviceDownload, deleteOnDeviceModel, isNative, downloadModelToWorkspace, importModelToRuntime
+  downloadOnDeviceModel, pauseOnDeviceDownload, deleteOnDeviceModel, isNative, downloadModelToWorkspace, importModelToRuntime, listWorkspace
 } from '../nativeBridge';
 
 const STORAGE_KEY = 'forgeai_models';
@@ -19,6 +19,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
 
   useEffect(() => { setIsLoading(false); }, []);
 
+
   const saveModels = useCallback((nextOrUpdater) => {
     setModels(prev => {
       const next = typeof nextOrUpdater === 'function' ? nextOrUpdater(prev) : nextOrUpdater;
@@ -26,6 +27,31 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
       return next;
     });
   }, []);
+
+  // Re-discover durable SAF models after reinstall or APK replacement.
+  useEffect(() => {
+    if (!isNative) return;
+    const uri = localStorage.getItem('forgeai_model_folder_uri');
+    if (!uri?.startsWith('content://')) return;
+    let cancelled = false;
+    const flatten = (nodes, out = []) => { for (const node of nodes || []) { if (node.type === 'folder') flatten(node.children, out); else if (node.path?.toLowerCase().endsWith('.gguf')) out.push(node.path); } return out; };
+    (async () => {
+      try {
+        const treeResult = await listWorkspace(uri);
+        const paths = flatten(treeResult?.children || treeResult?.value || treeResult || []);
+        for (const path of paths) {
+          if (cancelled || models.some(model => model.sourcePath === path)) continue;
+          try {
+            const imported = await importModelToRuntime(uri, path);
+            const id = `imported-${path.split('/').pop().replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+            saveModels(prev => prev.some(model => model.id === id) ? prev : [...prev, { id, name: path.split('/').pop(), file: path.split('/').pop(), localPath: imported.runtimePath, sourcePath: path, sourceUri: uri, runtime: 'llama.cpp', format: 'GGUF', sha256: imported.sha256, verified: true, status: 'ready', downloadedAt: new Date().toISOString(), downloadedBytes: imported.size }]);
+          } catch (error) { console.warn('Durable model import skipped:', path, error); }
+        }
+      } catch (error) { console.warn('Durable model scan failed:', error); }
+    })();
+    return () => { cancelled = true; };
+  }, [models, saveModels]);
+
 
   const downloadModel = useCallback(async (model, externalOnProgress) => {
     if (models.some(m => m.id === model.id)) return { success: false, error: 'Model already downloaded' };

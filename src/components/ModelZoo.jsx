@@ -128,6 +128,7 @@ export default function ModelZoo({
   onPause,
   onCancel,
   onUseModel,
+  onMountModel,
   deviceCapability = { ram: 4 },
   ollamaConnected = false,
   isNative = false,

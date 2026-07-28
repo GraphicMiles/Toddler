@@ -132,6 +132,8 @@ export default function ModelZoo({
   ollamaConnected = false,
   isNative = false,
   onClose,
+  onChooseModelFolder,
+  modelFolderSelected = false,
 }) {
   const [filter, setFilter] = useState('all');
   const [showOnlyCompatible, setShowOnlyCompatible] = useState(true);
@@ -339,6 +341,7 @@ export default function ModelZoo({
       {/* Compact header: title left, close right - subtitle removed */}
       <div className="zoo-header">
         <h2 className="display">Model Zoo</h2>
+        {isNative && <button className="zoo-folder-button" onClick={onChooseModelFolder}>{modelFolderSelected ? 'Model folder selected' : 'Choose model folder'}</button>}
         {onClose && (
           <button className="zoo-close" onClick={onClose} aria-label="Close">
             <X size={18} />

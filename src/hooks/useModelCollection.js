@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   checkOllamaConnection, pullOllamaModel, deleteOllamaModel,
-  downloadOnDeviceModel, pauseOnDeviceDownload, deleteOnDeviceModel, isNative
+  downloadOnDeviceModel, pauseOnDeviceDownload, deleteOnDeviceModel, isNative, downloadModelToWorkspace, importModelToRuntime
 } from '../nativeBridge';
 
 const STORAGE_KEY = 'forgeai_models';
@@ -45,7 +45,17 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
       let result;
       if (isNative && model.downloadUrl) {
         // Android native download via Capacitor plugin
-        result = await downloadOnDeviceModel(model.downloadUrl, model.file || `${model.id}.gguf`, trackProgress);
+        const modelFolderUri = localStorage.getItem('forgeai_model_folder_uri') || '';
+        if (modelFolderUri.startsWith('content://')) {
+          const durablePath = `models/${model.file || `${model.id}.gguf`}`;
+          await trackProgress({ status: 'downloading', progress: 0 });
+          const durable = await downloadModelToWorkspace(modelFolderUri, model.downloadUrl, durablePath);
+          const imported = await importModelToRuntime(modelFolderUri, durablePath);
+          result = { ...durable, ...imported, sourceUri: modelFolderUri, durablePath };
+          trackProgress({ status: 'completed', progress: 100, completed: result.size || 0, total: result.size || 0 });
+        } else {
+          result = await downloadOnDeviceModel(model.downloadUrl, model.file || `${model.id}.gguf`, trackProgress);
+        }
         trackProgress({ status: 'completed', progress: 100, completed: result.size || 0, total: result.size || 0 });
       } else {
         // Ollama pull (web/desktop)

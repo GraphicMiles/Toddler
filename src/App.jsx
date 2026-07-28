@@ -162,6 +162,12 @@ export default function App() {
     }
   }, [loadWorkspace, requestStoragePermission]);
 
+  const chooseModelFolder = useCallback(async () => {
+    if (!isNative) return;
+    const result = await pickWorkspaceFolder();
+    if (result?.uri) localStorage.setItem('forgeai_model_folder_uri', result.uri);
+  }, []);
+
   const chooseWorkspace = useCallback(async () => {
     if (!isNative) return;
     const result = await pickWorkspaceFolder();
@@ -832,6 +838,8 @@ export default function App() {
               ollamaConnected={ollamaConnected}
               isNative={isNative}
               onClose={() => setCurrentScreen(SCREENS.COLLECTION)}
+              onChooseModelFolder={chooseModelFolder}
+              modelFolderSelected={Boolean(localStorage.getItem('forgeai_model_folder_uri'))}
             />
           </motion.div>
         )}

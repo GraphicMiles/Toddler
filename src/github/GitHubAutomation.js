@@ -58,13 +58,7 @@ export class GitHubAutomation {
   async proposeCommit(changes, message, options = {}) {
     if (this.dryRun) return { status: 'dry-run', message };
 
-    // Check if experimental real GitHub is enabled
-    let experimentalEnabled = false;
-    try {
-      const exp = JSON.parse(localStorage.getItem('forgeai_experimental_features') || '{}');
-      experimentalEnabled = exp.realGitHub === true;
-    } catch {}
-
+    const experimentalEnabled = isExperimentalEnabled('realGitHub');
     const { githubToken, branchProtectionBypass = false } = options;
 
     if (!experimentalEnabled) {
@@ -81,33 +75,11 @@ export class GitHubAutomation {
       };
     }
 
-    // Experimental real GitHub mode
-    if (this.tier === GITHUB_AUTOMATION_TIERS.AUTO_COMMIT) {
-      return {
-        status: 'committed_experimental',
-        branch: 'feature/forgeai-auto',
-        message,
-        requiresToken: !githubToken,
-      };
-    }
-
-    if (this.tier === GITHUB_AUTOMATION_TIERS.AUTO_DEPLOY) {
-      if (branchProtectionBypass && !githubToken) {
-        return {
-          status: 'blocked',
-          reason: 'Branch protection bypass requires a valid GitHub token',
-          message,
-        };
-      }
-      return {
-        status: 'deployed_experimental',
-        release: message,
-        merged: true,
-        branchProtectionBypass: branchProtectionBypass && !!githubToken,
-      };
-    }
-
-    return { status: 'pending', tier: this.tier };
+    // Real GitHub API call
+    return await realGitHubProvider.proposeCommit(changes, message, {
+      githubToken,
+      branchProtectionBypass,
+    });
   }
 
   async runMaintenanceBot() {

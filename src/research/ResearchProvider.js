@@ -73,51 +73,35 @@ export class ResearchProvider {
       experimentalEnabled = exp.realResearch === true;
     } catch {}
 
-    if (!experimentalEnabled) {
-      // Simulated mode (default)
-      let results = [];
-      if (depth === RESEARCH_DEPTH.RAW) {
-        results = await this._rawSearch(query);
-      } else if (depth === RESEARCH_DEPTH.COMPREHENSIVE) {
-        results = await this._comprehensiveSearch(query);
-      } else {
-        results = await this._standardSearch(query);
-      }
-
-      if (useArchive) {
-        results = results.map(r => ({ ...r, archived: true, fullContent: `Archived content for: ${r.title}` }));
-      }
-      if (!this.sourceVerification) {
-        results = results.map(r => ({ ...r, verified: false }));
-      }
-
-      return {
-        query,
-        depth,
-        results,
-        timestamp: Date.now(),
-        provider: this._getProviderName(depth),
-        simulated: true,
-      };
+    if (experimentalEnabled) {
+      // Use real DuckDuckGo API
+      return await realResearchProvider.search(query, { depth });
     }
 
-    // Experimental real research mode
+    // Simulated mode (default)
+    let results = [];
+    if (depth === RESEARCH_DEPTH.RAW) {
+      results = await this._rawSearch(query);
+    } else if (depth === RESEARCH_DEPTH.COMPREHENSIVE) {
+      results = await this._comprehensiveSearch(query);
+    } else {
+      results = await this._standardSearch(query);
+    }
+
+    if (useArchive) {
+      results = results.map(r => ({ ...r, archived: true, fullContent: `Archived content for: ${r.title}` }));
+    }
+    if (!this.sourceVerification) {
+      results = results.map(r => ({ ...r, verified: false }));
+    }
+
     return {
       query,
       depth,
-      results: [
-        {
-          id: 1,
-          title: `Live result for: ${query}`,
-          url: `https://duckduckgo.com/?q=${encodeURIComponent(query)}`,
-          snippet: `Real search result (requires native plugin for full data)`,
-          verified: false,
-        },
-      ],
+      results,
       timestamp: Date.now(),
-      provider: 'Experimental Live Search',
-      simulated: false,
-      experimental: true,
+      provider: this._getProviderName(depth),
+      simulated: true,
     };
   }
 

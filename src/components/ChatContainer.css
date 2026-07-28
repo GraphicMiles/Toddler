@@ -401,8 +401,9 @@
   }
 }
 
-/* Bounded proactive suggestion chips */
-.proactive-suggestions {
+/* Bounded proactive suggestions and user-controlled queue */
+.proactive-suggestions,
+.autonomy-queue {
   display: flex;
   gap: 8px;
   overflow-x: auto;
@@ -412,18 +413,38 @@
   scrollbar-width: none;
 }
 
-.proactive-suggestions::-webkit-scrollbar { display: none; }
+.proactive-suggestions::-webkit-scrollbar,
+.autonomy-queue::-webkit-scrollbar { display: none; }
 
-.proactive-suggestions button {
-  min-width: 170px;
-  max-width: 240px;
-  padding: 8px 10px;
+.suggestion-card {
+  min-width: 190px;
+  max-width: 250px;
   border: 1px solid var(--accent-border);
   border-radius: 10px;
   background: var(--accent-dim);
+  overflow: hidden;
+}
+
+.suggestion-card button {
+  border: 0;
   color: var(--paper);
-  text-align: left;
   cursor: pointer;
+}
+
+.suggestion-fill {
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  text-align: left;
+}
+
+.suggestion-queue {
+  width: 100%;
+  padding: 5px 8px;
+  border-top: 1px solid var(--accent-border) !important;
+  background: #1d2614;
+  color: var(--accent) !important;
+  font-size: 10px;
 }
 
 .proactive-suggestions span {
@@ -441,3 +462,19 @@
   font-size: 10px;
   line-height: 1.3;
 }
+
+.autonomy-queue > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 210px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #17191e;
+  color: var(--paper-dim);
+  font-size: 10px;
+}
+
+.autonomy-queue span { flex: 1; text-transform: capitalize; }
+.autonomy-queue button { border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--accent); padding: 4px 7px; }

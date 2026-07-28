@@ -7,7 +7,10 @@ import { parseSkillMarkdown } from '../skills/skillPackage.js';
 import { pickSkillFile } from '../nativeBridge.js';
 import { readProjectMemory } from '../memory/agentMemory.js';
 import { AUTONOMY_LEVELS, readAutonomyLevel, writeAutonomyLevel } from '../agent/autonomyPolicy.js';
+import { RESPONSE_QUALITY, readResponseQuality, writeResponseQuality } from '../agent/responseQuality.js';
 import TaskTimeline from './TaskTimeline.jsx';
+import ProjectMemoryPanel from './ProjectMemoryPanel.jsx';
+import RepositoryIndexPanel from './RepositoryIndexPanel.jsx';
 import './Settings.css';
 
 export default function Settings({
@@ -17,11 +20,14 @@ export default function Settings({
   onReset,
   isNative = false,
   workspaceId = 'no-workspace',
+  workspaceProvider = null,
+  workspaceTree = [],
 }) {
   const [value, setValue] = useState(endpoint);
   const [errors, setErrors] = useState(() => readErrorLog());
   const [skills, setSkills] = useState(() => skillRegistry.list());
   const [autonomy, setAutonomy] = useState(readAutonomyLevel);
+  const [responseQuality, setResponseQuality] = useState(readResponseQuality);
   const memory = readProjectMemory(workspaceId);
 
   const save = () => {
@@ -102,10 +108,19 @@ export default function Settings({
             <option value={AUTONOMY_LEVELS.READ_ONLY}>Automatic read-only context</option>
             <option value={AUTONOMY_LEVELS.PREPARE}>Prepare patches for approval</option>
           </select>
+          <label className="setting-label" htmlFor="response-quality">Response quality</label>
+          <select id="response-quality" value={responseQuality} onChange={event => setResponseQuality(writeResponseQuality(event.target.value))}>
+            <option value={RESPONSE_QUALITY.FAST}>Fast — one model pass</option>
+            <option value={RESPONSE_QUALITY.BALANCED}>Balanced — normal streaming</option>
+            <option value={RESPONSE_QUALITY.REVIEWED}>Reviewed — draft, critic, revision</option>
+          </select>
+          <p className="setting-help">Reviewed mode uses three local generations and is slower. The 135M smoke-test model always falls back to one pass.</p>
           <p className="setting-help">Android never auto-applies writes and never executes commands, regardless of this setting.</p>
           <p className="setting-help">Project memory: {memory.facts.length} approved fact(s), {memory.tasks.length} bounded task record(s). Model guesses are not persisted as facts.</p>
         </section>
 
+        <ProjectMemoryPanel workspaceId={workspaceId} />
+        {workspaceProvider && <RepositoryIndexPanel workspaceId={workspaceId} workspaceProvider={workspaceProvider} workspaceTree={workspaceTree} />}
         <TaskTimeline workspaceId={workspaceId} />
 
         <section className="settings-card">

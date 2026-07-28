@@ -8,6 +8,7 @@
  */
 
 import { analyzeCodeRelationships, flattenWorkspaceFiles, rankWorkspaceFiles, resolveRelativeImport } from '../context/contextEngine.js';
+import { queryRepositoryIndex, readRepositoryIndex } from '../context/repositoryIndex.js';
 import { WORKSPACE_LIMITS } from '../workspace/workspacePolicy.js';
 
 const MAX_FILES = 4;
@@ -50,6 +51,11 @@ export async function retrieveRelevantContext({
     extension: file.name?.split('.').pop()?.toLowerCase() || 'none',
     priority: file.score,
   }));
+  const indexedMatches = queryRepositoryIndex(readRepositoryIndex(workspaceProvider.id), query, maxFiles);
+  for (const match of indexedMatches) {
+    if (candidates.some(candidate => candidate.path === match.path) || candidates.length >= maxFiles) continue;
+    candidates.push({ name: match.path.split('/').pop(), path: match.path, extension: match.path.split('.').pop()?.toLowerCase() || 'none', priority: 70, score: 70 });
+  }
 
   // Read ranked files, then follow local import edges while budget remains.
   const results = [];

@@ -17,6 +17,9 @@ import { generatePatchProposal, isCodeChangeRequest } from './agent/phase4Runner
 import { buildRequirementsEcho, shouldEchoRequirements } from './skills/reviewSkills.js';
 import { createAgentTask, projectMemoryPrompt, readProjectMemory, updateAgentTask } from './memory/agentMemory.js';
 import { AUTONOMY_LEVELS, readAutonomyLevel, suggestNextActions } from './agent/autonomyPolicy.js';
+import { deterministicAnswer } from './agent/deterministicAnswers.js';
+import { generateQualityResponse, readResponseQuality } from './agent/responseQuality.js';
+import { enqueueAutonomousTask, readAutonomousQueue, removeAutonomousTask, updateAutonomousTask } from './agent/autonomousQueue.js';
 import { ApprovalGate } from './tools/toolApproval.js';
 import { createWorkspaceToolRegistry } from './tools/workspaceTools.js';
 import { retrieveRelevantContext, formatContextForPrompt, shouldRetrieveWorkspaceContext } from './utils/rag.js';
@@ -58,6 +61,7 @@ export default function App() {
   const [workspaceRootPath, setWorkspaceRootPath] = useState(() => localStorage.getItem('forgeai_workspace_uri') || '');
   const [selectedFilePath, setSelectedFilePath] = useState('');
   const [lastWorkspaceBackup, setLastWorkspaceBackup] = useState(null);
+  const [autonomousQueue, setAutonomousQueue] = useState([]);
   
   // Ollama state
   const [ollamaConnected, setOllamaConnected] = useState(false);
@@ -95,6 +99,9 @@ export default function App() {
       : createVirtualWorkspaceProvider(),
     [workspaceRootPath],
   );
+  useEffect(() => {
+    setAutonomousQueue(readAutonomousQueue(workspaceProvider.id));
+  }, [workspaceProvider.id]);
 
   const loadWorkspace = useCallback(async (providerOverride = workspaceProvider) => {
     setWorkspaceLoading(true);
@@ -320,6 +327,14 @@ export default function App() {
       setMessages(previous => [...previous, userMessage, { id: generateId(), role: 'assistant', content: formatRequirementsEcho(echo), timestamp: Date.now() }]);
       return;
     }
+    const exactAnswer = deterministicAnswer(text);
+    if (exactAnswer) {
+      setMessages(previous => [...previous,
+        { id: generateId(), role: 'user', content: text, timestamp: Date.now() },
+        { id: generateId(), role: 'assistant', content: exactAnswer, timestamp: Date.now() },
+      ]);
+      return;
+    }
     if (!activeModel) { addSystemMessage('Please select a model from My Collection first.', 'warn'); return; }
     const activeDownload = downloads[activeModel.id];
     if (activeDownload && (activeDownload.status === 'downloading' || activeDownload.status === 'paused')) {
@@ -395,6 +410,10 @@ export default function App() {
           projectMemory: projectMemoryPrompt(workspaceProvider.id),
           signal: controller.signal,
           toolNames: agentToolRegistry.list().map(tool => tool.name),
+          onStage: stage => {
+            if (!phase4Task) return;
+            try { updateAgentTask(workspaceProvider.id, phase4Task.id, { status: stage.stage, event: { type: `subagent:${stage.stage}`, role: stage.role, budget: stage.budget } }); } catch {}
+          },
         });
         const actions = agentCore.proposeStructuredModelActions(JSON.stringify({ actions: [proposal.action] }))
           .map(action => ({ ...action, taskId: phase4Task?.id, review: proposal.review, activeSkills: proposal.activeSkills }));
@@ -409,10 +428,16 @@ export default function App() {
           : message));
         generationResult = proposal.generationResult;
       } else {
-        generationResult = await provider.stream({
+        const approvedMemory = projectMemoryPrompt(workspaceProvider.id);
+        const responseMessages = approvedMemory
+          ? [{ role: 'system', content: approvedMemory }, ...messagesWithContext]
+          : messagesWithContext;
+        generationResult = await generateQualityResponse({
+          provider,
           model: activeModel,
-          messages: messagesWithContext,
+          messages: responseMessages,
           signal: controller.signal,
+          quality: readResponseQuality(),
           onToken: token => setMessages(prev => prev.map(message => message.id === assistantId ? { ...message, content: message.content + token } : message)),
         });
       }
@@ -447,6 +472,30 @@ export default function App() {
 
   const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
 
+  const handleQueueSuggestion = useCallback(suggestion => {
+    const task = enqueueAutonomousTask(workspaceProvider.id, suggestion);
+    setAutonomousQueue(readAutonomousQueue(workspaceProvider.id));
+    addSystemMessage(`Queued suggested task: ${task.type}. It will not run until you press Run.`, 'info');
+  }, [workspaceProvider]);
+
+  const handleRunQueuedTask = useCallback(async taskId => {
+    const task = autonomousQueue.find(item => item.id === taskId);
+    if (!task || !activeModel || isTyping) return;
+    updateAutonomousTask(workspaceProvider.id, task.id, 'running');
+    setAutonomousQueue(readAutonomousQueue(workspaceProvider.id));
+    try {
+      await handleSendMessage(task.prompt);
+      updateAutonomousTask(workspaceProvider.id, task.id, isCodeChangeRequest(task.prompt) ? 'waiting-approval' : 'completed');
+    } catch (error) {
+      updateAutonomousTask(workspaceProvider.id, task.id, 'failed', error.message);
+    }
+    setAutonomousQueue(readAutonomousQueue(workspaceProvider.id));
+  }, [activeModel, autonomousQueue, handleSendMessage, isTyping, workspaceProvider]);
+
+  const handleRemoveQueuedTask = useCallback(taskId => {
+    setAutonomousQueue(removeAutonomousTask(workspaceProvider.id, taskId));
+  }, [workspaceProvider]);
+
   // Handle action approval - executes through agent core (manual approval enforced)
   const handleApproveAction = useCallback(async (actionId) => {
     const action = pendingActions.find(a => a.id === actionId);
@@ -477,6 +526,11 @@ export default function App() {
           createdAt: Date.now(),
         });
         if (action.taskId) updateAgentTask(workspaceProvider.id, action.taskId, { status: 'verified', files: result.files.map(file => file.path), event: { type: 'patch-applied-and-verified' } });
+        const queued = readAutonomousQueue(workspaceProvider.id).find(item => item.status === 'waiting-approval');
+        if (queued) {
+          updateAutonomousTask(workspaceProvider.id, queued.id, 'completed', 'Patch approved, applied, and verified.');
+          setAutonomousQueue(readAutonomousQueue(workspaceProvider.id));
+        }
         addMessage('assistant', `Patch applied and verified for ${result.files.map(file => file.path).join(', ')}. You can undo the complete transaction from Files.`);
       } else {
         addSystemMessage(`Agent executed: ${action.type}.`, 'info');
@@ -497,6 +551,11 @@ export default function App() {
     agentCore.discardAction(actionId);
     if (action?.taskId) {
       try { updateAgentTask(workspaceProvider.id, action.taskId, { status: 'rejected', event: { type: 'patch-rejected' } }); } catch {}
+    }
+    const queued = readAutonomousQueue(workspaceProvider.id).find(item => item.status === 'waiting-approval');
+    if (queued) {
+      try { updateAutonomousTask(workspaceProvider.id, queued.id, 'cancelled', 'Patch proposal rejected by user.'); } catch {}
+      setAutonomousQueue(readAutonomousQueue(workspaceProvider.id));
     }
     setPendingActions(prev => prev.filter(a => a.id !== actionId));
     addSystemMessage('Action cancelled.', 'warn');
@@ -607,6 +666,10 @@ export default function App() {
               onOpenZoo={() => setCurrentScreen(SCREENS.ZOO)}
               onOpenCollection={() => setCurrentScreen(SCREENS.COLLECTION)}
               proactiveSuggestions={proactiveSuggestions}
+              autonomousQueue={autonomousQueue}
+              onQueueSuggestion={handleQueueSuggestion}
+              onRunQueuedTask={handleRunQueuedTask}
+              onRemoveQueuedTask={handleRemoveQueuedTask}
             />
           </motion.div>
         )}
@@ -728,6 +791,8 @@ export default function App() {
               onReset={handleResetApp}
               isNative={isNative}
               workspaceId={workspaceProvider.id}
+              workspaceProvider={workspaceProvider}
+              workspaceTree={workspaceTree}
             />
           </motion.div>
         )}

@@ -1,0 +1,33 @@
+.memory-add-row,
+.memory-fact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.memory-add-row input,
+.memory-fact textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #15171c;
+  color: var(--paper);
+  padding: 9px;
+  font: inherit;
+}
+
+.memory-fact {
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+}
+
+.memory-fact textarea {
+  min-height: 58px;
+  resize: vertical;
+}
+
+.memory-fact small {
+  color: var(--faint);
+  text-transform: uppercase;
+}

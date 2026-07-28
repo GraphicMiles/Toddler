@@ -39,6 +39,40 @@ export function rememberProjectFact(workspaceId, fact) {
   return entry;
 }
 
+export function removeProjectFact(workspaceId, factId) {
+  const all = readAll();
+  const key = workspaceKey(workspaceId);
+  const current = all[key] || { facts: [], tasks: [] };
+  all[key] = { ...current, facts: current.facts.filter(fact => fact.id !== factId) };
+  writeAll(all);
+  return all[key].facts;
+}
+
+export function updateProjectFact(workspaceId, factId, text) {
+  const all = readAll();
+  const key = workspaceKey(workspaceId);
+  const current = all[key] || { facts: [], tasks: [] };
+  let found = false;
+  const facts = current.facts.map(fact => {
+    if (fact.id !== factId) return fact;
+    found = true;
+    return { ...fact, text: String(text || '').trim().slice(0, 2000), updatedAt: Date.now() };
+  });
+  if (!found || facts.some(fact => !fact.text)) throw new Error('Project fact was not found or is empty.');
+  all[key] = { ...current, facts };
+  writeAll(all);
+  return facts.find(fact => fact.id === factId);
+}
+
+export function clearAgentTasks(workspaceId) {
+  const all = readAll();
+  const key = workspaceKey(workspaceId);
+  const current = all[key] || { facts: [], tasks: [] };
+  all[key] = { ...current, tasks: [] };
+  writeAll(all);
+  return [];
+}
+
 export function createAgentTask(workspaceId, request) {
   const all = readAll();
   const key = workspaceKey(workspaceId);

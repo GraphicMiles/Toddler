@@ -20,17 +20,21 @@ const provider = {
     return { tokenCount: 40 };
   },
 };
+const stages = [];
 const proposal = await generatePatchProposal({
   provider,
   model: { id: 'coder' },
   request: 'Fix src/App.jsx',
   workspaceContext: '--- src/App.jsx ---\nold',
   toolNames: ['read_file', 'apply_patch'],
+  onStage: stage => stages.push(stage.stage),
 });
 assert.equal(proposal.action.type, 'propose_patch');
 assert.equal(proposal.generationResult.tokenCount, 40);
 assert.ok(proposal.activeSkills.includes('patch-reviewer'));
 assert.equal(proposal.review.deterministic.verdict, 'pass');
+assert.deepEqual(stages, ['planning', 'context', 'coding', 'reviewing', 'verifying', 'waiting-approval']);
+assert.equal(proposal.budget.modelCalls, 2);
 const directProvider = {
   async stream({ onToken }) {
     onToken('```diff\n--- a/src/App.jsx\n+++ b/src/App.jsx\n@@ -1 +1 @@\n-old\n+new\n```');

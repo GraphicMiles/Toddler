@@ -30,6 +30,10 @@ export default function ChatContainer({
   onOpenZoo,
   onOpenCollection,
   proactiveSuggestions = [],
+  autonomousQueue = [],
+  onQueueSuggestion,
+  onRunQueuedTask,
+  onRemoveQueuedTask,
 }) {
   const scrollRef = useRef(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -306,13 +310,27 @@ export default function ChatContainer({
           v
         </button>
       )}
+      {!isTyping && autonomousQueue.some(task => !['completed', 'cancelled'].includes(task.status)) && (
+        <div className="autonomy-queue" aria-label="Android autonomous task queue">
+          {autonomousQueue.filter(task => !['completed', 'cancelled'].includes(task.status)).slice(0, 3).map(task => (
+            <div key={task.id}>
+              <span>{task.type} · {task.status}</span>
+              {task.status === 'queued' && <button onClick={() => onRunQueuedTask?.(task.id)}>Run</button>}
+              <button onClick={() => onRemoveQueuedTask?.(task.id)}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
       {!isTyping && proactiveSuggestions.length > 0 && (
         <div className="proactive-suggestions" aria-label="Suggested next actions">
           {proactiveSuggestions.map(suggestion => (
-            <button key={suggestion.type} onClick={() => handleSuggestionClick(suggestion.prompt)} title={suggestion.reason}>
-              <span>{suggestion.type.replace(/-/g, ' ')}</span>
-              <small>{suggestion.reason}</small>
-            </button>
+            <div className="suggestion-card" key={suggestion.type}>
+              <button className="suggestion-fill" onClick={() => handleSuggestionClick(suggestion.prompt)} title={suggestion.reason}>
+                <span>{suggestion.type.replace(/-/g, ' ')}</span>
+                <small>{suggestion.reason}</small>
+              </button>
+              <button className="suggestion-queue" onClick={() => onQueueSuggestion?.(suggestion)} title="Add to the user-controlled queue">Queue</button>
+            </div>
           ))}
         </div>
       )}

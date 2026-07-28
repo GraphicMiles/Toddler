@@ -141,7 +141,24 @@ export class ResearchProvider {
     if (this.proxyEnabled) {
       return `[PROXY] Full content of ${url}`;
     }
-    return `Full page content for: ${url}`;
+
+    try {
+      // Attempt real fetch for public pages
+      const response = await fetch(url, { mode: 'cors' });
+      if (response.ok) {
+        const text = await response.text();
+        return {
+          url,
+          content: text.slice(0, 5000), // Limit size
+          status: 'real_fetch',
+          experimental: true,
+        };
+      }
+    } catch (error) {
+      // CORS or network error - expected for many sites
+    }
+
+    return `Full page content for: ${url} (real fetch blocked by CORS)`;
   }
 }
 

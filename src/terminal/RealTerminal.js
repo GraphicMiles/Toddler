@@ -1,6 +1,6 @@
 /**
- * Real Terminal Implementation
- * Executes safe commands against the virtual workspace when Experimental Terminal is enabled.
+ * Real Terminal Implementation (Enhanced)
+ * Executes commands against the virtual workspace + some browser capabilities.
  */
 
 import { virtualWorkspace } from '../utils/virtualWorkspace.js';
@@ -50,9 +50,26 @@ export class RealTerminal {
           await virtualWorkspace.writeFile(parts[1], '');
           return { output: `File created: ${parts[1]}`, status: 'success' };
 
+        case 'rm':
+          if (!parts[1]) return { output: 'Usage: rm <file>', status: 'error' };
+          try {
+            await virtualWorkspace.deleteFile(parts[1]);
+            return { output: `Deleted: ${parts[1]}`, status: 'success' };
+          } catch {
+            return { output: `Failed to delete: ${parts[1]}`, status: 'error' };
+          }
+
+        case 'write':
+          // write filename content
+          if (parts.length < 3) return { output: 'Usage: write <filename> <content>', status: 'error' };
+          const filename = parts[1];
+          const content = parts.slice(2).join(' ');
+          await virtualWorkspace.writeFile(filename, content);
+          return { output: `Written to ${filename}`, status: 'success' };
+
         default:
           return {
-            output: `Command not supported in browser environment: ${action}\nSupported: pwd, ls, cat, echo, mkdir, touch`,
+            output: `Command not fully supported: ${action}\nSupported: pwd, ls, cat, echo, mkdir, touch, rm, write`,
             status: 'limited'
           };
       }

@@ -195,13 +195,13 @@ public class WorkspaceStorage extends Plugin {
                 if (resumed > 0 && response != 206) { target.delete(); resumed = 0; connection.disconnect(); connection = (HttpURLConnection) new URL(url).openConnection(); connection.setConnectTimeout(20000); connection.setReadTimeout(120000); connection.connect(); response = connection.getResponseCode(); }
                 if (response < 200 || response >= 300) throw new IllegalArgumentException("Model download failed: HTTP " + response);
                 modelConnections.put(path, connection);
-                long expected = connection.getContentLengthLong(); if (expected > 0) expected += resumed;
+                long expected = connection.getContentLengthLong(); if (expected > 0) expected += resumed; JSObject initialProgress = new JSObject(); initialProgress.put("path", path); initialProgress.put("completed", resumed); initialProgress.put("total", expected); initialProgress.put("progress", expected > 0 ? (int)(resumed * 100 / expected) : 0); notifyListeners("modelDownloadProgress", initialProgress);
                 try (InputStream in = connection.getInputStream(); OutputStream out = getContext().getContentResolver().openOutputStream(target.getUri(), resumed > 0 ? "wa" : "wt")) { byte[] buffer = new byte[262144]; int n; long total = resumed; long last = 0; while ((n = in.read(buffer)) != -1) { if (Thread.currentThread().isInterrupted() || pausedModelDownloads.contains(path)) { out.flush(); break; } out.write(buffer, 0, n); total += n; long now = System.currentTimeMillis(); if (now - last > 250) { last = now; JSObject progress = new JSObject(); progress.put("path", path); progress.put("completed", total); progress.put("total", expected); progress.put("progress", expected > 0 ? (int)(total * 100 / expected) : 0); notifyListeners("modelDownloadProgress", progress); } } if (!pausedModelDownloads.contains(path) && !Thread.currentThread().isInterrupted()) { JSObject progress = new JSObject(); progress.put("path", path); progress.put("completed", total); progress.put("total", total); progress.put("progress", 100); notifyListeners("modelDownloadProgress", progress); if (!target.renameTo(name)) { target.delete(); throw new IllegalArgumentException("Unable to finalize model download."); } JSObject result = new JSObject(); result.put("path", path); result.put("size", total); call.resolve(result); } else { JSObject result = new JSObject(); result.put("paused", true); result.put("path", path); result.put("completed", total); call.resolve(result); } }
                 modelConnections.remove(path); connection.disconnect();
                 connection.disconnect();
             } catch (Exception e) { call.reject(e.getMessage()); }
         });
-        String key = call.getString("path", ""); activeModelDownloads.put(key, worker); worker.start();
+        String key = call.getString("path", ""); pausedModelDownloads.remove(key); activeModelDownloads.put(key, worker); worker.start();
     }
 
     @PluginMethod

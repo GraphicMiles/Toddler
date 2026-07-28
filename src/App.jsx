@@ -458,7 +458,7 @@ export default function App() {
     // Execute through agent core with approval
     try {
       const result = await agentCore.executeApprovedAction(actionId);
-      if (['write_file', 'rename', 'delete'].includes(action.type)) await loadWorkspace();
+      if (['write_file', 'apply_patch', 'rename', 'delete'].includes(action.type)) await loadWorkspace();
       addSystemMessage(`Agent executed: ${action.type} -> ${JSON.stringify(result)}`, 'info');
       addMessage('assistant', `Done! Executed ${action.type} with result: ${JSON.stringify(result)}`);
     } catch (execError) {

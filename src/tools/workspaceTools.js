@@ -1,4 +1,5 @@
 import { buildFileIndex, searchFiles } from '../utils/fileIndex.js';
+import { applyUnifiedDiff, summarizeUnifiedDiff } from '../patch/unifiedDiff.js';
 import { ToolRegistry } from './toolRegistry.js';
 
 export function createWorkspaceToolRegistry(workspaceProvider) {
@@ -68,6 +69,18 @@ export function createWorkspaceToolRegistry(workspaceProvider) {
         await workspaceProvider.delete(path);
         return { path, type: 'delete' };
       },
+    })
+    .register({
+      name: 'validate_patch',
+      description: 'Validate and summarize a unified diff without changing files.',
+      permission: 'read',
+      execute: async ({ patch }) => ({ type: 'patch_preview', files: summarizeUnifiedDiff(patch), patch }),
+    })
+    .register({
+      name: 'apply_patch',
+      description: 'Apply a user-reviewed unified diff to existing workspace files.',
+      permission: 'write',
+      execute: async ({ patch }) => ({ type: 'patch_apply', ...(await applyUnifiedDiff(workspaceProvider, patch)) }),
     })
     .register({
       name: 'terminal',

@@ -9,6 +9,8 @@
  */
 
 import { AgentPluginRegistry, AGENT_PERMISSIONS } from './pluginContract.js';
+import { parseStructuredActions } from './actionProtocol.js';
+import { summarizeUnifiedDiff } from '../patch/unifiedDiff.js';
 import { executeWithApproval } from '../tools/toolApproval.js';
 
 export class AgentCore {
@@ -183,29 +185,29 @@ export class AgentCore {
     }
 
     // === WRITE / CREATE / EDIT ===
+    // Never fabricate whole-file replacement content. Phase 4 writes must arrive as validated unified diffs.
     if (intents.includes('write')) {
-      const suggestedContent = this.generateSuggestedContent(userMessage, targetPath);
       steps.push({
-        intent: 'write_file',
-        description: 'Write or edit a file in the workspace',
-        targetPath: targetPath || 'new-file.txt',
-        proposedContent: suggestedContent,
+        intent: 'plan_task',
+        description: 'Prepare a structured read/search plan before proposing a unified diff',
+        originalRequest: userMessage,
       });
     }
 
     // === FIX / REFACTOR ===
     if (intents.includes('fix') || intents.includes('refactor')) {
       const pathToUse = targetPath || (relevantFiles[0]?.path || '');
+      if (pathToUse) {
+        steps.push({
+          intent: 'read_file',
+          description: intents.includes('fix') ? 'Read file to identify the issue' : 'Read file for refactoring',
+          targetPath: pathToUse,
+        });
+      }
       steps.push({
-        intent: 'read_file',
-        description: intents.includes('fix') ? 'Read file to identify the issue' : 'Read file for refactoring',
-        targetPath: pathToUse,
-      });
-      steps.push({
-        intent: 'write_file',
-        description: intents.includes('fix') ? 'Apply fix to the file' : 'Apply refactoring improvements',
-        targetPath: pathToUse,
-        proposedContent: `// ${intents.includes('fix') ? 'Fixed' : 'Refactored'} version based on: ${userMessage}`,
+        intent: 'plan_task',
+        description: 'Produce a reviewable unified diff after gathering context',
+        originalRequest: userMessage,
       });
     }
 
@@ -433,6 +435,37 @@ export class AgentCore {
       status: completedSteps === totalSteps ? 'complete' : 'in_progress',
       message: `Agent reviewed ${completedSteps}/${totalSteps} steps.`,
     };
+  }
+
+  proposeStructuredModelActions(modelOutput) {
+    if (!this.approvalGate || !this.toolRegistry) throw new Error('AgentCore requires approval and tool registries.');
+    return parseStructuredActions(modelOutput).map(action => {
+      if (action.type === 'plan') {
+        return { id: `plan:${Date.now()}:${Math.random().toString(36).slice(2)}`, type: 'plan', description: action.rationale, paths: action.paths };
+      }
+      const toolName = action.type === 'search_files'
+        ? 'search'
+        : action.type === 'propose_patch'
+          ? 'apply_patch'
+          : action.type;
+      if (!this.toolRegistry.get(toolName)) throw new Error(`Structured action requested an unavailable tool: ${toolName}`);
+      const input = action.type === 'propose_patch'
+        ? { patch: action.patch }
+        : action.type === 'search_files'
+          ? { query: action.query, workspaceTree: this.context.workspace?.tree || [] }
+          : { path: action.paths[0] };
+      const request = this.approvalGate.request(toolName, input);
+      return {
+        id: request.id,
+        type: toolName,
+        path: action.paths.join(', '),
+        paths: action.paths,
+        content: action.patch || action.query || '',
+        description: action.rationale,
+        permission: this.toolRegistry.get(toolName)?.permission,
+        diffSummary: action.patch ? summarizeUnifiedDiff(action.patch) : undefined,
+      };
+    });
   }
 
   async processMessage({ message, workspace }) {

@@ -25,6 +25,11 @@ const tools = new ToolRegistry()
     name: 'delete',
     permission: 'dangerous',
     execute: async ({ path }) => ({ type: 'delete', path }),
+  })
+  .register({
+    name: 'apply_patch',
+    permission: 'write',
+    execute: async ({ patch }) => ({ type: 'patch_apply', patch }),
   });
 
 const gate = new ApprovalGate();
@@ -35,11 +40,12 @@ const workspace = {
   tree: [{ name: 'src', path: 'src', type: 'folder', children: [{ name: 'App.jsx', path: 'src/App.jsx', type: 'file' }] }],
 };
 
-const writePlan = await agent.processMessage({ message: 'update the selected file', workspace });
-const writeAction = writePlan.proposedActions.find(action => action.type === 'write_file');
-assert.ok(writeAction, 'write action should be proposed');
-await agent.executeApprovedAction(writeAction.id);
+agent.setWorkspace(workspace);
+const approvedWrite = gate.request('write_file', { path: 'src/App.jsx', content: 'updated' });
+await agent.executeApprovedAction(approvedWrite.id);
 assert.equal(agent.context.previousActions.at(-1).type, 'write_file');
+const safeWritePlan = await agent.processMessage({ message: 'update the selected file', workspace });
+assert.equal(safeWritePlan.proposedActions.some(action => action.type === 'write_file'), false, 'keyword planning must not fabricate whole-file writes');
 
 // Regression: planTask previously referenced an undeclared lastAction after a completed action.
 const readPlan = await agent.processMessage({ message: 'read the selected file', workspace });
@@ -55,5 +61,17 @@ assert.ok(gate.list().some(request => request.id === deleteAction.id));
 agent.discardAction(deleteAction.id);
 assert.equal(gate.list().some(request => request.id === deleteAction.id), false);
 assert.equal(agent.context.review.status, 'discarded');
+
+const structured = agent.proposeStructuredModelActions(JSON.stringify({
+  actions: [{
+    type: 'propose_patch',
+    paths: ['src/App.jsx'],
+    rationale: 'Update the selected component safely.',
+    patch: '--- a/src/App.jsx\n+++ b/src/App.jsx\n@@ -1 +1 @@\n-old\n+new',
+  }],
+}));
+assert.equal(structured[0].type, 'apply_patch');
+assert.deepEqual(structured[0].diffSummary, [{ path: 'src/App.jsx', additions: 1, deletions: 1 }]);
+agent.discardAction(structured[0].id);
 
 console.log('agent core tests passed');

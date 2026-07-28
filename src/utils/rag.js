@@ -7,7 +7,7 @@
  * - Never reads more than MAX_FILES or MAX_TOTAL_CHARS.
  */
 
-import { buildFileIndex, searchFiles } from './fileIndex.js';
+import { rankWorkspaceFiles } from '../context/contextEngine.js';
 import { WORKSPACE_LIMITS } from '../workspace/workspacePolicy.js';
 
 const MAX_FILES = 4;
@@ -40,47 +40,16 @@ export async function retrieveRelevantContext({
     return [];
   }
 
-  const index = buildFileIndex(workspaceTree);
-  let candidates = [];
-
-  // 1. Highest priority: the currently selected file
-  if (selectedPath) {
-    const selectedFile = index.allFiles.find(f => f.path === selectedPath);
-    if (selectedFile) {
-      candidates.push({ ...selectedFile, priority: 100 });
-    }
-  }
-
-  // 2. Search-based candidates
-  if (query.trim()) {
-    const searchResults = searchFiles(query, workspaceTree);
-    for (const result of searchResults) {
-      if (result.type !== 'folder') {
-        candidates.push({ ...result, priority: 80 });
-      }
-    }
-  }
-
-  // 3. Fallback: recent/common files (top 5 by name)
-  if (candidates.length < 3) {
-    const sorted = [...index.allFiles]
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .slice(0, 5);
-    for (const f of sorted) {
-      candidates.push({ ...f, priority: 30 });
-    }
-  }
-
-  // Deduplicate + sort by priority
-  const seen = new Set();
-  candidates = candidates
-    .filter(c => {
-      if (seen.has(c.path)) return false;
-      seen.add(c.path);
-      return true;
-    })
-    .sort((a, b) => b.priority - a.priority)
-    .slice(0, maxFiles);
+  const candidates = rankWorkspaceFiles({
+    query,
+    workspaceTree,
+    selectedPath,
+    limit: maxFiles,
+  }).map(file => ({
+    ...file,
+    extension: file.name?.split('.').pop()?.toLowerCase() || 'none',
+    priority: file.score,
+  }));
 
   // Read file contents (with limits)
   const results = [];

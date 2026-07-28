@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { RefreshCw, Trash2, Wifi, Bug, Cpu } from 'lucide-react';
 import { readErrorLog, clearErrorLog } from '../utils/errorLog.js';
+import { skillRegistry } from '../skills/skillRegistry.js';
+import { readProjectMemory } from '../memory/agentMemory.js';
+import { AUTONOMY_LEVELS, readAutonomyLevel, writeAutonomyLevel } from '../agent/autonomyPolicy.js';
 import './Settings.css';
 
 export default function Settings({
@@ -9,15 +12,23 @@ export default function Settings({
   onClearChat,
   onReset,
   isNative = false,
+  workspaceId = 'no-workspace',
 }) {
   const [value, setValue] = useState(endpoint);
   const [errors, setErrors] = useState(() => readErrorLog());
+  const [skills, setSkills] = useState(() => skillRegistry.list());
+  const [autonomy, setAutonomy] = useState(readAutonomyLevel);
+  const memory = readProjectMemory(workspaceId);
 
   const save = () => {
     const next = value.trim().replace(/\/$/, '');
     if (!next) return;
     localStorage.setItem('forgeai_endpoint', next);
     onEndpointChange?.(next);
+  };
+  const toggleSkill = (id, enabled) => {
+    skillRegistry.setEnabled(id, enabled);
+    setSkills(skillRegistry.list());
   };
 
   return (
@@ -47,6 +58,26 @@ export default function Settings({
             <button onClick={onClearChat}>Clear chat history</button>
             <button className="danger" onClick={onReset}><Trash2 size={14} /> Reset app data</button>
           </div>
+        </section>
+
+        <section className="settings-card">
+          <h3>Android agent skills</h3>
+          <p className="setting-help">Skills load on demand and only receive their declared ForgeAI tools. Skill scripts are never executed on Android.</p>
+          {skills.map(skill => (
+            <label className="setting-row" key={skill.id} style={{ alignItems: 'flex-start' }}>
+              <input type="checkbox" checked={skill.enabled} onChange={event => toggleSkill(skill.id, event.target.checked)} />
+              <span><strong>{skill.name}</strong><br /><small>{skill.description}</small></span>
+            </label>
+          ))}
+          <label className="setting-label" htmlFor="autonomy-level">Autonomy level</label>
+          <select id="autonomy-level" value={autonomy} onChange={event => { setAutonomy(writeAutonomyLevel(event.target.value)); }}>
+            <option value={AUTONOMY_LEVELS.OFF}>Off</option>
+            <option value={AUTONOMY_LEVELS.SUGGEST}>Suggest only</option>
+            <option value={AUTONOMY_LEVELS.READ_ONLY}>Automatic read-only context</option>
+            <option value={AUTONOMY_LEVELS.PREPARE}>Prepare patches for approval</option>
+          </select>
+          <p className="setting-help">Android never auto-applies writes and never executes commands, regardless of this setting.</p>
+          <p className="setting-help">Project memory: {memory.facts.length} approved fact(s), {memory.tasks.length} bounded task record(s). Model guesses are not persisted as facts.</p>
         </section>
 
         <section className="settings-card">

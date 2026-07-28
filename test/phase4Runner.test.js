@@ -29,6 +29,8 @@ const proposal = await generatePatchProposal({
 });
 assert.equal(proposal.action.type, 'propose_patch');
 assert.equal(proposal.generationResult.tokenCount, 40);
+assert.ok(proposal.activeSkills.includes('patch-reviewer'));
+assert.equal(proposal.review.deterministic.verdict, 'pass');
 const directProvider = {
   async stream({ onToken }) {
     onToken('```diff\n--- a/src/App.jsx\n+++ b/src/App.jsx\n@@ -1 +1 @@\n-old\n+new\n```');

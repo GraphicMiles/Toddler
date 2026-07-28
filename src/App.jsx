@@ -14,6 +14,8 @@ import { createModelProvider } from './providers/modelProvider';
 import { getModelProfile } from './models/catalog.js';
 import { AgentCore } from './agent/core.js';
 import { generatePatchProposal, isCodeChangeRequest } from './agent/phase4Runner.js';
+import { buildRequirementsEcho, shouldEchoRequirements } from './skills/reviewSkills.js';
+import { createAgentTask, projectMemoryPrompt, updateAgentTask } from './memory/agentMemory.js';
 import { ApprovalGate } from './tools/toolApproval.js';
 import { createWorkspaceToolRegistry } from './tools/workspaceTools.js';
 import { retrieveRelevantContext, formatContextForPrompt, shouldRetrieveWorkspaceContext } from './utils/rag.js';
@@ -23,6 +25,14 @@ import './styles/index.css';
 
 const defaultConversationTitle = () => `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 const generateId = () => Math.random().toString(36).substring(2, 15);
+const formatRequirementsEcho = echo => [
+  `**Mission**\n${echo.mission}`,
+  `**Locked decisions**\n${echo.locked.length ? echo.locked.map(item => `- ${item}`).join('\n') : '- None explicitly locked.'}`,
+  `**Open questions**\n${echo.open.length ? echo.open.map(item => `- ${item}`).join('\n') : '- None detected.'}`,
+  `**Reversals / parked changes**\n${echo.reversals.length ? echo.reversals.map(item => `- ${item}`).join('\n') : '- None detected.'}`,
+  `**Model assumptions**\n${echo.assumptions.map(item => `- ${item}`).join('\n')}`,
+  'Please correct or approve this brief, then send the final concrete change request.',
+].join('\n\n');
 // Screen types are imported from ./components/Layout (SCREENS)
 
 export default function App() {
@@ -303,6 +313,12 @@ export default function App() {
   // Agent core processes the message first (full agent mode), proposes actions through manual approval,
   // and contributes its review to the conversation.
   const handleSendMessage = useCallback(async (text) => {
+    if (shouldEchoRequirements(text)) {
+      const userMessage = { id: generateId(), role: 'user', content: text, timestamp: Date.now() };
+      const echo = buildRequirementsEcho(text);
+      setMessages(previous => [...previous, userMessage, { id: generateId(), role: 'assistant', content: formatRequirementsEcho(echo), timestamp: Date.now() }]);
+      return;
+    }
     if (!activeModel) { addSystemMessage('Please select a model from My Collection first.', 'warn'); return; }
     const activeDownload = downloads[activeModel.id];
     if (activeDownload && (activeDownload.status === 'downloading' || activeDownload.status === 'paused')) {
@@ -313,6 +329,7 @@ export default function App() {
     const activeProfile = getModelProfile(activeModel);
     const userMessage = { id: generateId(), role: 'user', content: text, timestamp: Date.now() };
     const assistantId = generateId();
+    const phase4Task = isCodeChangeRequest(text) ? createAgentTask(workspaceProvider.id, text) : null;
 
     // === RAG: Retrieve relevant file context (safe & bounded) ===
     let ragContext = '';
@@ -374,13 +391,20 @@ export default function App() {
           model: activeModel,
           request: text,
           workspaceContext: ragContext,
+          projectMemory: projectMemoryPrompt(workspaceProvider.id),
           signal: controller.signal,
           toolNames: agentToolRegistry.list().map(tool => tool.name),
         });
-        const actions = agentCore.proposeStructuredModelActions(JSON.stringify({ actions: [proposal.action] }));
+        const actions = agentCore.proposeStructuredModelActions(JSON.stringify({ actions: [proposal.action] }))
+          .map(action => ({ ...action, taskId: phase4Task?.id, review: proposal.review, activeSkills: proposal.activeSkills }));
         setPendingActions(previous => [...previous, ...actions]);
+        if (phase4Task) updateAgentTask(workspaceProvider.id, phase4Task.id, {
+          status: 'proposed',
+          files: proposal.action.paths,
+          event: { type: 'patch-proposed', skills: proposal.activeSkills, revised: proposal.review.revised },
+        });
         setMessages(previous => previous.map(message => message.id === assistantId
-          ? { ...message, content: `I prepared a validated patch proposal for ${proposal.action.paths.join(', ')}. Review the exact diff below before approving it.` }
+          ? { ...message, content: `I prepared a validated patch proposal for ${proposal.action.paths.join(', ')}. ${proposal.review.revised ? 'The coder revised it once after review. ' : ''}Active skills: ${proposal.activeSkills.join(', ')}. Review the exact diff below before approving it.` }
           : message));
         generationResult = proposal.generationResult;
       } else {
@@ -407,6 +431,9 @@ export default function App() {
         await haptics.success();
       }
     } catch (error) {
+      if (phase4Task) {
+        try { updateAgentTask(workspaceProvider.id, phase4Task.id, { status: error.name === 'AbortError' ? 'cancelled' : 'failed', event: { type: error.name === 'AbortError' ? 'cancelled' : 'failed', message: error.message } }); } catch {}
+      }
       if (error.name !== 'AbortError') {
         recordError(error, 'model-generation');
         const friendly = error.message?.includes('loaded safely')
@@ -448,23 +475,31 @@ export default function App() {
           operation: 'patch',
           createdAt: Date.now(),
         });
+        if (action.taskId) updateAgentTask(workspaceProvider.id, action.taskId, { status: 'verified', files: result.files.map(file => file.path), event: { type: 'patch-applied-and-verified' } });
         addMessage('assistant', `Patch applied and verified for ${result.files.map(file => file.path).join(', ')}. You can undo the complete transaction from Files.`);
       } else {
         addSystemMessage(`Agent executed: ${action.type}.`, 'info');
       }
     } catch (execError) {
+      if (action.taskId) {
+        try { updateAgentTask(workspaceProvider.id, action.taskId, { status: 'failed', event: { type: 'apply-failed', message: execError.message } }); } catch {}
+      }
       addSystemMessage(`Agent execution failed: ${execError.message}`, 'error');
     }
 
     if (isNative) await haptics.success();
-  }, [pendingActions, agentCore, loadWorkspace]);
+  }, [pendingActions, agentCore, loadWorkspace, workspaceProvider]);
 
   // Handle action discard
   const handleDiscardAction = useCallback((actionId) => {
+    const action = pendingActions.find(item => item.id === actionId);
     agentCore.discardAction(actionId);
+    if (action?.taskId) {
+      try { updateAgentTask(workspaceProvider.id, action.taskId, { status: 'rejected', event: { type: 'patch-rejected' } }); } catch {}
+    }
     setPendingActions(prev => prev.filter(a => a.id !== actionId));
     addSystemMessage('Action cancelled.', 'warn');
-  }, [agentCore]);
+  }, [agentCore, pendingActions, workspaceProvider]);
 
   // Handle model download
   const handleDownload = useCallback(async (model, onProgress) => {
@@ -686,6 +721,7 @@ export default function App() {
               onClearChat={clearChat}
               onReset={handleResetApp}
               isNative={isNative}
+              workspaceId={workspaceProvider.id}
             />
           </motion.div>
         )}

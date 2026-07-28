@@ -163,12 +163,16 @@ public class WorkspaceStorage extends Plugin {
                 DocumentFile folder = root(call); int slash = path.lastIndexOf('/');
                 DocumentFile dir = resolve(folder, slash < 0 ? "" : path.substring(0, slash), true);
                 String name = slash < 0 ? path : path.substring(slash + 1);
-                DocumentFile target = dir.findFile(name); if (target == null) target = dir.createFile("application/octet-stream", name);
-                if (target == null) throw new IllegalArgumentException("Unable to create model file.");
+                DocumentFile existing = dir.findFile(name);
+                if (existing != null) existing.delete();
+                String tempName = name + ".part";
+                DocumentFile target = dir.findFile(tempName); if (target != null) target.delete();
+                target = dir.createFile("application/octet-stream", tempName);
+                if (target == null) throw new IllegalArgumentException("Unable to create temporary model file.");
                 HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection(); connection.setConnectTimeout(20000); connection.setReadTimeout(120000); connection.connect();
                 if (connection.getResponseCode() < 200 || connection.getResponseCode() >= 300) throw new IllegalArgumentException("Model download failed: HTTP " + connection.getResponseCode());
                 long expected = connection.getContentLengthLong();
-                try (InputStream in = connection.getInputStream(); OutputStream out = getContext().getContentResolver().openOutputStream(target.getUri(), "wt")) { byte[] buffer = new byte[262144]; int n; long total = 0; long last = 0; while ((n = in.read(buffer)) != -1) { out.write(buffer, 0, n); total += n; long now = System.currentTimeMillis(); if (now - last > 250) { last = now; JSObject progress = new JSObject(); progress.put("path", path); progress.put("completed", total); progress.put("total", expected); progress.put("progress", expected > 0 ? (int)(total * 100 / expected) : 0); notifyListeners("modelDownloadProgress", progress); } } JSObject progress = new JSObject(); progress.put("path", path); progress.put("completed", total); progress.put("total", total); progress.put("progress", 100); notifyListeners("modelDownloadProgress", progress); JSObject result = new JSObject(); result.put("path", path); result.put("size", total); call.resolve(result); }
+                try (InputStream in = connection.getInputStream(); OutputStream out = getContext().getContentResolver().openOutputStream(target.getUri(), "wt")) { byte[] buffer = new byte[262144]; int n; long total = 0; long last = 0; while ((n = in.read(buffer)) != -1) { out.write(buffer, 0, n); total += n; long now = System.currentTimeMillis(); if (now - last > 250) { last = now; JSObject progress = new JSObject(); progress.put("path", path); progress.put("completed", total); progress.put("total", expected); progress.put("progress", expected > 0 ? (int)(total * 100 / expected) : 0); notifyListeners("modelDownloadProgress", progress); } } JSObject progress = new JSObject(); progress.put("path", path); progress.put("completed", total); progress.put("total", total); progress.put("progress", 100); notifyListeners("modelDownloadProgress", progress); if (!target.renameTo(name)) { target.delete(); throw new IllegalArgumentException("Unable to finalize model download."); } JSObject result = new JSObject(); result.put("path", path); result.put("size", total); call.resolve(result); }
                 connection.disconnect();
             } catch (Exception e) { call.reject(e.getMessage()); }
         }).start();

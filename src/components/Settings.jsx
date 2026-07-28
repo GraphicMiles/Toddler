@@ -15,6 +15,7 @@ import {
   POLICY_LEVELS,
   getLevelConfig 
 } from '../safety/SafetyPolicy.js';
+import AutomationSettings from './AutomationSettings.jsx';
 import TaskTimeline from './TaskTimeline.jsx';
 import ProjectMemoryPanel from './ProjectMemoryPanel.jsx';
 import RepositoryIndexPanel from './RepositoryIndexPanel.jsx';
@@ -283,6 +284,9 @@ export default function Settings({
             <strong>Active rules:</strong> {safetyPolicy.getPolicySummary().activeRules.join(', ')}
           </div>
         </section>
+
+        {/* Automation Tiers Section */}
+        <AutomationSettings />
       </div>
     </div>
   );

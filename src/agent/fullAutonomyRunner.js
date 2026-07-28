@@ -4,6 +4,7 @@ import {
   runTerminalCommand,
 } from '../nativeBridge.js';
 import { performOnlineResearch } from './onlineResearch.js';
+import { automationTierManager, shouldAutoApproveAction } from './automation/automationTiers.js';
 
 export function isAutonomousToolRequest(message = '') {
   return /\b(terminal|shell|command|github|repository|repo|clone|fetch|pull|push|commit|rebase|checkout|branch|workflow|actions)\b/i.test(message);
@@ -56,11 +57,45 @@ export async function runFullAutonomyAgent({ provider, model, request, signal, o
   try { actions = parseStructuredActions(planned.text); }
   catch { actions = fallbackActions(request).map(validateStructuredAction); }
   if (!actions.length) throw new Error('The local model did not produce a valid terminal, research, or Git action. Use a direct command such as “run command: ls” or include a GitHub repository URL.');
+
   const results = [];
-  for (const action of actions.slice(0, 6)) {
-    if (action.type === 'final') { onToken?.(action.answer); return planned.result; }
-    results.push({ action: action.type, input: action, output: await executeAction(action) });
+  const isWorkflow = automationTierManager.isWorkflowMode();
+  const checkpointId = isWorkflow ? automationTierManager.createRevertCheckpoint(actions, `Workflow: ${request.slice(0, 60)}`) : null;
+
+  for (const action of actions.slice(0, isWorkflow ? 12 : 6)) {
+    if (action.type === 'final') { 
+      onToken?.(action.answer); 
+      return planned.result; 
+    }
+
+    // Check if we should auto-approve based on tier + whitelist
+    const autoApproved = shouldAutoApproveAction(action);
+    
+    if (!autoApproved && !automationTierManager.isFullAuto()) {
+      // In assisted/semi mode we still require approval gate from App.jsx
+      results.push({ action: action.type, input: action, status: 'pending-approval', skipped: true });
+      continue;
+    }
+
+    // Log step for workflow mode
+    if (isWorkflow) {
+      automationTierManager.logWorkflowStep({
+        type: 'action',
+        action: action.type,
+        input: action,
+        checkpointId,
+      });
+    }
+
+    try {
+      const output = await executeAction(action);
+      results.push({ action: action.type, input: action, output, status: 'executed' });
+    } catch (err) {
+      results.push({ action: action.type, input: action, error: err.message, status: 'failed' });
+      if (!automationTierManager.isFullAuto()) break; // stop on error unless full-auto
+    }
   }
+
   const final = await provider.stream({
     model,
     signal,

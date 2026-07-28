@@ -1,11 +1,12 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Database, Boxes, Menu, Plus, X, Pencil, Trash2, Download, MessageSquare } from 'lucide-react';
+import { Database, Boxes, Menu, Plus, X, Pencil, Trash2, Download, MessageSquare, AlertTriangle } from 'lucide-react';
 import Message from './Message';
 import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
 import ActionCard from './ActionCard';
 import EmptyState from './EmptyState';
+import { isFullAutoMode, getCurrentAutomationTier } from '../agent/automation/automationTiers.js';
 import './ChatContainer.css';
 
 export default function ChatContainer({
@@ -131,6 +132,26 @@ export default function ChatContainer({
           <Menu size={20} />
         </button>
         <span className="chat-topbar-title">{topbarTitle}</span>
+
+        {/* Full-Auto Indicator */}
+        {isFullAutoMode() && (
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: '#1e3a8a',
+            color: '#93c5fd',
+            padding: '2px 10px',
+            borderRadius: '999px',
+            fontSize: '11px',
+            fontWeight: 600,
+            marginLeft: 'auto',
+            marginRight: '8px'
+          }}>
+            <AlertTriangle size={13} /> FULL-AUTO ({getCurrentAutomationTier()})
+          </div>
+        )}
+
         <button
           type="button"
           className="chat-topbar-btn"

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   checkOllamaConnection, pullOllamaModel, deleteOllamaModel,
-  downloadOnDeviceModel, pauseOnDeviceDownload, deleteOnDeviceModel, isNative, downloadModelToWorkspace, importModelToRuntime, listWorkspace
+  downloadOnDeviceModel, pauseOnDeviceDownload, cancelOnDeviceDownload, deleteOnDeviceModel, isNative, downloadModelToWorkspace, importModelToRuntime, listWorkspace
 } from '../nativeBridge';
 
 const STORAGE_KEY = 'forgeai_models';
@@ -16,6 +16,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
   const [isLoading, setIsLoading] = useState(true);
   const [downloads, setDownloads] = useState({});
   const controllers = useRef(new Map());
+  const downloadFiles = useRef(new Map());
 
   useEffect(() => { setIsLoading(false); }, []);
 
@@ -60,6 +61,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     setDownloads(d => ({ ...d, [model.id]: { status: 'downloading', progress: 0 } }));
     const controller = new AbortController();
     controllers.current.set(model.id, controller);
+    downloadFiles.current.set(model.id, model.file || `${model.id}.gguf`);
 
     // Internal progress handler that always updates downloads state
     const trackProgress = (p) => {
@@ -131,13 +133,15 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     return { paused: true };
   }, []);
 
-  const cancelDownload = useCallback((modelId) => {
-    // Abort the network request
+  const cancelDownload = useCallback(async (modelId) => {
+    // Abort the JS request and the native download thread
     controllers.current.get(modelId)?.abort();
+    if (isNative) await cancelOnDeviceDownload(downloadFiles.current.get(modelId) || `${modelId}.gguf`).catch(() => {});
     controllers.current.delete(modelId);
+    downloadFiles.current.delete(modelId);
     // Remove from downloads entirely so it can be retried immediately
     setDownloads(d => { const n = { ...d }; delete n[modelId]; return n; });
-  }, []);
+  }, [models]);
 
   const retryDownload = useCallback((model, onProgress) => {
     // Clear any stale entry before retrying

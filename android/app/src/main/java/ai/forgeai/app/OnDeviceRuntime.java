@@ -122,7 +122,12 @@ public class OnDeviceRuntime extends Plugin {
                     int read;
                     long lastEmit = 0;
                     while ((read = input.read(buffer)) != -1) {
-                        // Check for pause
+                        // Check for cancellation or pause
+                        if (Thread.currentThread().isInterrupted()) {
+                            output.flush();
+                            temp.delete();
+                            throw new InterruptedException("Download cancelled");
+                        }
                         if (pausedDownloads.containsKey(filename)) {
                             output.flush();
                             JSObject pauseResult = new JSObject();
@@ -202,6 +207,15 @@ public class OnDeviceRuntime extends Plugin {
             if (target.exists() && !target.delete()) { call.reject("Unable to delete model"); return; }
             call.resolve();
         } catch (Exception e) { call.reject("Unable to delete model safely"); }
+    }
+
+    @PluginMethod
+    public void cancelDownload(PluginCall call) {
+        String filename = call.getString("filename", "");
+        Thread thread = activeDownloads.get(filename);
+        if (thread != null) { thread.interrupt(); }
+        pausedDownloads.remove(filename);
+        call.resolve();
     }
 
     @PluginMethod

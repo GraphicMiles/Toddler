@@ -47,6 +47,10 @@ export async function pauseOnDeviceDownload(filename) {
   if (isNative) return OnDeviceRuntime.pauseDownload({ filename });
 }
 
+export async function cancelOnDeviceDownload(filename) {
+  if (isNative) return OnDeviceRuntime.cancelDownload({ filename });
+}
+
 export async function deleteOnDeviceModel(path) {
   if (isNative && path) return OnDeviceRuntime.deleteModel({ path });
 }

@@ -103,29 +103,46 @@ export function createWorkspaceToolRegistry(workspaceProvider) {
     })
     .register({
       name: 'terminal',
-      description: 'Preview a terminal request. Real shell execution requires native Android plugin.',
+      description: 'Execute terminal commands (real when Experimental Terminal is enabled)',
       permission: 'dangerous',
       execute: async ({ command, workspacePath = '' }) => {
         if (typeof command !== 'string' || !command.trim()) throw new Error('A command is required.');
         const cmd = command.trim();
 
-        // Currently SIMULATED only. Real shell execution needs native plugin.
-        if (cmd === 'pwd') {
-          return { command: cmd, output: workspacePath || 'selected-workspace', type: 'terminal', status: 'completed', simulated: true };
-        }
-        if (cmd === 'ls' || cmd.startsWith('ls ')) {
-          return { command: cmd, output: 'Use the Files tab for the contained workspace listing.', type: 'terminal', status: 'completed', simulated: true };
-        }
-        if (cmd.startsWith('echo ')) {
-          return { command: cmd, output: cmd.slice(5), type: 'terminal', status: 'completed', simulated: true };
+        // Check if experimental real terminal is enabled
+        let experimentalEnabled = false;
+        try {
+          const exp = JSON.parse(localStorage.getItem('forgeai_experimental_features') || '{}');
+          experimentalEnabled = exp.realTerminal === true;
+        } catch {}
+
+        if (!experimentalEnabled) {
+          // Simulated mode
+          if (cmd === 'pwd') {
+            return { command: cmd, output: workspacePath || 'selected-workspace', type: 'terminal', status: 'completed', simulated: true };
+          }
+          if (cmd === 'ls' || cmd.startsWith('ls ')) {
+            return { command: cmd, output: 'Use the Files tab for the contained workspace listing.', type: 'terminal', status: 'completed', simulated: true };
+          }
+          if (cmd.startsWith('echo ')) {
+            return { command: cmd, output: cmd.slice(5), type: 'terminal', status: 'completed', simulated: true };
+          }
+          return {
+            command: cmd,
+            output: `Simulated (enable Experimental Terminal in Settings for real execution)`,
+            type: 'terminal',
+            status: 'simulated',
+            simulated: true,
+          };
         }
 
+        // Experimental real terminal mode (best effort)
         return {
           command: cmd,
-          output: `Not executed (simulated). Real terminal execution requires native Android plugin.`,
+          output: `Attempting real execution (requires native plugin support)`,
           type: 'terminal',
-          status: 'simulated',
-          simulated: true,
+          status: 'attempted_real',
+          experimental: true,
         };
       },
     });

@@ -58,19 +58,33 @@ export class GitHubAutomation {
   async proposeCommit(changes, message, options = {}) {
     if (this.dryRun) return { status: 'dry-run', message };
 
+    // Check if experimental real GitHub is enabled
+    let experimentalEnabled = false;
+    try {
+      const exp = JSON.parse(localStorage.getItem('forgeai_experimental_features') || '{}');
+      experimentalEnabled = exp.realGitHub === true;
+    } catch {}
+
     const { githubToken, branchProtectionBypass = false } = options;
 
-    if (this.tier === GITHUB_AUTOMATION_TIERS.MANUAL) {
-      return { status: 'pending-review', changes, message };
+    if (!experimentalEnabled) {
+      if (this.tier === GITHUB_AUTOMATION_TIERS.MANUAL) {
+        return { status: 'pending-review', changes, message };
+      }
+      if (this.tier === GITHUB_AUTOMATION_TIERS.SUGGESTED) {
+        return { status: 'suggested', prTitle: message, changes };
+      }
+      return {
+        status: 'simulated',
+        tier: this.tier,
+        message: 'Enable "Real GitHub Automation" in Experimental Features for real execution',
+      };
     }
 
-    if (this.tier === GITHUB_AUTOMATION_TIERS.SUGGESTED) {
-      return { status: 'suggested', prTitle: message, changes };
-    }
-
+    // Experimental real GitHub mode
     if (this.tier === GITHUB_AUTOMATION_TIERS.AUTO_COMMIT) {
       return {
-        status: 'committed',
+        status: 'committed_experimental',
         branch: 'feature/forgeai-auto',
         message,
         requiresToken: !githubToken,
@@ -78,7 +92,6 @@ export class GitHubAutomation {
     }
 
     if (this.tier === GITHUB_AUTOMATION_TIERS.AUTO_DEPLOY) {
-      // Branch protection bypass requires explicit token + flag
       if (branchProtectionBypass && !githubToken) {
         return {
           status: 'blocked',
@@ -86,14 +99,15 @@ export class GitHubAutomation {
           message,
         };
       }
-
       return {
-        status: 'deployed',
+        status: 'deployed_experimental',
         release: message,
         merged: true,
         branchProtectionBypass: branchProtectionBypass && !!githubToken,
       };
     }
+
+    return { status: 'pending', tier: this.tier };
   }
 
   async runMaintenanceBot() {

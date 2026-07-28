@@ -20,6 +20,7 @@ import SkillValidatorSettings from './SkillValidatorSettings.jsx';
 import ResearchSettings from './ResearchSettings.jsx';
 import GitHubAutomationSettings from './GitHubAutomationSettings.jsx';
 import SocialMediaSettings from './SocialMediaSettings.jsx';
+import ExperimentalFeatures from './ExperimentalFeatures.jsx';
 import TaskTimeline from './TaskTimeline.jsx';
 import ProjectMemoryPanel from './ProjectMemoryPanel.jsx';
 import RepositoryIndexPanel from './RepositoryIndexPanel.jsx';
@@ -303,6 +304,9 @@ export default function Settings({
 
         {/* Social Media Automation Settings */}
         <SocialMediaSettings />
+
+        {/* Experimental Features */}
+        <ExperimentalFeatures />
       </div>
     </div>
   );

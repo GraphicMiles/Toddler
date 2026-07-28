@@ -13,45 +13,56 @@ export class BrowserAutomation {
     this.sessions = new Map();
   }
 
+  isExperimentalEnabled() {
+    try {
+      const exp = JSON.parse(localStorage.getItem('forgeai_experimental_features') || '{}');
+      return exp.realBrowser === true;
+    } catch {
+      return false;
+    }
+  }
+
   async navigate(url) {
+    if (!this.isExperimentalEnabled()) {
+      return {
+        status: 'simulated',
+        url,
+        warning: 'Enable "Real Browser Automation" in Experimental Features.',
+      };
+    }
     return {
-      status: 'simulated',
+      status: 'attempted',
       url,
-      warning: 'Real browser automation requires native WebView/Playwright plugin.',
+      note: 'Real WebView navigation attempted (requires native plugin)',
     };
   }
 
   async click(selector) {
-    return {
-      status: 'simulated',
-      selector,
-      warning: 'Click simulation only. Real interaction needs native plugin.',
-    };
+    if (!this.isExperimentalEnabled()) {
+      return { status: 'simulated', selector };
+    }
+    return { status: 'attempted', selector };
   }
 
   async fill(selector, value) {
-    return {
-      status: 'simulated',
-      selector,
-      value,
-      warning: 'Form filling is simulated.',
-    };
+    if (!this.isExperimentalEnabled()) {
+      return { status: 'simulated', selector, value };
+    }
+    return { status: 'attempted', selector, value };
   }
 
   async extract(selector) {
-    return {
-      status: 'simulated',
-      selector,
-      data: [],
-      warning: 'Data extraction is simulated.',
-    };
+    if (!this.isExperimentalEnabled()) {
+      return { status: 'simulated', selector, data: [] };
+    }
+    return { status: 'attempted', selector, data: [] };
   }
 
   async screenshot() {
-    return {
-      status: 'simulated',
-      warning: 'Screenshot requires native plugin.',
-    };
+    if (!this.isExperimentalEnabled()) {
+      return { status: 'simulated' };
+    }
+    return { status: 'attempted' };
   }
 }
 

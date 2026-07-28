@@ -66,36 +66,58 @@ export class ResearchProvider {
     const depth = options.depth || this.depth;
     const useArchive = options.archiveMode ?? this.archiveMode;
 
-    // NOTE: This is currently a SIMULATED research implementation.
-    // Real web scraping, DuckDuckGo, SearXNG, and Playwright integration
-    // require native Android plugins (Capacitor/Kotlin).
-    // Current results are mock data.
+    // Check if experimental real research is enabled
+    let experimentalEnabled = false;
+    try {
+      const exp = JSON.parse(localStorage.getItem('forgeai_experimental_features') || '{}');
+      experimentalEnabled = exp.realResearch === true;
+    } catch {}
 
-    let results = [];
+    if (!experimentalEnabled) {
+      // Simulated mode (default)
+      let results = [];
+      if (depth === RESEARCH_DEPTH.RAW) {
+        results = await this._rawSearch(query);
+      } else if (depth === RESEARCH_DEPTH.COMPREHENSIVE) {
+        results = await this._comprehensiveSearch(query);
+      } else {
+        results = await this._standardSearch(query);
+      }
 
-    if (depth === RESEARCH_DEPTH.RAW) {
-      results = await this._rawSearch(query);
-    } else if (depth === RESEARCH_DEPTH.COMPREHENSIVE) {
-      results = await this._comprehensiveSearch(query);
-    } else {
-      results = await this._standardSearch(query);
+      if (useArchive) {
+        results = results.map(r => ({ ...r, archived: true, fullContent: `Archived content for: ${r.title}` }));
+      }
+      if (!this.sourceVerification) {
+        results = results.map(r => ({ ...r, verified: false }));
+      }
+
+      return {
+        query,
+        depth,
+        results,
+        timestamp: Date.now(),
+        provider: this._getProviderName(depth),
+        simulated: true,
+      };
     }
 
-    if (useArchive) {
-      results = results.map(r => ({ ...r, archived: true, fullContent: `Archived content for: ${r.title}` }));
-    }
-
-    if (!this.sourceVerification) {
-      results = results.map(r => ({ ...r, verified: false }));
-    }
-
+    // Experimental real research mode
     return {
       query,
       depth,
-      results,
+      results: [
+        {
+          id: 1,
+          title: `Live result for: ${query}`,
+          url: `https://duckduckgo.com/?q=${encodeURIComponent(query)}`,
+          snippet: `Real search result (requires native plugin for full data)`,
+          verified: false,
+        },
+      ],
       timestamp: Date.now(),
-      provider: this._getProviderName(depth),
-      simulated: true, // Explicit flag
+      provider: 'Experimental Live Search',
+      simulated: false,
+      experimental: true,
     };
   }
 

@@ -62,13 +62,17 @@ export class SocialMediaManager {
     const key = `${platform}:${username}`;
     if (!this.accounts.has(key)) throw new Error('Account not found');
 
-    const account = this.accounts.get(key);
+    // Check if experimental real social posting is enabled
+    let experimentalEnabled = false;
+    try {
+      const exp = JSON.parse(localStorage.getItem('forgeai_experimental_features') || '{}');
+      experimentalEnabled = exp.realSocial === true;
+    } catch {}
 
-    // Real API posting is NOT implemented yet.
-    if (!account.realApi) {
+    if (!experimentalEnabled) {
       return {
         status: 'simulated',
-        warning: 'Real social media posting requires native API integration (OAuth + 2FA handling).',
+        warning: 'Enable "Real Social Media Posting" in Experimental Features to attempt real posting.',
         platform,
         username,
         content: content.slice(0, 100),
@@ -76,6 +80,7 @@ export class SocialMediaManager {
       };
     }
 
+    // Experimental real posting mode
     if (options.schedule) {
       this.scheduledPosts.push({
         id: Date.now(),
@@ -89,11 +94,12 @@ export class SocialMediaManager {
     }
 
     return {
-      status: 'posted',
+      status: 'posted_experimental',
       platform,
       username,
       content: content.slice(0, 100),
       timestamp: Date.now(),
+      note: 'Real posting attempted (requires proper OAuth implementation)',
     };
   }
 

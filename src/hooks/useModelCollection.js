@@ -102,7 +102,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
       const installed = {
         ...model,
         ollamaName: name,
-        localPath: result.path,
+        localPath: result.runtimePath || result.path,
         downloadedAt: new Date().toISOString(),
         status: 'ready',
         downloadedBytes: result.total || result.size || undefined,

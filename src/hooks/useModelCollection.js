@@ -72,8 +72,9 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     try {
       let result;
       if (isNative && model.downloadUrl) {
-        // Android native download via Capacitor plugin
+        // Android models must use an explicitly selected durable folder.
         const modelFolderUri = localStorage.getItem('forgeai_model_folder_uri') || '';
+        if (!modelFolderUri.startsWith('content://')) throw new Error('Choose a model folder before downloading on Android.');
         if (modelFolderUri.startsWith('content://')) {
           const durablePath = `models/${model.file || `${model.id}.gguf`}`;
           await trackProgress({ status: 'downloading', progress: 0 });

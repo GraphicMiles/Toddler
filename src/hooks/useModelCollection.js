@@ -76,7 +76,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
         const modelFolderUri = localStorage.getItem('forgeai_model_folder_uri') || '';
         if (!modelFolderUri.startsWith('content://')) throw new Error('Choose a model folder before downloading on Android.');
         if (modelFolderUri.startsWith('content://')) {
-          const durablePath = `models/${model.file || `${model.id}.gguf`}`;
+          const durablePath = model.file || `${model.id}.gguf`;
           await trackProgress({ status: 'downloading', progress: 0 });
           const durable = await downloadModelToWorkspace(modelFolderUri, model.downloadUrl, durablePath);
           const imported = await importModelToRuntime(modelFolderUri, durablePath);

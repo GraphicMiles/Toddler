@@ -1,4 +1,5 @@
 import { normalizeRelativeWorkspacePath } from '../workspace/workspaceProvider.js';
+import { getCurrentSafetyPolicy } from '../safety/SafetyPolicy.js';
 
 export const STRUCTURED_ACTION_TYPES = Object.freeze([
   'read_file',
@@ -27,53 +28,88 @@ function requireString(value, label, maximum) {
 }
 
 export function validateStructuredAction(input) {
+  const policy = getCurrentSafetyPolicy();
+
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Agent action must be an object.');
   if (!STRUCTURED_ACTION_TYPES.includes(input.type)) throw new Error(`Unsupported agent action: ${input.type}`);
+  
   const paths = input.paths == null ? [] : input.paths;
   if (!Array.isArray(paths) || paths.length > MAX_PATHS) throw new Error(`Agent action paths must contain at most ${MAX_PATHS} items.`);
+  
   const normalizedPaths = paths.map(path => normalizeRelativeWorkspacePath(path));
   const rationale = requireString(input.rationale, 'Agent action rationale', MAX_RATIONALE);
   const action = { type: input.type, paths: normalizedPaths, rationale };
 
   if (input.type === 'read_file' && normalizedPaths.length !== 1) throw new Error('read_file requires exactly one path.');
+  
   if (input.type === 'create_file') {
     if (normalizedPaths.length !== 1) throw new Error('create_file requires exactly one path.');
     action.content = requireString(input.content, 'New file content', MAX_FILE_CONTENT);
   }
-  if (input.type === 'search_files' || input.type === 'web_search') action.query = requireString(input.query || input.rationale, 'Search query', 500);
+  
+  if (input.type === 'search_files' || input.type === 'web_search') {
+    action.query = requireString(input.query || input.rationale, 'Search query', 500);
+  }
+  
   if (input.type === 'terminal') {
     action.command = requireString(input.command, 'Terminal command', 4000);
     action.cwd = typeof input.cwd === 'string' ? input.cwd.slice(0, 1000) : '';
-    action.timeoutSeconds = Math.min(Math.max(Number(input.timeoutSeconds) || 120, 1), 600);
+    
+    const requestedTimeout = Number(input.timeoutSeconds) || 120;
+    const maxTimeout = policy.getTerminalMaxTimeout();
+    action.timeoutSeconds = Math.min(Math.max(requestedTimeout, 1), maxTimeout);
+
+    // Terminal command safety check
+    if (policy.shouldRestrictTerminal() && !policy.allowArbitraryTerminalCommands()) {
+      if (!policy.isTerminalCommandAllowed(action.command)) {
+        throw new Error('Terminal command blocked by current safety policy.');
+      }
+    }
   }
+  
   if (input.type === 'github_api') {
     action.method = String(input.method || 'GET').toUpperCase();
     action.apiPath = requireString(input.apiPath, 'GitHub API path', 1000);
     action.body = typeof input.body === 'string' ? input.body.slice(0, 200000) : JSON.stringify(input.body || '');
   }
+  
   if (input.type === 'git_clone') {
     action.repository = requireString(input.repository, 'GitHub repository', 500);
     action.branch = typeof input.branch === 'string' ? input.branch.slice(0, 300) : '';
   }
+  
   if (input.type === 'git') {
     action.operation = requireString(input.operation, 'Git operation', 30);
-    if (!['status', 'log', 'fetch', 'pull', 'checkout', 'commit', 'push', 'rebase'].includes(action.operation)) throw new Error(`Unsupported Git operation: ${action.operation}`);
+    if (!['status', 'log', 'fetch', 'pull', 'checkout', 'commit', 'push', 'rebase'].includes(action.operation)) {
+      throw new Error(`Unsupported Git operation: ${action.operation}`);
+    }
     action.repositoryPath = typeof input.repositoryPath === 'string' ? input.repositoryPath.slice(0, 1000) : '';
     action.branch = typeof input.branch === 'string' ? input.branch.slice(0, 300) : '';
     action.message = typeof input.message === 'string' ? input.message.slice(0, 2000) : '';
     action.upstream = typeof input.upstream === 'string' ? input.upstream.slice(0, 300) : '';
     action.force = input.force === true;
   }
-  if (input.type === 'final') action.answer = requireString(input.answer || input.rationale, 'Final answer', 20000);
+  
+  if (input.type === 'final') {
+    action.answer = requireString(input.answer || input.rationale, 'Final answer', 20000);
+  }
+  
   if (input.type === 'propose_patch') {
-    action.patch = requireString(input.patch, 'Unified diff', MAX_PATCH);
-    if (!action.patch.includes('--- ') || !action.patch.includes('+++ ') || !action.patch.includes('@@')) {
+    const maxPatch = policy.getMaxPatchSize() || MAX_PATCH;
+    action.patch = requireString(input.patch, 'Unified diff', maxPatch);
+    
+    if (policy.requireUnifiedDiff() && 
+        (!action.patch.includes('--- ') || !action.patch.includes('+++ ') || !action.patch.includes('@@'))) {
       throw new Error('propose_patch requires a unified diff.');
     }
   } else if (input.patch != null) {
     throw new Error(`${input.type} must not include a patch.`);
   }
-  if (input.type !== 'create_file' && input.content != null) throw new Error(`${input.type} must not include file content.`);
+  
+  if (input.type !== 'create_file' && input.content != null) {
+    throw new Error(`${input.type} must not include file content.`);
+  }
+  
   return Object.freeze(action);
 }
 

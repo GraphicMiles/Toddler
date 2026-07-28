@@ -27,6 +27,7 @@ import { createWorkspaceToolRegistry } from './tools/workspaceTools.js';
 import { retrieveRelevantContext, formatContextForPrompt, shouldRetrieveWorkspaceContext } from './utils/rag.js';
 import { createSafWorkspaceProvider, createVirtualWorkspaceProvider } from './workspace/workspaceProvider.js';
 import { recordError } from './utils/errorLog.js';
+import { loadSafetyPolicyFromFile, setCurrentSafetyPolicy } from './safety/SafetyPolicy.js';
 import './styles/index.css';
 
 const defaultConversationTitle = () => `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -56,6 +57,20 @@ export default function App() {
   const [endpoint, setEndpoint] = useState(() => localStorage.getItem('forgeai_endpoint') || import.meta.env.VITE_OLLAMA_URL || 'http://localhost:11434');
   const [pendingActions, setPendingActions] = useState([]);
   const [modelFolderUri, setModelFolderUri] = useState(() => localStorage.getItem('forgeai_model_folder_uri') || '');
+
+  // Load Safety Policy at startup (default: strict)
+  useEffect(() => {
+    const initSafety = async () => {
+      try {
+        const policy = await loadSafetyPolicyFromFile();
+        setCurrentSafetyPolicy(policy);
+        console.log('[ForgeAI] SafetyPolicy initialized:', policy.getLevel());
+      } catch (err) {
+        console.warn('[ForgeAI] Failed to load safety policy, using strict default');
+      }
+    };
+    initSafety();
+  }, []);
 
   // Workspace state
   const [workspaceTree, setWorkspaceTree] = useState([]);

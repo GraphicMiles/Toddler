@@ -1,8 +1,15 @@
-export const WORKSPACE_LIMITS = Object.freeze({
-  uiReadBytes: 2 * 1024 * 1024,
-  ragReadBytes: 256 * 1024,
-  writeBytes: 2 * 1024 * 1024,
-});
+import { getCurrentSafetyPolicy } from '../safety/SafetyPolicy.js';
+
+export function getWorkspaceLimits() {
+  const policy = getCurrentSafetyPolicy();
+  return Object.freeze({
+    uiReadBytes: policy.getMaxReadBytes?.() || 2 * 1024 * 1024,
+    ragReadBytes: 256 * 1024,
+    writeBytes: policy.getMaxWriteBytes?.() || 2 * 1024 * 1024,
+  });
+}
+
+export const WORKSPACE_LIMITS = getWorkspaceLimits();
 
 const IGNORED_DIRECTORIES = new Set([
   '.git', '.hg', '.svn', '.ssh', '.gnupg', '.aws',
@@ -34,8 +41,14 @@ export function isInternalWorkspacePath(path) {
 }
 
 export function assertWorkspacePathAllowed(path, operation = 'access') {
+  const policy = getCurrentSafetyPolicy();
+  if (!policy.shouldEnforceWorkspacePolicy()) {
+    return path; // unrestricted mode
+  }
   if (isInternalWorkspacePath(path)) throw new Error(`ForgeAI internal transaction files cannot be used for ${operation}.`);
-  if (isSensitiveWorkspacePath(path)) throw new Error(`Sensitive workspace paths are blocked for ${operation}.`);
+  if (policy.shouldBlockSensitivePaths() && isSensitiveWorkspacePath(path)) {
+    throw new Error(`Sensitive workspace paths are blocked for ${operation}.`);
+  }
   return path;
 }
 

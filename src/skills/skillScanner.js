@@ -1,5 +1,8 @@
+import { getCurrentSafetyPolicy } from '../safety/SafetyPolicy.js';
+
 const MAX_FILE_BYTES = 1_000_000;
 const SCRIPT_EXTENSIONS = /\.(?:js|mjs|cjs|ts|py|sh|bash|zsh|ps1|rb|pl)$/i;
+
 const PATTERNS = Object.freeze([
   { id: 'REMOTE_SHELL', severity: 'critical', expression: /(?:curl|wget)[^\n|]{0,200}\|\s*(?:ba|z|fi)?sh\b/i, message: 'Downloads remote content directly into a shell.' },
   { id: 'DYNAMIC_EXEC', severity: 'critical', expression: /\b(?:eval|exec|new\s+Function)\s*\(/i, message: 'Uses dynamic code execution.' },
@@ -10,11 +13,26 @@ const PATTERNS = Object.freeze([
 ]);
 
 export function scanSkillPackage(skill, files = {}) {
+  const policy = getCurrentSafetyPolicy();
+  
+  // If policy says don't scan, return pass
+  if (!policy.shouldScanSkills()) {
+    return {
+      findings: [],
+      summary: { critical: 0, warnings: 0, info: 0 },
+      verdict: 'pass',
+      skipped: true,
+      reason: 'Safety policy level: ' + policy.getLevel(),
+    };
+  }
+
   const findings = [];
+  const maxBytes = policy.getMaxSkillFileBytes() || MAX_FILE_BYTES;
   const declaredNetwork = skill?.permissions?.network === true;
+
   for (const [path, raw] of Object.entries(files)) {
     const content = String(raw ?? '');
-    if (new TextEncoder().encode(content).byteLength > MAX_FILE_BYTES) {
+    if (new TextEncoder().encode(content).byteLength > maxBytes) {
       findings.push({ path, id: 'FILE_TOO_LARGE', severity: 'critical', message: 'Skill file exceeds the scanner limit.' });
       continue;
     }
@@ -27,11 +45,24 @@ export function scanSkillPackage(skill, files = {}) {
       findings.push({ path, id: pattern.id, severity, message: pattern.message });
     }
   }
-  const critical = findings.filter(finding => finding.severity === 'critical').length;
-  const warnings = findings.filter(finding => finding.severity === 'warning').length;
+
+  const critical = findings.filter(f => f.severity === 'critical').length;
+  const warnings = findings.filter(f => f.severity === 'warning').length;
+
+  // Policy-controlled blocking behavior
+  let verdict = 'pass';
+  if (policy.shouldBlockSkillCritical() && critical > 0) {
+    verdict = 'reject';
+  } else if (policy.shouldBlockSkillWarnings() && warnings > 0) {
+    verdict = 'review';
+  } else if (warnings > 0) {
+    verdict = 'review';
+  }
+
   return {
     findings,
     summary: { critical, warnings, info: findings.length - critical - warnings },
-    verdict: critical ? 'reject' : warnings ? 'review' : 'pass',
+    verdict,
+    policyLevel: policy.getLevel(),
   };
 }

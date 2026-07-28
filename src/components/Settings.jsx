@@ -8,6 +8,13 @@ import { clearGithubToken, getFullAutonomyStatus, hasGithubToken, pickSkillFile,
 import { readProjectMemory } from '../memory/agentMemory.js';
 import { AUTONOMY_LEVELS, readAutonomyLevel, writeAutonomyLevel } from '../agent/autonomyPolicy.js';
 import { RESPONSE_QUALITY, readResponseQuality, writeResponseQuality } from '../agent/responseQuality.js';
+import { 
+  createSafetyPolicy, 
+  getCurrentSafetyPolicy, 
+  saveSafetyPolicy, 
+  POLICY_LEVELS,
+  getLevelConfig 
+} from '../safety/SafetyPolicy.js';
 import TaskTimeline from './TaskTimeline.jsx';
 import ProjectMemoryPanel from './ProjectMemoryPanel.jsx';
 import RepositoryIndexPanel from './RepositoryIndexPanel.jsx';
@@ -33,6 +40,14 @@ export default function Settings({
   const [githubPat, setGithubPat] = useState('');
   const [githubStored, setGithubStored] = useState(false);
   const [nativeFullAutonomy, setNativeFullAutonomy] = useState(false);
+  
+  // Safety Policy State
+  const [safetyPolicy, setSafetyPolicy] = useState(() => getCurrentSafetyPolicy());
+  const [developerMode, setDeveloperMode] = useState(() => {
+    const policy = getCurrentSafetyPolicy();
+    return policy.getLevel() === POLICY_LEVELS.UNRESTRICTED;
+  });
+  
   const memory = readProjectMemory(workspaceId);
   useEffect(() => {
     if (!isNative) return;
@@ -80,6 +95,35 @@ export default function Settings({
     if (!window.confirm('Remove this external skill?')) return;
     skillRegistry.remove(id);
     setSkills(skillRegistry.list());
+  };
+
+  // === Safety Policy Handlers ===
+  const changeSafetyLevel = (newLevel) => {
+    if (newLevel === POLICY_LEVELS.UNRESTRICTED) {
+      const confirmed = window.confirm(
+        '⚠️ WARNING: Unrestricted mode disables most safety checks including skill scanning, patch validation, terminal restrictions, and sensitive path blocking.\n\n' +
+        'This is intended only for enterprise power users and local AI research with trusted models.\n\n' +
+        'Are you sure you want to enable unrestricted mode?'
+      );
+      if (!confirmed) return;
+    }
+
+    const newConfig = getLevelConfig(newLevel);
+    const newPolicy = createSafetyPolicy(newConfig);
+    
+    saveSafetyPolicy(newPolicy);
+    setSafetyPolicy(newPolicy);
+    setDeveloperMode(newLevel === POLICY_LEVELS.UNRESTRICTED);
+  };
+
+  const toggleDeveloperMode = () => {
+    if (!developerMode) {
+      // Turning ON developer mode → unrestricted
+      changeSafetyLevel(POLICY_LEVELS.UNRESTRICTED);
+    } else {
+      // Turning OFF → go back to strict
+      changeSafetyLevel(POLICY_LEVELS.STRICT);
+    }
   };
 
   return (
@@ -184,6 +228,60 @@ export default function Settings({
               : 'Web mode uses Ollama only as a development preview.'}
           </p>
           <p className="setting-help">Platform: {typeof window !== 'undefined' && window.Capacitor?.getPlatform?.() || 'web'}</p>
+        </section>
+
+        {/* Safety Policy Configuration - Enterprise & Power User Feature */}
+        <section className="settings-card">
+          <h3>🛡️ Safety Policy</h3>
+          <p className="setting-help">
+            Enterprise &amp; power-user configurable safety levels. Default: <strong>Strict</strong>.
+          </p>
+          
+          <div style={{ marginBottom: '12px' }}>
+            <label className="setting-label">Current Policy Level</label>
+            <div style={{ 
+              padding: '8px 12px', 
+              background: safetyPolicy.isUnrestricted() ? '#451a03' : '#1f2937', 
+              borderRadius: '6px',
+              fontSize: '13px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <strong>{safetyPolicy.getLevel().toUpperCase()}</strong>
+              {safetyPolicy.isUnrestricted() && <span style={{ color: '#f59e0b' }}>• UNRESTRICTED</span>}
+            </div>
+          </div>
+
+          <label className="setting-label" htmlFor="safety-level">Compliance Level</label>
+          <select 
+            id="safety-level" 
+            value={safetyPolicy.getLevel()} 
+            onChange={e => changeSafetyLevel(e.target.value)}
+          >
+            <option value={POLICY_LEVELS.STRICT}>Strict (Enterprise default)</option>
+            <option value={POLICY_LEVELS.MODERATE}>Moderate</option>
+            <option value={POLICY_LEVELS.MINIMAL}>Minimal</option>
+            <option value={POLICY_LEVELS.UNRESTRICTED}>Unrestricted (Power user / Research)</option>
+          </select>
+
+          <div style={{ marginTop: '12px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={developerMode} 
+                onChange={toggleDeveloperMode}
+              />
+              <span><strong>Developer Mode</strong> (Unrestricted)</span>
+            </label>
+            <p className="setting-help" style={{ fontSize: '12px', marginTop: '4px' }}>
+              Skips non-critical validations. Use with caution. Affects skill scanner, patch validation, terminal commands, and workspace restrictions.
+            </p>
+          </div>
+
+          <div style={{ marginTop: '10px', fontSize: '12px', opacity: 0.75 }}>
+            <strong>Active rules:</strong> {safetyPolicy.getPolicySummary().activeRules.join(', ')}
+          </div>
         </section>
       </div>
     </div>

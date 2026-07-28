@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Download, X, Check, WifiOff, HardDrive, Cpu, MessageSquare,
+  Download, X, WifiOff, HardDrive, Cpu, MessageSquare,
   Smartphone, Pause, Play, Ban
 } from 'lucide-react';
 import {
@@ -143,9 +143,6 @@ export default function ModelZoo({
   const activeDownloadId = Object.keys(downloads).find(id =>
     downloads[id]?.status === 'downloading' || downloads[id]?.status === 'paused'
   ) || null;
-  const activeProgress = activeDownloadId ? (downloads[activeDownloadId]?.progress ?? 0) : 0;
-  const activePaused = activeDownloadId ? downloads[activeDownloadId]?.status === 'paused' : false;
-
   // Get per-model download info
   const getModelDownload = (id) => downloads[id] || null;
 

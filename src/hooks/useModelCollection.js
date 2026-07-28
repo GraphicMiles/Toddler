@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   checkOllamaConnection, pullOllamaModel, deleteOllamaModel,
-  downloadOnDeviceModel, pauseOnDeviceDownload, cancelOnDeviceDownload, deleteOnDeviceModel, isNative, downloadModelToWorkspace, pauseWorkspaceModelDownload, cancelWorkspaceModelDownload, importModelToRuntime, pickModelFile, importDocumentToRuntime, deleteWorkspaceItem, listWorkspace
+  downloadOnDeviceModel, pauseOnDeviceDownload, cancelOnDeviceDownload, deleteOnDeviceModel, loadOnDeviceModel, unloadOnDeviceModel, isNative, downloadModelToWorkspace, pauseWorkspaceModelDownload, cancelWorkspaceModelDownload, importModelToRuntime, pickModelFile, importDocumentToRuntime, deleteWorkspaceItem, listWorkspace
 } from '../nativeBridge';
 
 const STORAGE_KEY = 'forgeai_models';
@@ -45,7 +45,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
           try {
             const imported = await importModelToRuntime(uri, path);
             const id = `imported-${path.split('/').pop().replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
-            saveModels(prev => prev.some(model => model.id === id) ? prev : [...prev, { id, name: path.split('/').pop(), file: path.split('/').pop(), localPath: imported.runtimePath, sourcePath: path, sourceUri: uri, runtime: 'llama.cpp', format: 'GGUF', sha256: imported.sha256, verified: true, status: 'ready', downloadedAt: new Date().toISOString(), downloadedBytes: imported.size }]);
+            saveModels(prev => prev.some(model => model.id === id) ? prev : [...prev, { id, name: path.split('/').pop(), file: path.split('/').pop(), localPath: imported.runtimePath, sourcePath: path, sourceUri: uri, runtime: 'llama.cpp', format: 'GGUF', sha256: imported.sha256, verified: false, integrity: 'hash-recorded', status: 'ready', downloadedAt: new Date().toISOString(), downloadedBytes: imported.size }]);
           } catch (error) { console.warn('Durable model import skipped:', path, error); }
         }
       } catch (error) { console.warn('Durable model scan failed:', error); }
@@ -98,11 +98,21 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
         return { success: false, paused: true };
       }
 
-      // Success - save to collection
+      if (model.sha256 && result.sha256?.toLowerCase() !== model.sha256.toLowerCase()) {
+        throw new Error('Downloaded model checksum does not match the catalog manifest.');
+      }
+
+      // Success - save provenance and distinguish a recorded hash from trusted verification.
+      const publisherVerified = Boolean(model.sha256 && result.sha256);
       const installed = {
         ...model,
         ollamaName: name,
         localPath: result.runtimePath || result.path,
+        sourceUri: result.sourceUri || null,
+        sourcePath: result.durablePath || null,
+        sha256: result.sha256 || null,
+        verified: publisherVerified,
+        integrity: publisherVerified ? 'publisher-verified' : (result.sha256 ? 'hash-recorded' : 'unverified'),
         downloadedAt: new Date().toISOString(),
         status: 'ready',
         downloadedBytes: result.total || result.size || undefined,
@@ -148,7 +158,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     downloadFiles.current.delete(modelId);
     // Remove from downloads entirely so it can be retried immediately
     setDownloads(d => { const n = { ...d }; delete n[modelId]; return n; });
-  }, [models]);
+  }, []);
 
   const retryDownload = useCallback((model, onProgress) => {
     // Clear any stale entry before retrying
@@ -157,21 +167,24 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
   }, [downloadModel]);
 
   const deleteModel = useCallback(async (modelId) => {
-    const model = models.find(m => m.id === modelId);
-    if (!model) return;
+    const model = models.find(item => item.id === modelId);
+    if (!model) return { success: false, error: 'Model is not in the collection.' };
     try {
+      if (isNative && activeModel?.id === modelId) await unloadOnDeviceModel();
+      // Remove the durable source first so the discovery scan cannot immediately re-import it.
       if (isNative && model.sourceUri && model.sourcePath) await deleteWorkspaceItem(model.sourceUri, model.sourcePath);
       if (isNative && model.localPath) await deleteOnDeviceModel(model.localPath);
       else if (!isNative) await deleteOllamaModel(model.ollamaName || model.id, endpoint);
-    } catch (e) {
-      console.warn('Model delete failed', e);
-      return;
+    } catch (error) {
+      console.warn('Model delete failed', error);
+      return { success: false, error: error.message || 'Model deletion failed.' };
     }
     if (activeModel?.id === modelId) {
       setActiveModelState(null);
       localStorage.removeItem(ACTIVE_MODEL_KEY);
     }
-    saveModels(models.filter(m => m.id !== modelId));
+    saveModels(models.filter(item => item.id !== modelId));
+    return { success: true };
   }, [models, activeModel, saveModels, endpoint]);
 
   const setActiveModel = useCallback((model) => {
@@ -182,7 +195,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
 
   const mountModel = useCallback(async (model) => {
     if (isNative && model.localPath) {
-      try { await (await import('../nativeBridge')).loadOnDeviceModel(model.localPath); }
+      try { await loadOnDeviceModel(model.localPath); }
       catch (error) { return { success: false, error: error.message }; }
     }
     setActiveModel(model);
@@ -190,7 +203,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
   }, [setActiveModel]);
 
   const unmountModel = useCallback(async () => {
-    if (isNative) await (await import('../nativeBridge')).unloadOnDeviceModel().catch(() => {});
+    if (isNative) await unloadOnDeviceModel().catch(() => {});
     setActiveModel(null);
     return { success: true, message: 'Model unloaded' };
   }, [setActiveModel]);
@@ -201,14 +214,14 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     if (!selected?.uri) return { success: false, cancelled: true };
     const imported = await importDocumentToRuntime(selected.uri, selected.name);
     const id = `imported-${selected.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
-    const model = { id, name: selected.name, file: selected.name, localPath: imported.runtimePath, sourceUri: selected.uri, runtime: 'llama.cpp', format: 'GGUF', sha256: imported.sha256, verified: true, status: 'ready', downloadedAt: new Date().toISOString(), downloadedBytes: imported.size };
+    const model = { id, name: selected.name, file: selected.name, localPath: imported.runtimePath, sourceUri: selected.uri, runtime: 'llama.cpp', format: 'GGUF', sha256: imported.sha256, verified: false, integrity: 'hash-recorded', status: 'ready', downloadedAt: new Date().toISOString(), downloadedBytes: imported.size };
     saveModels(prev => prev.some(item => item.id === id) ? prev : [...prev, model]);
     return { success: true, model };
   }, [saveModels]);
 
   const stopModel = useCallback(async () => {
     if (isNative) {
-      await (await import('../nativeBridge')).unloadOnDeviceModel().catch(() => {});
+      await unloadOnDeviceModel().catch(() => {});
     }
     setActiveModel(null);
     return { success: true, message: 'Model stopped and unloaded' };

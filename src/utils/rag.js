@@ -8,6 +8,7 @@
  */
 
 import { buildFileIndex, searchFiles } from './fileIndex.js';
+import { WORKSPACE_LIMITS } from '../workspace/workspacePolicy.js';
 
 const MAX_FILES = 4;
 const MAX_TOTAL_CHARS = 12000; // ~3k tokens rough estimate
@@ -78,7 +79,7 @@ export async function retrieveRelevantContext({
     if (totalChars >= MAX_TOTAL_CHARS) break;
 
     try {
-      const rawContent = await workspaceProvider.readText(candidate.path);
+      const rawContent = await workspaceProvider.readText(candidate.path, { maxBytes: WORKSPACE_LIMITS.ragReadBytes });
       if (!rawContent) continue;
 
       let content = String(rawContent);

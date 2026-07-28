@@ -19,13 +19,15 @@ const WorkspaceStorage = registerPlugin('WorkspaceStorage');
 
 export async function pickWorkspaceFolder() { return WorkspaceStorage.pickFolder(); }
 export async function listWorkspace(uri, path = '') { return WorkspaceStorage.list({ uri, path }); }
-export async function readWorkspaceFile(uri, path) { return (await WorkspaceStorage.readFile({ uri, path })).content; }
-export async function writeWorkspaceFile(uri, path, content) { return WorkspaceStorage.writeFile({ uri, path, content }); }
+export async function readWorkspaceFile(uri, path, maxBytes) { return (await WorkspaceStorage.readFile({ uri, path, maxBytes })).content; }
+export async function writeWorkspaceFile(uri, path, content, maxBytes) { return WorkspaceStorage.writeFile({ uri, path, content, maxBytes }); }
 export async function createWorkspaceFile(uri, path) { return WorkspaceStorage.createFile({ uri, path }); }
 export async function createWorkspaceFolder(uri, path) { return WorkspaceStorage.createFolder({ uri, path }); }
 export async function renameWorkspaceItem(uri, path, newName) { return WorkspaceStorage.rename({ uri, path, newName }); }
 export async function deleteWorkspaceItem(uri, path) { return WorkspaceStorage.delete({ uri, path }); }
 export async function inspectWorkspaceItem(uri, path) { return WorkspaceStorage.inspect({ uri, path }); }
+export async function listWorkspaceBackups(uri) { return WorkspaceStorage.listBackups({ uri }); }
+export async function restoreWorkspaceBackup(uri, backupId) { return WorkspaceStorage.restoreBackup({ uri, backupId }); }
 export async function downloadModelToWorkspace(uri, url, path, onProgress) {
   const listener = await WorkspaceStorage.addListener('modelDownloadProgress', event => { if (event.path === path) onProgress?.(event); });
   try { return await WorkspaceStorage.download({ uri, url, path }); } finally { await listener.remove(); }

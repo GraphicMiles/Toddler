@@ -30,6 +30,7 @@ public class OnDeviceRuntime extends Plugin {
     private static native void nativeCancel();
     private final ExecutorService inferenceExecutor = Executors.newSingleThreadExecutor();
     private volatile String activeRequestId = null;
+    private volatile String loadedModelPath = null;
     private volatile String runtimeState = "IDLE";
 
     /** Tracks which downloads are paused. Key = filename. */
@@ -58,21 +59,38 @@ public class OnDeviceRuntime extends Plugin {
         }
         String path = call.getString("path", "");
         if (path.isEmpty()) { runtimeState = nativeIsLoaded() ? "READY" : "IDLE"; call.reject("A model path is required"); return; }
-        File model = new File(path);
+        File model;
+        try {
+            File modelsDirectory = new File(getContext().getFilesDir(), "models").getCanonicalFile();
+            model = new File(path).getCanonicalFile();
+            if (!model.toPath().startsWith(modelsDirectory.toPath()) || model.equals(modelsDirectory)) {
+                runtimeState = "ERROR"; call.reject("Model path is outside app-private model storage"); return;
+            }
+        } catch (Exception error) {
+            runtimeState = "ERROR"; call.reject("Unable to resolve model path safely"); return;
+        }
         if (!model.isFile()) { runtimeState = "ERROR"; call.reject("Model file does not exist: " + path); return; }
         if (model.length() < 4096) { runtimeState = "ERROR"; call.reject("Model file is too small or incomplete: " + model.length() + " bytes"); return; }
         try (RandomAccessFile input = new RandomAccessFile(model, "r")) {
             byte[] magic = new byte[4]; input.readFully(magic);
             if (magic[0] != 'G' || magic[1] != 'G' || magic[2] != 'U' || magic[3] != 'F') { runtimeState = "ERROR"; call.reject("Invalid GGUF header; file may be corrupted or not a GGUF model"); return; }
         } catch (Exception error) { runtimeState = "ERROR"; call.reject("Unable to inspect model file: " + error.getMessage()); return; }
-        if (nativeLoad(path)) { runtimeState = "READY"; call.resolve(); } else { runtimeState = "ERROR"; call.reject("llama.cpp rejected the GGUF model. File size: " + model.length() + " bytes"); }
+        if (nativeLoad(model.getAbsolutePath())) {
+            loadedModelPath = model.getAbsolutePath();
+            runtimeState = "READY";
+            call.resolve();
+        } else {
+            loadedModelPath = null;
+            runtimeState = "ERROR";
+            call.reject("llama.cpp rejected the GGUF model. File size: " + model.length() + " bytes");
+        }
     }
 
     @PluginMethod
     public void unload(PluginCall call) {
         synchronized (this) {
             if ("GENERATING".equals(runtimeState) || "CANCELLING".equals(runtimeState)) { call.reject("Cancel generation before unloading"); return; }
-            nativeUnload(); runtimeState = "IDLE"; activeRequestId = null;
+            nativeUnload(); runtimeState = "IDLE"; activeRequestId = null; loadedModelPath = null;
         }
         call.resolve();
     }
@@ -80,8 +98,12 @@ public class OnDeviceRuntime extends Plugin {
     @PluginMethod
     public void download(PluginCall call) {
         String urlString = call.getString("url", "");
-        String filename = call.getString("filename", "model.gguf").replaceAll("[^A-Za-z0-9._-]", "_");
-        if (urlString.isEmpty()) { call.reject("A model URL is required"); return; }
+        String requestedFilename = call.getString("filename", "model.gguf");
+        String filename = requestedFilename.replaceAll("[^A-Za-z0-9._-]", "_");
+        if (!urlString.startsWith("https://")) { call.reject("An HTTPS model URL is required"); return; }
+        if (!filename.equals(requestedFilename) || filename.startsWith(".") || !filename.toLowerCase(java.util.Locale.ROOT).endsWith(".gguf")) {
+            call.reject("A safe GGUF filename is required"); return;
+        }
 
         // Prevent concurrent downloads
         if (activeDownloads.containsKey(filename)) {
@@ -211,11 +233,12 @@ public class OnDeviceRuntime extends Plugin {
             if ("GENERATING".equals(runtimeState) || "CANCELLING".equals(runtimeState)) { call.reject("Cancel generation before deleting a model"); return; }
         }
         String path = call.getString("path", "");
-        File models = new File(getContext().getFilesDir(), "models").getAbsoluteFile();
-        File target = new File(path).getAbsoluteFile();
         try {
+            File models = new File(getContext().getFilesDir(), "models").getCanonicalFile();
+            File target = new File(path).getCanonicalFile();
             if (!target.toPath().startsWith(models.toPath()) || target.equals(models)) { call.reject("Model path is outside app-private storage"); return; }
-            if (target.exists() && !target.delete()) { call.reject("Unable to delete model"); return; }
+            if (loadedModelPath != null && target.getAbsolutePath().equals(loadedModelPath)) { call.reject("Unload the active model before deleting it"); return; }
+            if (target.exists() && (!target.isFile() || !target.delete())) { call.reject("Unable to delete model"); return; }
             call.resolve();
         } catch (Exception e) { call.reject("Unable to delete model safely"); }
     }

@@ -1,13 +1,6 @@
 import { MessageSquare, Boxes, Database, Settings as SettingsIcon, FolderOpen } from 'lucide-react';
+import { SCREENS } from '../constants/screens.js';
 import './Layout.css';
-
-export const SCREENS = {
-  CHAT: 'chat',
-  ZOO: 'zoo',
-  COLLECTION: 'collection',
-  WORKSPACE: 'workspace',
-  SETTINGS: 'settings',
-};
 
 const TABS = [
   { id: SCREENS.CHAT, label: 'Chat', icon: MessageSquare },

@@ -2,15 +2,27 @@ import {
   createWorkspaceFile,
   createWorkspaceFolder,
   deleteWorkspaceItem,
+  inspectWorkspaceItem,
   listWorkspace,
+  listWorkspaceBackups,
   readWorkspaceFile,
   renameWorkspaceItem,
+  restoreWorkspaceBackup,
   writeWorkspaceFile,
 } from '../nativeBridge.js';
 import { virtualWorkspace } from '../utils/virtualWorkspace.js';
+import {
+  WORKSPACE_LIMITS,
+  assertWorkspacePathAllowed,
+  filterWorkspaceTree,
+  utf8ByteLength,
+} from './workspacePolicy.js';
 
-const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
 const URI_OR_DRIVE_PREFIX = /^[a-z][a-z0-9+.-]*:|^[a-zA-Z]:[\\/]/;
+const hasControlCharacters = value => [...value].some(character => {
+  const code = character.charCodeAt(0);
+  return code <= 31 || code === 127;
+});
 
 export function normalizeRelativeWorkspacePath(requested, { allowRoot = false } = {}) {
   if (typeof requested !== 'string') throw new Error('Workspace path must be a string.');
@@ -22,7 +34,7 @@ export function normalizeRelativeWorkspacePath(requested, { allowRoot = false } 
   if (value.startsWith('/') || value.startsWith('\\') || URI_OR_DRIVE_PREFIX.test(value)) {
     throw new Error('Workspace paths must be relative to the selected root.');
   }
-  if (value.includes('\\') || CONTROL_CHARACTERS.test(value)) {
+  if (value.includes('\\') || hasControlCharacters(value)) {
     throw new Error('Workspace path contains unsupported characters.');
   }
 
@@ -33,7 +45,7 @@ export function normalizeRelativeWorkspacePath(requested, { allowRoot = false } 
   for (const part of parts) {
     let decoded;
     try { decoded = decodeURIComponent(part); } catch { throw new Error('Workspace path contains invalid encoding.'); }
-    if (!decoded || decoded === '.' || decoded === '..' || decoded.includes('/') || decoded.includes('\\') || CONTROL_CHARACTERS.test(decoded)) {
+    if (!decoded || decoded === '.' || decoded === '..' || decoded.includes('/') || decoded.includes('\\') || hasControlCharacters(decoded)) {
       throw new Error('Workspace path contains an unsafe encoded segment.');
     }
   }
@@ -57,12 +69,15 @@ function findTreeNode(nodes, path) {
 
 const safAdapter = {
   list: (root, path) => listWorkspace(root, path),
-  readText: (root, path) => readWorkspaceFile(root, path),
-  writeText: (root, path, content) => writeWorkspaceFile(root, path, content),
+  inspect: (root, path) => inspectWorkspaceItem(root, path),
+  readText: (root, path, maxBytes) => readWorkspaceFile(root, path, maxBytes),
+  writeText: (root, path, content, maxBytes) => writeWorkspaceFile(root, path, content, maxBytes),
   createFile: (root, path) => createWorkspaceFile(root, path),
   createFolder: (root, path) => createWorkspaceFolder(root, path),
   rename: (root, path, newName) => renameWorkspaceItem(root, path, newName),
   delete: (root, path) => deleteWorkspaceItem(root, path),
+  listBackups: root => listWorkspaceBackups(root),
+  restoreBackup: (root, backupId) => restoreWorkspaceBackup(root, backupId),
 };
 
 const virtualAdapter = {
@@ -73,6 +88,7 @@ const virtualAdapter = {
     if (!node || node.type !== 'folder') throw new Error(`Workspace folder not found: ${path}`);
     return { children: node.children || [] };
   },
+  inspect: (_root, path) => virtualWorkspace.inspect(path),
   readText: (_root, path) => virtualWorkspace.readFile(path),
   writeText: (_root, path, content) => virtualWorkspace.writeFile(path, content),
   createFile: (_root, path) => virtualWorkspace.writeFile(path, ''),
@@ -83,6 +99,8 @@ const virtualAdapter = {
     return virtualWorkspace.rename(path, parent ? `${parent}/${newName}` : newName);
   },
   delete: (_root, path) => virtualWorkspace.deleteFile(path),
+  listBackups: () => virtualWorkspace.listBackups(),
+  restoreBackup: (_root, backupId) => virtualWorkspace.restoreBackup(backupId),
 };
 
 export class WorkspaceProvider {
@@ -99,45 +117,87 @@ export class WorkspaceProvider {
     if (!this.available) throw new Error('Choose a workspace folder first.');
   }
 
+  normalize(path, { allowRoot = false, operation = 'access' } = {}) {
+    const relativePath = normalizeRelativeWorkspacePath(path, { allowRoot });
+    if (relativePath) assertWorkspacePathAllowed(relativePath, operation);
+    return relativePath;
+  }
+
   async list(path = '') {
     this.assertAvailable();
-    const relativePath = normalizeRelativeWorkspacePath(path, { allowRoot: true });
+    const relativePath = this.normalize(path, { allowRoot: true, operation: 'listing' });
     const result = await this.adapter.list(this.root, relativePath);
-    return result?.children || result?.value || result || [];
+    return filterWorkspaceTree(result?.children || result?.value || result || []);
   }
 
-  async readText(path) {
+  async inspect(path, operation = 'reading') {
     this.assertAvailable();
-    return this.adapter.readText(this.root, normalizeRelativeWorkspacePath(path));
+    const relativePath = this.normalize(path, { operation });
+    const result = await this.adapter.inspect(this.root, relativePath);
+    return { ...result, path: relativePath };
   }
 
-  async writeText(path, content) {
+  async readText(path, { maxBytes = WORKSPACE_LIMITS.uiReadBytes } = {}) {
+    const info = await this.inspect(path, 'reading');
+    if (info.type && info.type !== 'file') throw new Error('Only workspace files can be read.');
+    if (info.binary) throw new Error('Binary workspace files cannot be read as text.');
+    if (!Number.isFinite(maxBytes) || maxBytes <= 0 || maxBytes > WORKSPACE_LIMITS.uiReadBytes) {
+      throw new Error('Invalid workspace read limit.');
+    }
+    if (Number(info.size) > maxBytes) throw new Error(`Workspace file exceeds the ${maxBytes}-byte read limit.`);
+    const content = await this.adapter.readText(this.root, info.path, maxBytes);
+    if (utf8ByteLength(content) > maxBytes) throw new Error(`Workspace file exceeds the ${maxBytes}-byte read limit.`);
+    return content;
+  }
+
+  async writeText(path, content, { maxBytes = WORKSPACE_LIMITS.writeBytes } = {}) {
     this.assertAvailable();
-    return this.adapter.writeText(this.root, normalizeRelativeWorkspacePath(path), String(content ?? ''));
+    const relativePath = this.normalize(path, { operation: 'writing' });
+    const text = String(content ?? '');
+    if (!Number.isFinite(maxBytes) || maxBytes <= 0 || maxBytes > WORKSPACE_LIMITS.writeBytes) {
+      throw new Error('Invalid workspace write limit.');
+    }
+    if (utf8ByteLength(text) > maxBytes) throw new Error(`Workspace write exceeds the ${maxBytes}-byte limit.`);
+    return this.adapter.writeText(this.root, relativePath, text, maxBytes);
   }
 
   async createFile(path) {
     this.assertAvailable();
-    return this.adapter.createFile(this.root, normalizeRelativeWorkspacePath(path));
+    return this.adapter.createFile(this.root, this.normalize(path, { operation: 'creation' }));
   }
 
   async createFolder(path) {
     this.assertAvailable();
-    return this.adapter.createFolder(this.root, normalizeRelativeWorkspacePath(path));
+    return this.adapter.createFolder(this.root, this.normalize(path, { operation: 'creation' }));
   }
 
   async rename(path, newName) {
     this.assertAvailable();
-    return this.adapter.rename(
-      this.root,
-      normalizeRelativeWorkspacePath(path),
-      normalizeWorkspaceItemName(newName),
-    );
+    const relativePath = this.normalize(path, { operation: 'renaming' });
+    const safeName = normalizeWorkspaceItemName(newName);
+    const slash = relativePath.lastIndexOf('/');
+    const parent = slash < 0 ? '' : relativePath.slice(0, slash);
+    assertWorkspacePathAllowed(parent ? `${parent}/${safeName}` : safeName, 'renaming');
+    return this.adapter.rename(this.root, relativePath, safeName);
   }
 
   async delete(path) {
     this.assertAvailable();
-    return this.adapter.delete(this.root, normalizeRelativeWorkspacePath(path));
+    return this.adapter.delete(this.root, this.normalize(path, { operation: 'deletion' }));
+  }
+
+  async listBackups() {
+    this.assertAvailable();
+    if (typeof this.adapter.listBackups !== 'function') return [];
+    const result = await this.adapter.listBackups(this.root);
+    return result?.backups || result?.value || result || [];
+  }
+
+  async restoreBackup(backupId) {
+    this.assertAvailable();
+    if (typeof backupId !== 'string' || !/^[A-Za-z0-9-]{8,80}$/.test(backupId)) throw new Error('Invalid workspace backup id.');
+    if (typeof this.adapter.restoreBackup !== 'function') throw new Error('Workspace restore is unavailable.');
+    return this.adapter.restoreBackup(this.root, backupId);
   }
 }
 

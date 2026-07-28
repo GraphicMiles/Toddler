@@ -12,6 +12,7 @@ export class VirtualWorkspace {
   constructor() {
     this.files = new Map(); // path -> { content, type, createdAt }
     this.folders = new Set();
+    this.backups = new Map(); // id -> { path, content, createdAt }
     this.loadFromStorage();
   }
 
@@ -23,6 +24,7 @@ export class VirtualWorkspace {
         const data = JSON.parse(saved);
         this.files = new Map(data.files || []);
         this.folders = new Set(data.folders || []);
+        this.backups = new Map(data.backups || []);
       }
     } catch (e) {
       console.warn('Failed to load virtual workspace:', e);
@@ -35,6 +37,7 @@ export class VirtualWorkspace {
       const data = {
         files: Array.from(this.files.entries()),
         folders: Array.from(this.folders),
+        backups: Array.from(this.backups.entries()),
       };
       localStorage.setItem(VIRTUAL_STORAGE_KEY, JSON.stringify(data));
     } catch (e) {
@@ -45,7 +48,6 @@ export class VirtualWorkspace {
   // Get a tree structure compatible with Workspace component
   getTree() {
     const tree = [];
-    const folderMap = new Map();
 
     // Create folders
     for (const folderPath of this.folders) {
@@ -71,7 +73,7 @@ export class VirtualWorkspace {
     }
 
     // Add files
-    for (const [path, file] of this.files) {
+    for (const path of this.files.keys()) {
       const parts = path.split('/').filter(Boolean);
       const fileName = parts.pop();
       let current = tree;
@@ -114,6 +116,18 @@ export class VirtualWorkspace {
     return tree;
   }
 
+  async inspect(path) {
+    const file = this.files.get(path);
+    if (!file) throw new Error(`File not found: ${path}`);
+    const content = String(file.content ?? '');
+    return {
+      type: 'file',
+      binary: content.includes('\0'),
+      mimeType: 'text/plain',
+      size: new TextEncoder().encode(content).byteLength,
+    };
+  }
+
   async readFile(path) {
     const file = this.files.get(path);
     if (!file) throw new Error(`File not found: ${path}`);
@@ -122,17 +136,49 @@ export class VirtualWorkspace {
 
   async writeFile(path, content = '') {
     const dir = path.substring(0, path.lastIndexOf('/'));
-    if (dir) {
-      this.createDirectory(dir);
+    if (dir) this.createDirectory(dir);
+
+    let backupId = null;
+    const existing = this.files.get(path);
+    if (existing) {
+      backupId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      this.backups.set(backupId, { path, content: String(existing.content ?? ''), createdAt: Date.now() });
+      const oldest = [...this.backups.entries()].sort((a, b) => a[1].createdAt - b[1].createdAt);
+      while (oldest.length > 20) {
+        const [id] = oldest.shift();
+        this.backups.delete(id);
+      }
     }
-    
+
+    const text = String(content);
     this.files.set(path, {
-      content: String(content),
+      content: text,
       type: 'file',
-      createdAt: Date.now(),
+      createdAt: existing?.createdAt || Date.now(),
+      updatedAt: Date.now(),
     });
     this.saveToStorage();
-    return { path, size: content.length };
+    return { path, size: new TextEncoder().encode(text).byteLength, backupId };
+  }
+
+  async listBackups() {
+    return [...this.backups.entries()]
+      .map(([id, backup]) => ({ id, path: backup.path, createdAt: backup.createdAt }))
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  async restoreBackup(id) {
+    const backup = this.backups.get(id);
+    if (!backup) throw new Error('Workspace backup is missing or expired.');
+    this.files.set(backup.path, {
+      content: backup.content,
+      type: 'file',
+      createdAt: Date.now(),
+      restoredAt: Date.now(),
+    });
+    this.backups.delete(id);
+    this.saveToStorage();
+    return { path: backup.path, restored: true };
   }
 
   async createDirectory(path) {
@@ -213,6 +259,7 @@ export class VirtualWorkspace {
       const data = JSON.parse(jsonString);
       this.files = new Map(data.files || []);
       this.folders = new Set(data.folders || []);
+      this.backups = new Map();
       this.saveToStorage();
       return true;
     } catch (e) {
@@ -224,6 +271,7 @@ export class VirtualWorkspace {
   clear() {
     this.files.clear();
     this.folders.clear();
+    this.backups.clear();
     if (typeof localStorage !== 'undefined') localStorage.removeItem(VIRTUAL_STORAGE_KEY);
   }
 }

@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, FolderOpen, ChevronRight, X, FileText, Database,
-  Plus, Pencil, Trash2, FilePlus, FolderPlus, Save, ArrowLeft,
+  Pencil, Trash2, FilePlus, FolderPlus, Save, ArrowLeft, RotateCcw,
 } from 'lucide-react';
 import { getFileIconInfo, buildFileIndex, searchFiles } from '../utils/fileIndex';
 import './Workspace.css';
@@ -169,15 +169,15 @@ export default function Workspace({
   onFolderCreate,
   onFileRename,
   onFileDelete,
+  onUndo,
+  undoPath = '',
   onRefresh,
   onChooseWorkspace,
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPath, setSelectedPath] = useState(null);
-  const [selectedNode, setSelectedNode] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
   const [viewerFile, setViewerFile] = useState(null); // { path, content }
-  const [viewerLoading, setViewerLoading] = useState(false);
 
   const fileIndex = useMemo(() => buildFileIndex(workspace.tree || []), [workspace.tree]);
 
@@ -198,18 +198,14 @@ export default function Workspace({
 
   const handleSelect = useCallback(async (path, node) => {
     setSelectedPath(path);
-    setSelectedNode(node);
     onFileSelect?.(path);
     // Open file in viewer
     if (node?.type === 'file' && onFileRead) {
-      setViewerLoading(true);
       try {
         const content = await onFileRead(path);
-        setViewerFile({ path, content: content ?? '' });
+        setViewerFile({ path, content: content ?? '', error: false });
       } catch (err) {
-        setViewerFile({ path, content: `Error reading file: ${err.message}` });
-      } finally {
-        setViewerLoading(false);
+        setViewerFile({ path, content: `Error reading file: ${err.message}`, error: true });
       }
     }
   }, [onFileSelect, onFileRead]);
@@ -287,7 +283,7 @@ export default function Workspace({
         onClose={() => setViewerFile(null)}
         onSave={handleSave}
         onPick={(path) => handlePick({ path, type: 'file', name: path.split('/').pop() })}
-        readOnly={false}
+        readOnly={viewerFile.error === true}
       />
     );
   }
@@ -307,6 +303,9 @@ export default function Workspace({
               </button>
               <button className="ws-action-btn" onClick={() => handleNewFolder('')} title="New folder">
                 <FolderPlus size={16} />
+              </button>
+              <button className="ws-action-btn" onClick={onUndo} title={undoPath ? `Undo last save to ${undoPath}` : 'No workspace backup available'} disabled={!undoPath}>
+                <RotateCcw size={16} />
               </button>
               <button className="ws-action-btn" onClick={onRefresh} title="Refresh">
                 <Database size={16} />

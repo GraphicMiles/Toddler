@@ -21,15 +21,15 @@ export class ToolRegistry {
   }
 }
 
-export function createReadOnlyRegistry(fileSystem) {
-  if (!fileSystem?.readFile) throw new Error('A filesystem readFile implementation is required.');
+export function createReadOnlyRegistry(workspaceProvider) {
+  if (!workspaceProvider?.readText) throw new Error('A scoped workspace provider is required.');
   return new ToolRegistry().register({
     name: 'read_file',
     description: 'Read a user-selected workspace file without changing it.',
     permission: 'read',
     execute: async ({ path }) => {
       if (typeof path !== 'string' || !path.trim()) throw new Error('A file path is required.');
-      return { path, content: await fileSystem.readFile(path) };
+      return { path, content: await workspaceProvider.readText(path) };
     },
   });
 }

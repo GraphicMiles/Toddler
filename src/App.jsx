@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import Layout, { SCREENS } from './components/Layout';
+import Layout from './components/Layout';
+import { SCREENS } from './constants/screens.js';
 import ChatContainer from './components/ChatContainer';
 import ModelZoo from './components/ModelZoo';
 import MyCollection from './components/MyCollection';
@@ -38,12 +39,14 @@ export default function App() {
   const [abortController, setAbortController] = useState(null);
   const [endpoint, setEndpoint] = useState(() => localStorage.getItem('forgeai_endpoint') || import.meta.env.VITE_OLLAMA_URL || 'http://localhost:11434');
   const [pendingActions, setPendingActions] = useState([]);
+  const [modelFolderUri, setModelFolderUri] = useState(() => localStorage.getItem('forgeai_model_folder_uri') || '');
 
   // Workspace state
   const [workspaceTree, setWorkspaceTree] = useState([]);
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [workspaceRootPath, setWorkspaceRootPath] = useState(() => localStorage.getItem('forgeai_workspace_uri') || '');
   const [selectedFilePath, setSelectedFilePath] = useState('');
+  const [lastWorkspaceBackup, setLastWorkspaceBackup] = useState(null);
   
   // Ollama state
   const [ollamaConnected, setOllamaConnected] = useState(false);
@@ -85,13 +88,17 @@ export default function App() {
     try {
       if (!providerOverride.available) {
         setWorkspaceTree([]);
+        setLastWorkspaceBackup(null);
         return;
       }
       const tree = await providerOverride.list();
       setWorkspaceTree(tree);
+      const backups = await providerOverride.listBackups().catch(() => []);
+      setLastWorkspaceBackup(backups[0] || null);
     } catch (error) {
       console.warn('Failed to load workspace:', error);
       setWorkspaceTree([]);
+      setLastWorkspaceBackup(null);
     } finally {
       setWorkspaceLoading(false);
     }
@@ -114,7 +121,10 @@ export default function App() {
   const chooseModelFolder = useCallback(async () => {
     if (!isNative) return;
     const result = await pickWorkspaceFolder();
-    if (result?.uri) localStorage.setItem('forgeai_model_folder_uri', result.uri);
+    if (result?.uri) {
+      localStorage.setItem('forgeai_model_folder_uri', result.uri);
+      setModelFolderUri(result.uri);
+    }
   }, []);
 
   const chooseWorkspace = useCallback(async () => {
@@ -134,9 +144,23 @@ export default function App() {
   );
 
   const handleFileSave = useCallback(async (path, content) => {
-    await workspaceProvider.writeText(path, content);
+    const result = await workspaceProvider.writeText(path, content);
+    if (result?.backupId) setLastWorkspaceBackup({ id: result.backupId, path, createdAt: Date.now() });
     await loadWorkspace();
   }, [loadWorkspace, workspaceProvider]);
+
+  const handleWorkspaceUndo = useCallback(async () => {
+    if (!lastWorkspaceBackup?.id) return;
+    try {
+      const restored = await workspaceProvider.restoreBackup(lastWorkspaceBackup.id);
+      setLastWorkspaceBackup(null);
+      await loadWorkspace();
+      addSystemMessage(`Restored ${restored.path} from its last backup.`, 'info');
+    } catch (error) {
+      recordError(error, 'workspace-restore');
+      addSystemMessage(`Workspace restore failed: ${error.message}`, 'error');
+    }
+  }, [lastWorkspaceBackup, loadWorkspace, workspaceProvider]);
 
   const handleFileCreate = useCallback(async (path) => {
     try {
@@ -202,7 +226,7 @@ export default function App() {
 
     if (isNative) return createModelProvider({ mode: 'on-device', endpoint });
     return createModelProvider({ mode: 'ollama', endpoint });
-  }, [endpoint, isNative]);
+  }, [endpoint]);
 
   // One registry executes tools through the same scoped provider used by the UI.
   const agentToolRegistry = useMemo(
@@ -227,12 +251,9 @@ export default function App() {
   const autoExecuteSafeActions = useCallback(async (actions) => {
     for (const action of actions || []) {
       try {
-        const result = await agentCore.executeApprovedAction(action.id);
+        await agentCore.executeApprovedAction(action.id);
         setPendingActions(prev => prev.filter(item => item.id !== action.id));
-        addSystemMessage(`Agent read ${action.type} completed.`, 'info');
-        if (result?.content && action.type === 'read_file') {
-          setMessages(prev => [...prev, { id: generateId(), role: 'assistant', content: result.content, timestamp: Date.now() }]);
-        }
+        addSystemMessage(`Agent ${action.type} completed inside the selected workspace.`, 'info');
       } catch (error) {
         console.warn('Safe agent action failed:', error);
         setPendingActions(prev => prev.filter(item => item.id !== action.id));
@@ -300,7 +321,13 @@ export default function App() {
         workspaceProvider,
         maxFiles: 4,
       });
-      ragContext = formatContextForPrompt(contextItems);
+      if (contextItems.length > 0) {
+        const destination = isNative ? 'the on-device model' : `the configured model endpoint (${endpoint})`;
+        const approved = window.confirm(
+          `Include these workspace files in the prompt sent to ${destination}?\n\n${contextItems.map(item => `• ${item.path}`).join('\n')}\n\nCancel to continue without workspace context.`,
+        );
+        if (approved) ragContext = formatContextForPrompt(contextItems);
+      }
     } catch (ragErr) {
       console.warn('RAG retrieval skipped:', ragErr);
     }
@@ -378,7 +405,7 @@ export default function App() {
         setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: friendly, level: 'error' } : m));
       }
     } finally { setIsTyping(false); setModelStatus('idle'); setAbortController(null); }
-  }, [activeModel, messages, downloads, provider, agentCore, autoExecuteSafeActions, trimHistory, workspaceTree, workspaceRootPath, selectedFilePath, workspaceProvider]);
+  }, [activeModel, messages, downloads, endpoint, provider, agentCore, autoExecuteSafeActions, trimHistory, workspaceTree, selectedFilePath, workspaceProvider]);
 
   const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
 
@@ -444,10 +471,11 @@ export default function App() {
   }, [setActiveModel]);
 
   // Handle model deletion
-  const handleDeleteModel = useCallback((model) => {
+  const handleDeleteModel = useCallback(async (model) => {
     if (!window.confirm(`Delete ${model.name} permanently?`)) return;
-    deleteModel(model.id);
-    addSystemMessage(`**${model.name}** deleted from collection`, 'warn');
+    const result = await deleteModel(model.id);
+    if (result?.success) addSystemMessage(result.warning || `${model.name} deleted from collection`, result.warning ? 'warn' : 'info');
+    else addSystemMessage(`Could not delete ${model.name}: ${result?.error || 'unknown error'}`, 'error');
   }, [deleteModel]);
 
   const newConversation = useCallback(() => { const id = generateId(); setConversations(prev => [...prev, { id, title: defaultConversationTitle(), messages: [] }]); setActiveConversationId(id); setMessages([]); }, []);
@@ -458,11 +486,14 @@ export default function App() {
   const clearChat = useCallback(() => { if (window.confirm('Clear this conversation?')) setMessages([]); }, []);
 
   const handleResetApp = useCallback(() => {
-    if (!window.confirm('Reset all app data? This will clear all conversations, model metadata, and settings.')) return;
+    if (!window.confirm('Reset conversations, model metadata, and settings? Downloaded source files and workspace backups are not deleted.')) return;
     localStorage.clear();
     setMessages([]);
     setConversations([]);
     setActiveConversationId('');
+    setModelFolderUri('');
+    setWorkspaceRootPath(isNative ? '' : 'virtual://workspace');
+    setWorkspaceTree([]);
     setEndpoint('http://localhost:11434');
   }, []);
 
@@ -540,7 +571,7 @@ export default function App() {
               isNative={isNative}
               onClose={() => setCurrentScreen(SCREENS.COLLECTION)}
               onChooseModelFolder={chooseModelFolder}
-              modelFolderSelected={Boolean(localStorage.getItem('forgeai_model_folder_uri'))}
+              modelFolderSelected={modelFolderUri.startsWith('content://')}
             />
           </motion.div>
         )}
@@ -606,6 +637,8 @@ export default function App() {
               onFolderCreate={handleFolderCreate}
               onFileRename={handleFileRename}
               onFileDelete={handleFileDelete}
+              onUndo={handleWorkspaceUndo}
+              undoPath={lastWorkspaceBackup?.path || ''}
               onRefresh={() => loadWorkspace()}
               onChooseWorkspace={chooseWorkspace}
             />

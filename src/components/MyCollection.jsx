@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Check, Trash2, Play, Pause, MessageSquare,
+  Check, Trash2, Pause, MessageSquare,
   ChevronDown, Wifi, WifiOff, Database, RefreshCw
 } from 'lucide-react';
 import { formatModelSize, formatStorageCapacity, getModelSizeBytes } from '../utils/deviceCapacity';
@@ -216,6 +216,10 @@ export default function MyCollection({
                           <div className="detail">
                             <span className="detail-label">License</span>
                             <span className="detail-value">{model.license || 'Unknown'}</span>
+                          </div>
+                          <div className="detail">
+                            <span className="detail-label">Integrity</span>
+                            <span className="detail-value">{model.integrity || (model.verified ? 'publisher-verified' : 'unverified')}</span>
                           </div>
                           <div className="detail">
                             <span className="detail-label">Downloaded</span>

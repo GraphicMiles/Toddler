@@ -7,12 +7,13 @@
     "dev": "vite",
     "dev:mobile": "vite --host",
     "build": "vite build",
+    "lint": "oxlint .",
     "preview": "vite preview",
     "android:init": "npx cap init ForgeAI ai.forgeai.app --web-dir=dist",
     "android:sync": "npx cap sync android",
     "android:open": "npx cap open android",
     "android:build": "npm run llama:bootstrap && npm run android:preflight && npm run build && npx cap sync android && cd android && ./gradlew assembleDebug --no-daemon --no-parallel --max-workers=2",
-    "test": "node test/deviceCapacity.test.js && node test/onDeviceCapability.test.js && node test/modelProvider.test.js && node test/toolRegistry.test.js && node test/safety.test.js && node test/agentCore.test.js && node test/workspaceProvider.test.js && node test/rag.test.js && node test/modelCatalog.test.js && node test/promptProfiles.test.js && node test/safePath.test.js && node test/modelManifest.test.js",
+    "test": "node test/deviceCapacity.test.js && node test/onDeviceCapability.test.js && node test/modelProvider.test.js && node test/toolRegistry.test.js && node test/safety.test.js && node test/agentCore.test.js && node test/workspaceProvider.test.js && node test/workspacePolicy.test.js && node test/virtualWorkspace.test.js && node test/rag.test.js && node test/modelCatalog.test.js && node test/promptProfiles.test.js && node test/safePath.test.js && node test/modelManifest.test.js",
     "llama:bootstrap": "bash scripts/bootstrap-llama-cpp.sh",
     "android:preflight": "bash scripts/verify-android-environment.sh"
   },
@@ -33,6 +34,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.0",
+    "oxlint": "1.76.0",
     "vite": "^6.0.0"
   }
 }

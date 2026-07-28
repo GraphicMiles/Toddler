@@ -9,8 +9,7 @@
  */
 
 import { AgentPluginRegistry, AGENT_PERMISSIONS } from './pluginContract.js';
-import { ToolRegistry } from '../tools/toolRegistry.js';
-import { ApprovalGate, executeWithApproval } from '../tools/toolApproval.js';
+import { executeWithApproval } from '../tools/toolApproval.js';
 
 export class AgentCore {
   constructor(options = {}) {

@@ -27,7 +27,7 @@ const MODEL_CATALOG = [
     runsOn: ['mobile'], quantizations: ['Q3_K_M'], license: 'Apache-2.0',
     ollamaName: 'smollm2:135m',
     file: 'SmolLM-135M-Q3_K_M.gguf',
-    downloadUrl: 'https://huggingface.co/tensorblock/SmolLM-135M-GGUF/resolve/main/SmolLM-135M-Q3_K_M.gguf?download=true',
+    downloadUrl: 'https://huggingface.co/mradermacher/SmolLM-135M-Instruct-GGUF/resolve/main/SmolLM-135M-Instruct.Q3_K_M.gguf?download=true',
   },
   {
     id: 'smollm-360m', name: 'SmolLM2 360M', family: 'smollm2', params: '360M',

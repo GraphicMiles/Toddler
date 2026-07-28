@@ -17,6 +17,9 @@ import {
 } from '../safety/SafetyPolicy.js';
 import AutomationSettings from './AutomationSettings.jsx';
 import SkillValidatorSettings from './SkillValidatorSettings.jsx';
+import ResearchSettings from './ResearchSettings.jsx';
+import GitHubAutomationSettings from './GitHubAutomationSettings.jsx';
+import SocialMediaSettings from './SocialMediaSettings.jsx';
 import TaskTimeline from './TaskTimeline.jsx';
 import ProjectMemoryPanel from './ProjectMemoryPanel.jsx';
 import RepositoryIndexPanel from './RepositoryIndexPanel.jsx';
@@ -291,6 +294,15 @@ export default function Settings({
 
         {/* Skill Validator Settings */}
         <SkillValidatorSettings />
+
+        {/* Research Pipeline Settings */}
+        <ResearchSettings />
+
+        {/* GitHub Automation Settings */}
+        <GitHubAutomationSettings />
+
+        {/* Social Media Automation Settings */}
+        <SocialMediaSettings />
       </div>
     </div>
   );

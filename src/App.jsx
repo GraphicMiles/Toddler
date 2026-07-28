@@ -588,6 +588,11 @@ export default function App() {
   // and contributes its review to the conversation.
   const handleSendMessage = useCallback(async (text) => {
     if (!activeModel) { addSystemMessage('Please select a model from My Collection first.', 'warn'); return; }
+    const activeDownload = downloads[activeModel.id];
+    if (activeDownload && (activeDownload.status === 'downloading' || activeDownload.status === 'paused')) {
+      recordError(new Error('Wait for the model download to finish before chatting.'), 'model-generation');
+      return;
+    }
 
     const userMessage = { id: generateId(), role: 'user', content: text, timestamp: Date.now() };
     const assistantId = generateId();
@@ -680,7 +685,7 @@ export default function App() {
         setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: friendly, level: 'error' } : m));
       }
     } finally { setIsTyping(false); setModelStatus('idle'); setAbortController(null); }
-  }, [activeModel, messages, provider, agentCore, autoExecuteSafeActions, trimHistory, workspaceTree, workspaceRootPath, selectedFilePath]);
+  }, [activeModel, messages, downloads, provider, agentCore, autoExecuteSafeActions, trimHistory, workspaceTree, workspaceRootPath, selectedFilePath]);
 
   const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
 

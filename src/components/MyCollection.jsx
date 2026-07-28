@@ -2,8 +2,11 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Check, Trash2, Pause, MessageSquare,
-  ChevronDown, Wifi, WifiOff, Database, RefreshCw
+  ChevronDown, Wifi, WifiOff, Database, RefreshCw,
+  UserPlus, Settings
 } from 'lucide-react';
+import CustomProfileModal from './CustomProfileModal.jsx';
+import { customProfileManager, isRawModeEnabled, setRawMode } from '../models/customPromptProfiles.js';
 import { formatModelSize, formatStorageCapacity, getModelSizeBytes } from '../utils/deviceCapacity';
 import './MyCollection.css';
 
@@ -27,6 +30,10 @@ export default function MyCollection({
   isNative = false
 }) {
   const [expandedId, setExpandedId] = useState(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [selectedModelForProfile, setSelectedModelForProfile] = useState(null);
+  const [rawMode, setRawModeState] = useState(isRawModeEnabled());
+
   const usedStorageBytes = models.reduce(
     (total, model) => total + getModelSizeBytes(model),
     0,
@@ -62,7 +69,29 @@ export default function MyCollection({
           <h2 className="display">My Collection</h2>
           <span className="model-count">{models.length}</span>
           {isNative && <button className="collection-import" onClick={onImportModel}>Import GGUF</button>}
-          <div className={`ollama-status ${ollamaConnected ? 'connected' : 'disconnected'}`}>
+          
+          {/* Raw Mode Toggle */}
+          <button 
+            className={`raw-mode-toggle ${rawMode ? 'active' : ''}`}
+            onClick={() => {
+              const next = !rawMode;
+              setRawMode(next);
+              setRawModeState(next);
+            }}
+            title="Raw Mode: disables all system prompt injection"
+          >
+            <Settings size={13} /> {rawMode ? 'Raw' : 'Raw Mode'}
+          </button>
+
+          <button 
+            className="collection-import"
+            onClick={() => {
+              setSelectedModelForProfile(null);
+              setShowProfileModal(true);
+            }}
+          >
+            <UserPlus size={14} /> Create Profile
+          </button>
             {ollamaConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
             <span>{runtimeMode || (ollamaConnected ? 'Ollama active' : 'Offline')}</span>
           </div>
@@ -317,6 +346,19 @@ export default function MyCollection({
                             <Trash2 size={14} />
                             Delete
                           </button>
+
+                          {/* Custom Profile Button */}
+                          <button 
+                            className="btn-custom-profile"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedModelForProfile(model);
+                              setShowProfileModal(true);
+                            }}
+                            title="Create custom prompt profile for this model"
+                          >
+                            <UserPlus size={13} /> Profile
+                          </button>
                         </div>
                       </motion.div>
                     )}
@@ -333,6 +375,20 @@ export default function MyCollection({
         <span className="storage-info mono">{storageSummary}</span>
         <button type="button" className="refresh-storage" onClick={() => onRefreshDevice?.()} aria-label="Refresh device storage"><RefreshCw size={14} /> Refresh</button>
       </div>
+
+      {/* Custom Profile Modal */}
+      <CustomProfileModal
+        isOpen={showProfileModal}
+        onClose={() => {
+          setShowProfileModal(false);
+          setSelectedModelForProfile(null);
+        }}
+        model={selectedModelForProfile}
+        onSave={(profile) => {
+          // Optional: show success toast or refresh list
+          console.log('Custom profile saved:', profile.name);
+        }}
+      />
     </div>
   );
 }

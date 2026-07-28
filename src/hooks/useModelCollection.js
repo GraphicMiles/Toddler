@@ -206,7 +206,13 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     return { success: true, model };
   }, [saveModels]);
 
-  const stopModel = useCallback(() => setActiveModel(null), [setActiveModel]);
+  const stopModel = useCallback(async () => {
+    if (isNative) {
+      await (await import('../nativeBridge')).unloadOnDeviceModel().catch(() => {});
+    }
+    setActiveModel(null);
+    return { success: true, message: 'Model stopped and unloaded' };
+  }, [setActiveModel]);
   const isDownloaded = useCallback((id) => models.some(m => m.id === id), [models]);
 
   return {

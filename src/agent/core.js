@@ -169,6 +169,7 @@ export class AgentCore {
     const intents = this.detectIntents(userMessage);
     const targetPath = this.resolveTargetPath(workspace);
     const relevantFiles = this.findRelevantFiles(userMessage, workspace);
+    const lastAction = this.context.previousActions.at(-1) || null;
 
     // === READ / EXPLAIN / LIST ===
     if (intents.includes('read') || intents.includes('explain') || intents.includes('list')) {
@@ -400,16 +401,25 @@ export class AgentCore {
       true
     );
     this.context.review = { actionId, result, status: 'completed', timestamp: Date.now() };
-    
-    // Record the action for future planning intelligence
-    this.addCompletedAction({ 
-      id: actionId, 
+
+    // Record the action for future planning intelligence.
+    this.addCompletedAction({
+      id: actionId,
       type: result?.type || 'unknown',
       path: result?.path,
-      timestamp: Date.now() 
+      timestamp: Date.now(),
     });
-    
+
     return result;
+  }
+
+  discardAction(actionId) {
+    if (!this.approvalGate) return null;
+    const request = this.approvalGate.consume(actionId);
+    if (request) {
+      this.context.review = { actionId, status: 'discarded', timestamp: Date.now() };
+    }
+    return request;
   }
 
   reviewPlan(plan, results = []) {

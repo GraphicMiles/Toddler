@@ -12,7 +12,7 @@
     "android:sync": "npx cap sync android",
     "android:open": "npx cap open android",
     "android:build": "npm run llama:bootstrap && npm run android:preflight && npm run build && npx cap sync android && cd android && ./gradlew assembleDebug --no-daemon --no-parallel --max-workers=2",
-    "test": "node test/deviceCapacity.test.js && node test/onDeviceCapability.test.js && node test/modelProvider.test.js && node test/toolRegistry.test.js && node test/safety.test.js && node test/modelCatalog.test.js && node test/promptProfiles.test.js && node test/safePath.test.js && node test/modelManifest.test.js",
+    "test": "node test/deviceCapacity.test.js && node test/onDeviceCapability.test.js && node test/modelProvider.test.js && node test/toolRegistry.test.js && node test/safety.test.js && node test/agentCore.test.js && node test/modelCatalog.test.js && node test/promptProfiles.test.js && node test/safePath.test.js && node test/modelManifest.test.js",
     "llama:bootstrap": "bash scripts/bootstrap-llama-cpp.sh",
     "android:preflight": "bash scripts/verify-android-environment.sh"
   },

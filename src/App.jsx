@@ -41,13 +41,7 @@ export default function App() {
   const [abortController, setAbortController] = useState(null);
   const [endpoint, setEndpoint] = useState(() => localStorage.getItem('forgeai_endpoint') || import.meta.env.VITE_OLLAMA_URL || 'http://localhost:11434');
   const [pendingActions, setPendingActions] = useState([]);
-  const [smartMode, setSmartMode] = useState(() => {
-    try { return localStorage.getItem('forgeai_smart_mode') === 'true'; } catch { return false; }
-  });
 
-  // Native runtime status
-  const [localServerStatus, setLocalServerStatus] = useState({ running: false, port: 8080, model: null });
-  
   // Workspace state
   const [workspaceTree, setWorkspaceTree] = useState([]);
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
@@ -71,6 +65,8 @@ export default function App() {
     cancelDownload,
     downloads,
     importModel,
+    mountModel,
+    unmountModel,
   } = useModelCollection({ endpoint });
 
   useEffect(() => { localStorage.setItem('forgeai_chat', JSON.stringify(messages)); }, [messages]);
@@ -721,9 +717,10 @@ export default function App() {
 
   // Handle action discard
   const handleDiscardAction = useCallback((actionId) => {
+    agentCore.discardAction(actionId);
     setPendingActions(prev => prev.filter(a => a.id !== actionId));
     addSystemMessage('Action cancelled.', 'warn');
-  }, []);
+  }, [agentCore]);
 
   // Handle model download
   const handleDownload = useCallback(async (model, onProgress) => {
@@ -811,7 +808,6 @@ export default function App() {
               noModelSelected={!activeModel}
               ollamaConnected={ollamaConnected}
               isNative={isNative}
-              localServerStatus={localServerStatus}
               conversations={conversations}
               activeConversationId={activeConversationId}
               onConversationChange={switchConversation}
@@ -869,7 +865,7 @@ export default function App() {
                 onStop={stopModel}
                 isRunning={modelStatus === 'busy'}
                 ollamaConnected={ollamaConnected}
-                runtimeMode={isNative ? (localServerStatus.running ? 'Local Server Active' : 'On-device ready') : 'Ollama active'}
+                runtimeMode={isNative ? 'On-device runtime' : 'Ollama preview'}
                 deviceCapability={deviceCapability}
                 onOpenZoo={() => setCurrentScreen(SCREENS.ZOO)}
                 onImportModel={async () => { try { await importModel(); } catch (error) { recordError(error, 'model-import'); } }}
@@ -889,7 +885,6 @@ export default function App() {
                   }
                 }}
                 isNative={isNative}
-                localServerStatus={localServerStatus}
               />
           </motion.div>
         )}
@@ -934,10 +929,7 @@ export default function App() {
               onEndpointChange={setEndpoint}
               onClearChat={clearChat}
               onReset={handleResetApp}
-              smartMode={smartMode}
-              onSmartModeChange={setSmartMode}
               isNative={isNative}
-              localServerStatus={localServerStatus}
             />
           </motion.div>
         )}

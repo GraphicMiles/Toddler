@@ -19,7 +19,6 @@ export default function ChatContainer({
   noModelSelected = false,
   ollamaConnected = false,
   isNative = false,
-  localServerStatus = null,
   conversations = [],
   activeConversationId,
   onConversationChange,

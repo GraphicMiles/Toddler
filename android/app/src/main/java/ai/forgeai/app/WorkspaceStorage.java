@@ -3,11 +3,13 @@ package ai.forgeai.app;
 import android.content.Intent;
 import android.net.Uri;
 import androidx.documentfile.provider.DocumentFile;
+import com.getcapacitor.ActivityResult;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -29,20 +31,19 @@ public class WorkspaceStorage extends Plugin {
     public void pickFolder(PluginCall call) {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-        pendingPick = call;
-        startActivityForResult(call, intent, PICK_TREE);
+        startActivityForResult(call, intent, "folderPickerResult");
     }
 
-    @Override
-    protected void handleOnActivityResult(int requestCode, int resultCode, Intent data) {
-        super.handleOnActivityResult(requestCode, resultCode, data);
-        if (requestCode != PICK_TREE || data == null || data.getData() == null) return;
+    @ActivityCallback
+    public void folderPickerResult(PluginCall call, ActivityResult result) {
+        Intent data = result.getData();
+        if (data == null || data.getData() == null) { call.reject("No folder was selected."); return; }
         rootUri = data.getData();
         int flags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
         try { getContext().getContentResolver().takePersistableUriPermission(rootUri, flags); } catch (Exception ignored) {}
-        JSObject result = new JSObject(); result.put("uri", rootUri.toString());
-        if (pendingPick != null) { pendingPick.resolve(result); pendingPick = null; }
-        notifyListeners("folderSelected", result);
+        JSObject response = new JSObject(); response.put("uri", rootUri.toString());
+        call.resolve(response);
+        notifyListeners("folderSelected", response);
     }
 
     private DocumentFile root(PluginCall call) {

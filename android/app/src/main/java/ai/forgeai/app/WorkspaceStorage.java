@@ -127,7 +127,13 @@ public class WorkspaceStorage extends Plugin {
     public void delete(PluginCall call) { try { String path = call.getString("path", ""); if (blocked(path)) throw new IllegalArgumentException("Protected files cannot be deleted."); DocumentFile f = resolve(root(call), path, false); if (!f.delete()) throw new IllegalArgumentException("Unable to delete item."); call.resolve(); } catch (Exception e) { call.reject(e.getMessage()); } }
 
     @PluginMethod
-    public void inspect(PluginCall call) { try { DocumentFile f = resolve(root(call), call.getString("path", ""), false); String mime = f.getType() == null ? "" : f.getType(); boolean binary = !mime.startsWith("text/") && !mime.contains("json") && !mime.contains("javascript") && !mime.contains("xml"); JSObject result = new JSObject(); result.put("binary", binary); result.put("mimeType", mime); call.resolve(result); } catch (Exception e) { call.reject(e.getMessage()); } }
+    public void inspect(PluginCall call) {
+        try {
+            DocumentFile f = resolve(root(call), call.getString("path", ""), false); String mime = f.getType() == null ? "" : f.getType(); boolean binary = !mime.startsWith("text/") && !mime.contains("json") && !mime.contains("javascript") && !mime.contains("xml");
+            try (InputStream in = getContext().getContentResolver().openInputStream(f.getUri())) { byte[] sample = new byte[4096]; int count = in.read(sample); for (int i = 0; i < count; i++) if (sample[i] == 0) binary = true; }
+            JSObject result = new JSObject(); result.put("binary", binary); result.put("mimeType", mime); result.put("size", f.length()); call.resolve(result);
+        } catch (Exception e) { call.reject(e.getMessage()); }
+    }
 
     @PluginMethod
     public void importToRuntime(PluginCall call) {

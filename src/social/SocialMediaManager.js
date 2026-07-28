@@ -92,55 +92,8 @@ export class SocialMediaManager {
     const encodedContent = encodeURIComponent(content);
 
     try {
-      // Real posting via native share URLs
-    const encodedContent = encodeURIComponent(content);
-
-    if (platform === 'twitter' || platform === 'x') {
-      window.open(`https://twitter.com/intent/tweet?text=${encodedContent}`, '_blank');
-      return {
-        status: 'posted_real',
-        platform,
-        username,
-        content: content.slice(0, 100),
-        timestamp: Date.now(),
-        note: 'Opened real Twitter/X compose window',
-      };
-    } 
-    
-    if (platform === 'linkedin') {
-      window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.href)}&summary=${encodedContent}`, '_blank');
-      return {
-        status: 'posted_real',
-        platform,
-        username,
-        content: content.slice(0, 100),
-        timestamp: Date.now(),
-        note: 'Opened real LinkedIn share window',
-      };
-    }
-
-    if (platform === 'reddit') {
-      window.open(`https://www.reddit.com/submit?title=${encodeURIComponent(content)}&url=${encodeURIComponent(window.location.href)}`, '_blank');
-      return {
-        status: 'posted_real',
-        platform,
-        username,
-        content: content.slice(0, 100),
-        timestamp: Date.now(),
-        note: 'Opened real Reddit submit window',
-      };
-    }
-
-    // Fallback
-    await navigator.clipboard.writeText(content);
-    return {
-      status: 'posted_real',
-      platform,
-      username,
-      content: content.slice(0, 100),
-      timestamp: Date.now(),
-      note: 'Content copied to clipboard + attempted platform share',
-    };
+      // Use the advanced real social provider
+    return await realSocialProvider.post(platform, username, content, options);
     } catch (error) {
       return {
         status: 'error',

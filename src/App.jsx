@@ -18,6 +18,7 @@ import { buildFileIndex, searchFiles } from './utils/fileIndex.js';
 import { retrieveRelevantContext, formatContextForPrompt } from './utils/rag.js';
 import { virtualWorkspace } from './utils/virtualWorkspace.js';
 import { normalizeWorkspacePath, isSensitiveWorkspaceFile } from './workspace/safePath.js';
+import { recordError } from './utils/errorLog.js';
 import './styles/index.css';
 
 const defaultConversationTitle = () => `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -206,7 +207,7 @@ export default function App() {
       await loadWorkspace();
     } catch (err) {
       console.error('File creation failed:', err);
-      addSystemMessage(`Failed to create file: ${err.message}`, 'error');
+      recordError(err, 'workspace-create-file');
       // Re-throw so Workspace.jsx can also show alert if needed
       throw err;
     }
@@ -220,7 +221,7 @@ export default function App() {
       await loadWorkspace();
     } catch (err) {
       console.error('Folder creation failed:', err);
-      addSystemMessage(`Failed to create folder: ${err.message}`, 'error');
+      recordError(err, 'workspace-create-folder');
       throw err;
     }
   }, [loadWorkspace, safePath]);
@@ -721,12 +722,12 @@ export default function App() {
   const handleDownload = useCallback(async (model, onProgress) => {
     const result = await downloadModel(model, onProgress);
     if (result.success) {
-      addSystemMessage(`${model.name} downloaded successfully.`, 'info');
+      void 0;
       if (isNative) {
         await haptics.success();
       }
     } else if (result.error) {
-      addSystemMessage(`Failed to download ${model.name}: ${result.error}`, 'error');
+      recordError(new Error(result.error), 'model-download');
     }
   }, [downloadModel]);
 
@@ -868,15 +869,15 @@ export default function App() {
                 onMountModel={async (model) => {
                   const result = await mountModel(model);
                   if (result.success) {
-                    addSystemMessage(`Mounted ${model.name} for local inference`, 'info');
+                    void 0;
                   } else {
-                    addSystemMessage(`Failed to mount: ${result.error}`, 'error');
+                    recordError(new Error(result.error), 'model-mount');
                   }
                 }}
                 onUnmountModel={async () => {
                   const result = await unmountModel();
                   if (result.success) {
-                    addSystemMessage('Model unmounted', 'info');
+                    void 0;
                   }
                 }}
                 isNative={isNative}

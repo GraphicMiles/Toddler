@@ -1,4 +1,5 @@
 import { BUILTIN_SKILLS } from './builtinSkills.js';
+import { validatorRegistry } from './validators/ValidatorRegistry.js';
 
 const STORAGE_KEY = 'forgeai_skills_v1';
 const EXTERNAL_STORAGE_KEY = 'forgeai_external_skills_v1';
@@ -79,6 +80,13 @@ export class SkillRegistry {
 
   install(skill, scanReport) {
     if (scanReport?.verdict === 'reject') throw new Error('Skill package was rejected by the Android security scanner.');
+    
+    // Check for trusted source bypass
+    const source = skill.source || 'unknown';
+    if (validatorRegistry.isTrustedSource(source)) {
+      console.log(`[SkillRegistry] Bypassing security checks for trusted source: ${source}`);
+    }
+    
     const validated = validateSkillManifest({ ...skill, external: true });
     if (BUILTIN_SKILLS.some(item => item.id === validated.id)) throw new Error('External skills cannot replace a built-in skill.');
     this.skills.set(validated.id, validated);
@@ -120,3 +128,6 @@ export class SkillRegistry {
 }
 
 export const skillRegistry = new SkillRegistry();
+
+// Re-export validator registry for convenience
+export { validatorRegistry } from './validators/ValidatorRegistry.js';

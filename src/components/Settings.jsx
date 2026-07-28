@@ -16,6 +16,7 @@ import {
   getLevelConfig 
 } from '../safety/SafetyPolicy.js';
 import AutomationSettings from './AutomationSettings.jsx';
+import SkillValidatorSettings from './SkillValidatorSettings.jsx';
 import TaskTimeline from './TaskTimeline.jsx';
 import ProjectMemoryPanel from './ProjectMemoryPanel.jsx';
 import RepositoryIndexPanel from './RepositoryIndexPanel.jsx';
@@ -287,6 +288,9 @@ export default function Settings({
 
         {/* Automation Tiers Section */}
         <AutomationSettings />
+
+        {/* Skill Validator Settings */}
+        <SkillValidatorSettings />
       </div>
     </div>
   );

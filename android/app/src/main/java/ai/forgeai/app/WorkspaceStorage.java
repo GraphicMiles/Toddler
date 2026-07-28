@@ -31,6 +31,18 @@ public class WorkspaceStorage extends Plugin {
     private final java.util.Set<String> pausedModelDownloads = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     @PluginMethod
+    public void pickModelFile(PluginCall call) {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT); intent.setType("application/octet-stream"); intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false); intent.addCategory(Intent.CATEGORY_OPENABLE); intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION); startActivityForResult(call, intent, "modelFilePickerResult");
+    }
+
+    @ActivityCallback
+    public void modelFilePickerResult(PluginCall call, ActivityResult result) {
+        Intent data = result.getData(); if (data == null || data.getData() == null) { call.reject("No model file was selected."); return; }
+        Uri uri = data.getData(); try { getContext().getContentResolver().takePersistableUriPermission(uri, data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (Exception ignored) {}
+        DocumentFile doc = DocumentFile.fromSingleUri(getContext(), uri); String name = doc == null || doc.getName() == null ? "model.gguf" : doc.getName(); JSObject response = new JSObject(); response.put("uri", uri.toString()); response.put("name", name); call.resolve(response);
+    }
+
+    @PluginMethod
     public void pickFolder(PluginCall call) {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
@@ -137,6 +149,11 @@ public class WorkspaceStorage extends Plugin {
             try (InputStream in = getContext().getContentResolver().openInputStream(f.getUri())) { byte[] sample = new byte[4096]; int count = in.read(sample); for (int i = 0; i < count; i++) if (sample[i] == 0) binary = true; }
             JSObject result = new JSObject(); result.put("binary", binary); result.put("mimeType", mime); result.put("size", f.length()); call.resolve(result);
         } catch (Exception e) { call.reject(e.getMessage()); }
+    }
+
+    @PluginMethod
+    public void importDocumentToRuntime(PluginCall call) {
+        new Thread(() -> { try { Uri uri = Uri.parse(call.getString("uri", "")); DocumentFile source = DocumentFile.fromSingleUri(getContext(), uri); String name = call.getString("name", source == null ? "model.gguf" : source.getName()); if (name == null || !name.toLowerCase().endsWith(".gguf")) throw new IllegalArgumentException("Only GGUF models can be imported."); File dir = new File(getContext().getFilesDir(), "models"); if (!dir.exists()) dir.mkdirs(); File temp = new File(dir, name + ".part"), target = new File(dir, name); MessageDigest digest = MessageDigest.getInstance("SHA-256"); try (InputStream in = getContext().getContentResolver().openInputStream(uri); FileOutputStream out = new FileOutputStream(temp)) { byte[] b = new byte[262144]; int n; while ((n = in.read(b)) != -1) { out.write(b, 0, n); digest.update(b, 0, n); } } if (!temp.renameTo(target)) throw new IllegalArgumentException("Unable to finalize imported model."); StringBuilder hash = new StringBuilder(); for (byte b : digest.digest()) hash.append(String.format("%02x", b)); JSObject response = new JSObject(); response.put("runtimePath", target.getAbsolutePath()); response.put("sha256", hash.toString()); response.put("size", target.length()); response.put("name", name); call.resolve(response); } catch (Exception e) { call.reject(e.getMessage()); } }).start();
     }
 
     @PluginMethod

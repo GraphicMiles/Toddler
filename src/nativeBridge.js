@@ -33,6 +33,8 @@ export async function downloadModelToWorkspace(uri, url, path, onProgress) {
 export async function pauseWorkspaceModelDownload(uri, path) { return WorkspaceStorage.pauseDownload({ uri, path }); }
 export async function cancelWorkspaceModelDownload(uri, path) { return WorkspaceStorage.cancelDownload({ uri, path }); }
 export async function importModelToRuntime(uri, path) { return WorkspaceStorage.importToRuntime({ uri, path }); }
+export async function pickModelFile() { return WorkspaceStorage.pickModelFile(); }
+export async function importDocumentToRuntime(uri, name) { return WorkspaceStorage.importDocumentToRuntime({ uri, name }); }
 
 export async function getOnDeviceRuntimeInfo() {
   if (!isNative) return { available: false, reason: 'On-device runtime is available only in the Android build.' };

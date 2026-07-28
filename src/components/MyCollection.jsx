@@ -18,6 +18,7 @@ export default function MyCollection({
   runtimeMode,
   deviceCapability = {},
   onOpenZoo,
+  onImportModel,
   onRefreshDevice,
   onMountModel,
   onUnmountModel,
@@ -59,6 +60,7 @@ export default function MyCollection({
         <div className="collection-title">
           <h2 className="display">My Collection</h2>
           <span className="model-count">{models.length}</span>
+          {isNative && <button className="collection-import" onClick={onImportModel}>Import GGUF</button>}
           <div className={`ollama-status ${ollamaConnected ? 'connected' : 'disconnected'}`}>
             {ollamaConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
             <span>{runtimeMode || (ollamaConnected ? 'Ollama active' : 'Offline')}</span>

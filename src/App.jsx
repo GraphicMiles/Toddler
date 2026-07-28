@@ -70,6 +70,7 @@ export default function App() {
     pauseDownload,
     cancelDownload,
     downloads,
+    importModel,
   } = useModelCollection({ endpoint });
 
   useEffect(() => { localStorage.setItem('forgeai_chat', JSON.stringify(messages)); }, [messages]);
@@ -871,6 +872,7 @@ export default function App() {
                 runtimeMode={isNative ? (localServerStatus.running ? 'Local Server Active' : 'On-device ready') : 'Ollama active'}
                 deviceCapability={deviceCapability}
                 onOpenZoo={() => setCurrentScreen(SCREENS.ZOO)}
+                onImportModel={async () => { try { await importModel(); } catch (error) { recordError(error, 'model-import'); } }}
                 onRefreshDevice={refreshDevice}
                 onMountModel={async (model) => {
                   const result = await mountModel(model);

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   checkOllamaConnection, pullOllamaModel, deleteOllamaModel,
-  downloadOnDeviceModel, pauseOnDeviceDownload, cancelOnDeviceDownload, deleteOnDeviceModel, isNative, downloadModelToWorkspace, pauseWorkspaceModelDownload, cancelWorkspaceModelDownload, importModelToRuntime, listWorkspace
+  downloadOnDeviceModel, pauseOnDeviceDownload, cancelOnDeviceDownload, deleteOnDeviceModel, isNative, downloadModelToWorkspace, pauseWorkspaceModelDownload, cancelWorkspaceModelDownload, importModelToRuntime, pickModelFile, importDocumentToRuntime, listWorkspace
 } from '../nativeBridge';
 
 const STORAGE_KEY = 'forgeai_models';
@@ -194,13 +194,24 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     return { success: true, message: 'Model unloaded' };
   }, [setActiveModel]);
 
+  const importModel = useCallback(async () => {
+    if (!isNative) throw new Error('Model import requires Android.');
+    const selected = await pickModelFile();
+    if (!selected?.uri) return { success: false, cancelled: true };
+    const imported = await importDocumentToRuntime(selected.uri, selected.name);
+    const id = `imported-${selected.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+    const model = { id, name: selected.name, file: selected.name, localPath: imported.runtimePath, sourceUri: selected.uri, runtime: 'llama.cpp', format: 'GGUF', sha256: imported.sha256, verified: true, status: 'ready', downloadedAt: new Date().toISOString(), downloadedBytes: imported.size };
+    saveModels(prev => prev.some(item => item.id === id) ? prev : [...prev, model]);
+    return { success: true, model };
+  }, [saveModels]);
+
   const stopModel = useCallback(() => setActiveModel(null), [setActiveModel]);
   const isDownloaded = useCallback((id) => models.some(m => m.id === id), [models]);
 
   return {
     models, activeModel, isLoading, downloads,
     downloadModel, retryDownload, cancelDownload, pauseDownload,
-    deleteModel, setActiveModel, stopModel, isDownloaded,
+    deleteModel, setActiveModel, stopModel, isDownloaded, importModel,
     mountModel, unmountModel,
     refresh: async () => checkOllamaConnection(endpoint),
   };

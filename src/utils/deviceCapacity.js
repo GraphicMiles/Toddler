@@ -32,17 +32,24 @@ export function assessModelCompatibility(model, capacity = {}) {
   if (!Number.isFinite(totalRamBytes) || !Number.isFinite(availableStorageBytes)) {
     return { compatible: false, reason: 'Device RAM or free storage could not be measured.', requiredRamBytes, requiredStorageBytes };
   }
-  if (totalRamBytes < requiredRamBytes) {
+  // Android reports usable RAM below the marketed device tier, so allow a conservative 15% OS reservation.
+  if (totalRamBytes < requiredRamBytes * 0.85) {
     return { compatible: false, reason: `Requires about ${formatMemoryCapacity(requiredRamBytes)} total RAM.`, requiredRamBytes, requiredStorageBytes };
   }
   const workingSetFloor = Math.min(requiredRamBytes * 0.45, getModelSizeBytes(model) + 512 * 1024 ** 2);
-  if (Number.isFinite(availableRamBytes) && availableRamBytes < workingSetFloor) {
-    return { compatible: false, reason: 'Not enough RAM is currently available. Close other apps and refresh.', requiredRamBytes, requiredStorageBytes };
-  }
+  const lowAvailableRam = Number.isFinite(availableRamBytes) && availableRamBytes < workingSetFloor;
   if (availableStorageBytes < requiredStorageBytes) {
     return { compatible: false, reason: `Requires about ${formatModelSize(requiredStorageBytes)} free storage.`, requiredRamBytes, requiredStorageBytes };
   }
-  return { compatible: true, reason: 'Measured RAM and storage meet the conservative estimate.', requiredRamBytes, requiredStorageBytes };
+  return {
+    compatible: true,
+    caution: lowAvailableRam,
+    reason: lowAvailableRam
+      ? 'Compatible by total RAM, but close other apps before loading this model.'
+      : 'Measured RAM and storage meet the conservative estimate.',
+    requiredRamBytes,
+    requiredStorageBytes,
+  };
 }
 
 export function formatModelSize(bytes) {

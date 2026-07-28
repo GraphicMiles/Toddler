@@ -114,6 +114,10 @@ export async function applyUnifiedDiff(workspaceProvider, text) {
       const receipt = await workspaceProvider.writeText(item.patch.newPath, item.updated);
       receipts.push({ path: item.patch.newPath, ...receipt });
     }
+    for (const item of prepared) {
+      const verified = await workspaceProvider.readText(item.patch.newPath);
+      if (verified !== item.updated) throw new Error(`Post-apply verification failed for ${item.patch.newPath}.`);
+    }
   } catch (error) {
     for (const receipt of [...receipts].reverse()) {
       if (receipt.backupId) await workspaceProvider.restoreBackup(receipt.backupId).catch(() => {});

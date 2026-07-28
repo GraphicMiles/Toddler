@@ -12,7 +12,7 @@ ForgeAI will target a Claude/ChatGPT-like **coding workflow**: strong context se
 
 ## Phase 4 milestones
 
-### 4.1 Structured action protocol — started
+### 4.1 Structured action protocol — implemented
 
 - JSON-only action envelope.
 - Schema validation for `read_file`, `search_files`, `propose_patch`, and `plan`.
@@ -20,7 +20,7 @@ ForgeAI will target a Claude/ChatGPT-like **coding workflow**: strong context se
 - Action/path/patch size limits.
 - Invalid or free-form actions rejected before tool registration.
 
-### 4.2 Context engine — started
+### 4.2 Context engine — initial implementation complete
 
 - Query tokenization and path/name relevance scoring.
 - Selected-file priority without injecting code into greetings.
@@ -37,7 +37,7 @@ Next context work:
 - diagnostics and test-failure retrieval;
 - context budget accounting using native tokenization.
 
-### 4.3 Unified diff workflow — started
+### 4.3 Unified diff workflow — implemented for existing text files
 
 - Parse and validate unified diffs.
 - Reject traversal, file deletion/creation, implicit rename, duplicate sections, malformed counts, and context mismatch.
@@ -54,7 +54,7 @@ Next patch work:
 - post-apply reread and hash verification;
 - patch history browser and multi-step undo.
 
-### 4.4 Agent loop — next
+### 4.4 Agent loop — initial Android patch loop implemented
 
 ```text
 User request

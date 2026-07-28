@@ -13,6 +13,7 @@ import { haptics, isNative, pickWorkspaceFolder } from './nativeBridge';
 import { createModelProvider } from './providers/modelProvider';
 import { getModelProfile } from './models/catalog.js';
 import { AgentCore } from './agent/core.js';
+import { generatePatchProposal, isCodeChangeRequest } from './agent/phase4Runner.js';
 import { ApprovalGate } from './tools/toolApproval.js';
 import { createWorkspaceToolRegistry } from './tools/workspaceTools.js';
 import { retrieveRelevantContext, formatContextForPrompt, shouldRetrieveWorkspaceContext } from './utils/rag.js';
@@ -22,8 +23,6 @@ import './styles/index.css';
 
 const defaultConversationTitle = () => `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 const generateId = () => Math.random().toString(36).substring(2, 15);
-const SAFE_AUTO_APPROVE_TOOLS = ['read_file', 'search', 'index'];
-
 // Screen types are imported from ./components/Layout (SCREENS)
 
 export default function App() {
@@ -153,12 +152,14 @@ export default function App() {
   }, [loadWorkspace, workspaceProvider]);
 
   const handleWorkspaceUndo = useCallback(async () => {
-    if (!lastWorkspaceBackup?.id) return;
+    const backupIds = lastWorkspaceBackup?.ids || (lastWorkspaceBackup?.id ? [lastWorkspaceBackup.id] : []);
+    if (backupIds.length === 0) return;
     try {
-      const restored = await workspaceProvider.restoreBackup(lastWorkspaceBackup.id);
+      const restored = [];
+      for (const backupId of [...backupIds].reverse()) restored.push(await workspaceProvider.restoreBackup(backupId));
       setLastWorkspaceBackup(null);
       await loadWorkspace();
-      addSystemMessage(`Restored ${restored.path} from its last backup.`, 'info');
+      addSystemMessage(`Restored ${restored.map(item => item.path).join(', ')} from the last workspace transaction.`, 'info');
     } catch (error) {
       recordError(error, 'workspace-restore');
       addSystemMessage(`Workspace restore failed: ${error.message}`, 'error');
@@ -260,21 +261,6 @@ export default function App() {
     provider,
   }), [agentToolRegistry, agentApprovalGate, provider]);
 
-  // Execute read-only agent actions without showing an approval prompt.
-  // The approval gate still consumes each request and the tool registry remains the authority.
-  const autoExecuteSafeActions = useCallback(async (actions) => {
-    for (const action of actions || []) {
-      try {
-        await agentCore.executeApprovedAction(action.id);
-        setPendingActions(prev => prev.filter(item => item.id !== action.id));
-        addSystemMessage(`Agent ${action.type} completed inside the selected workspace.`, 'info');
-      } catch (error) {
-        console.warn('Safe agent action failed:', error);
-        setPendingActions(prev => prev.filter(item => item.id !== action.id));
-      }
-    }
-  }, [agentCore]);
-
   // Check Ollama connection
   const checkConnection = useCallback(async () => {
     try {
@@ -354,33 +340,6 @@ export default function App() {
       console.warn('RAG retrieval skipped:', ragErr);
     }
 
-    // Agent processing - best-effort, non-blocking. Never let agent errors abort the chat.
-    try {
-      const agentResult = await agentCore.processMessage({
-        message: text,
-        workspace: { path: '', rootId: workspaceProvider.id, name: 'workspace', tree: workspaceTree, selectedPath: selectedFilePath },
-      });
-      // Only keep tool-based proposed actions (those that have a gate entry).
-      // agent_review / plan_task items are informational and have no gate entry,
-      // so they must NOT show Approve/Discard buttons.
-      const toolActions = (agentResult.proposedActions || []).filter(a => a.type !== 'agent_review');
-      
-      // Auto-execute safe read-only tools for smoother experience
-      if (toolActions.length > 0) {
-        const hasWriteActions = toolActions.some(a => !SAFE_AUTO_APPROVE_TOOLS.includes(a.type));
-        
-        if (!hasWriteActions) {
-          // All safe → auto-execute
-          setTimeout(() => autoExecuteSafeActions(toolActions), 300);
-        } else {
-          // Has write actions → keep manual approval for those
-          setPendingActions(prev => [...prev, ...toolActions]);
-        }
-      }
-    } catch (agentErr) {
-      console.warn('Agent processing skipped:', agentErr);
-    }
-
     // Agent plans are rendered as action cards; they are not mixed into the model's answer.
     setMessages(prev => [...prev, userMessage, { id: assistantId, role: 'assistant', content: '', timestamp: Date.now() }]);
     setIsTyping(true); setModelStatus('busy');
@@ -404,12 +363,34 @@ export default function App() {
       }
 
       const loadResult = await provider.loadModel(activeModel);
-      const generationResult = await provider.stream({
-        model: activeModel,
-        messages: messagesWithContext,
-        signal: controller.signal,
-        onToken: token => setMessages(prev => prev.map(message => message.id === assistantId ? { ...message, content: message.content + token } : message)),
-      });
+      let generationResult;
+      if (isCodeChangeRequest(text)) {
+        if (activeModel.task === 'smoke-test' || /135m/i.test(`${activeModel.name} ${activeModel.file}`)) {
+          throw new Error('The 135M smoke-test model is too small to produce safe code patches. Select a Qwen Coder model.');
+        }
+        if (!ragContext) throw new Error('A code patch needs approved workspace context. Select the relevant file and allow context access.');
+        const proposal = await generatePatchProposal({
+          provider,
+          model: activeModel,
+          request: text,
+          workspaceContext: ragContext,
+          signal: controller.signal,
+          toolNames: agentToolRegistry.list().map(tool => tool.name),
+        });
+        const actions = agentCore.proposeStructuredModelActions(JSON.stringify({ actions: [proposal.action] }));
+        setPendingActions(previous => [...previous, ...actions]);
+        setMessages(previous => previous.map(message => message.id === assistantId
+          ? { ...message, content: `I prepared a validated patch proposal for ${proposal.action.paths.join(', ')}. Review the exact diff below before approving it.` }
+          : message));
+        generationResult = proposal.generationResult;
+      } else {
+        generationResult = await provider.stream({
+          model: activeModel,
+          messages: messagesWithContext,
+          signal: controller.signal,
+          onToken: token => setMessages(prev => prev.map(message => message.id === assistantId ? { ...message, content: message.content + token } : message)),
+        });
+      }
       if (isNative && generationResult) {
         const info = await provider.getStatus().catch(() => runtimeInfo);
         setRuntimeInfo(info || runtimeInfo);
@@ -434,7 +415,7 @@ export default function App() {
         setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: friendly, level: 'error' } : m));
       }
     } finally { setIsTyping(false); setModelStatus('idle'); setAbortController(null); }
-  }, [activeModel, messages, downloads, endpoint, provider, runtimeInfo, agentCore, autoExecuteSafeActions, trimHistory, workspaceTree, selectedFilePath, workspaceProvider]);
+  }, [activeModel, messages, downloads, endpoint, provider, runtimeInfo, agentCore, agentToolRegistry, trimHistory, workspaceTree, selectedFilePath, workspaceProvider]);
 
   const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
 
@@ -459,8 +440,18 @@ export default function App() {
     try {
       const result = await agentCore.executeApprovedAction(actionId);
       if (['write_file', 'apply_patch', 'rename', 'delete'].includes(action.type)) await loadWorkspace();
-      addSystemMessage(`Agent executed: ${action.type} -> ${JSON.stringify(result)}`, 'info');
-      addMessage('assistant', `Done! Executed ${action.type} with result: ${JSON.stringify(result)}`);
+      if (action.type === 'apply_patch' && result?.receipts?.length) {
+        const receipts = result.receipts.filter(receipt => receipt.backupId);
+        setLastWorkspaceBackup({
+          ids: receipts.map(receipt => receipt.backupId),
+          path: result.files.map(file => file.path).join(', '),
+          operation: 'patch',
+          createdAt: Date.now(),
+        });
+        addMessage('assistant', `Patch applied and verified for ${result.files.map(file => file.path).join(', ')}. You can undo the complete transaction from Files.`);
+      } else {
+        addSystemMessage(`Agent executed: ${action.type}.`, 'info');
+      }
     } catch (execError) {
       addSystemMessage(`Agent execution failed: ${execError.message}`, 'error');
     }

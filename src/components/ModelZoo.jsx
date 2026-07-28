@@ -61,7 +61,7 @@ export default function ModelZoo({
   modelFolderSelected = false,
 }) {
   const [filter, setFilter] = useState('all');
-  const [showOnlyCompatible, setShowOnlyCompatible] = useState(true);
+  const [showOnlyCompatible, setShowOnlyCompatible] = useState(false);
 
   // Derive download state from the app-level downloads map (persists across tab switches)
   const activeDownloadId = Object.keys(downloads).find(id =>
@@ -171,7 +171,7 @@ export default function ModelZoo({
           <HeatMeter level={heatLevel(model)} />
         </div>
 
-        {!compatible && (
+        {(!compatible || compatibility.caution) && (
           <div className="compatibility-warning">
             <WifiOff size={12} />
             <span>{compatibility.reason}</span>

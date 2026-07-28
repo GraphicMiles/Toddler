@@ -8,61 +8,51 @@
  * This module is a placeholder for future native implementation.
  */
 
+import { realBrowserAutomation } from './RealBrowserAutomation.js';
+import { isExperimentalEnabled } from '../components/ExperimentalFeatures.jsx';
+
 export class BrowserAutomation {
   constructor() {
     this.sessions = new Map();
   }
 
-  isExperimentalEnabled() {
-    try {
-      const exp = JSON.parse(localStorage.getItem('forgeai_experimental_features') || '{}');
-      return exp.realBrowser === true;
-    } catch {
-      return false;
-    }
-  }
-
   async navigate(url) {
-    if (!this.isExperimentalEnabled()) {
+    if (!isExperimentalEnabled('realBrowser')) {
       return {
         status: 'simulated',
         url,
         warning: 'Enable "Real Browser Automation" in Experimental Features.',
       };
     }
-    return {
-      status: 'attempted',
-      url,
-      note: 'Real WebView navigation attempted (requires native plugin)',
-    };
+    return await realBrowserAutomation.navigate(url);
   }
 
   async click(selector) {
-    if (!this.isExperimentalEnabled()) {
+    if (!isExperimentalEnabled('realBrowser')) {
       return { status: 'simulated', selector };
     }
-    return { status: 'attempted', selector };
+    return await realBrowserAutomation.click(selector);
   }
 
   async fill(selector, value) {
-    if (!this.isExperimentalEnabled()) {
+    if (!isExperimentalEnabled('realBrowser')) {
       return { status: 'simulated', selector, value };
     }
-    return { status: 'attempted', selector, value };
+    return await realBrowserAutomation.fill(selector, value);
   }
 
   async extract(selector) {
-    if (!this.isExperimentalEnabled()) {
+    if (!isExperimentalEnabled('realBrowser')) {
       return { status: 'simulated', selector, data: [] };
     }
-    return { status: 'attempted', selector, data: [] };
+    return await realBrowserAutomation.extract(selector);
   }
 
   async screenshot() {
-    if (!this.isExperimentalEnabled()) {
+    if (!isExperimentalEnabled('realBrowser')) {
       return { status: 'simulated' };
     }
-    return { status: 'attempted' };
+    return await realBrowserAutomation.screenshot();
   }
 }
 

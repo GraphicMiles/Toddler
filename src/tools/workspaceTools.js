@@ -1,6 +1,8 @@
 import { buildFileIndex, searchFiles } from '../utils/fileIndex.js';
 import { applyUnifiedDiff, summarizeUnifiedDiff } from '../patch/unifiedDiff.js';
 import { ToolRegistry } from './toolRegistry.js';
+import { realTerminal } from '../terminal/RealTerminal.js';
+import { isExperimentalEnabled } from '../components/ExperimentalFeatures.jsx';
 
 export function createWorkspaceToolRegistry(workspaceProvider) {
   if (!workspaceProvider) throw new Error('A workspace provider is required.');
@@ -109,12 +111,7 @@ export function createWorkspaceToolRegistry(workspaceProvider) {
         if (typeof command !== 'string' || !command.trim()) throw new Error('A command is required.');
         const cmd = command.trim();
 
-        // Check if experimental real terminal is enabled
-        let experimentalEnabled = false;
-        try {
-          const exp = JSON.parse(localStorage.getItem('forgeai_experimental_features') || '{}');
-          experimentalEnabled = exp.realTerminal === true;
-        } catch {}
+        const experimentalEnabled = isExperimentalEnabled('realTerminal');
 
         if (!experimentalEnabled) {
           // Simulated mode
@@ -136,12 +133,13 @@ export function createWorkspaceToolRegistry(workspaceProvider) {
           };
         }
 
-        // Experimental real terminal mode (best effort)
+        // Real terminal execution
+        const result = await realTerminal.execute(cmd, workspacePath);
         return {
           command: cmd,
-          output: `Attempting real execution (requires native plugin support)`,
+          output: result.output,
           type: 'terminal',
-          status: 'attempted_real',
+          status: result.status,
           experimental: true,
         };
       },

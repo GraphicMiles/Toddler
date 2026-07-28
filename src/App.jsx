@@ -673,6 +673,7 @@ export default function App() {
       if (isNative) await haptics.success();
     } catch (error) {
       if (error.name !== 'AbortError') {
+        recordError(error, 'model-generation');
         const friendly = error.message?.includes('loaded safely')
           ? 'Model could not be loaded. It may still be downloading, or the file may be corrupted - try re-downloading from Model Zoo.'
           : `Something went wrong: ${error.message}`;
@@ -735,7 +736,7 @@ export default function App() {
   const handleSelectModel = useCallback((model) => {
     setActiveModel(model);
     setModelStatus('idle');
-    addSystemMessage(`Switched to **${model.name}**`, 'info');
+    void 0;
     if (isNative) {
       haptics.medium();
     }

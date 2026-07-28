@@ -19,7 +19,7 @@ export class OllamaProvider {
 export class OnDeviceProvider {
   constructor() { this.kind = 'on-device'; }
   async getStatus() { return { ...(await getOnDeviceRuntimeInfo()), kind: this.kind }; }
-  async loadModel(path) { if (!path) throw new Error('Select a downloaded offline model first.'); return loadOnDeviceModel(path); }
+  async loadModel(path) { if (!path) throw new Error('Select a downloaded offline model first.'); try { return await loadOnDeviceModel(path); } catch (error) { throw new Error(`Native model load failed for ${path}: ${error.message || 'unknown error'}`); } }
   async stream({ model, messages, signal, onToken }) { return runOnDeviceChat({ model, messages, signal, onToken }); }
   async stop() { return { stopped: true }; }
   async unloadModel() { return unloadOnDeviceModel(); }

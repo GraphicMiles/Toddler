@@ -7,6 +7,8 @@ import {
 import { getFileIconInfo, buildFileIndex, searchFiles } from '../utils/fileIndex';
 import './Workspace.css';
 
+const joinWorkspacePath = (parent, name) => parent ? `${parent}/${name}` : name;
+
 /* ── File tree node ── */
 function FileNode({ node, depth = 0, selectedPath, onSelect, onContextMenu }) {
   const [isOpen, setIsOpen] = useState(node.open || depth === 0);
@@ -224,7 +226,7 @@ export default function Workspace({
     const name = prompt('New file name (e.g. notes.txt):');
     if (!name?.trim()) return;
     try {
-      await onFileCreate?.(parentPath + '/' + name.trim());
+      await onFileCreate?.(joinWorkspacePath(parentPath, name.trim()));
     } catch (err) {
       alert('Failed to create file: ' + err.message);
     }
@@ -234,7 +236,7 @@ export default function Workspace({
     const name = prompt('New folder name:');
     if (!name?.trim()) return;
     try {
-      await onFolderCreate?.(parentPath + '/' + name.trim());
+      await onFolderCreate?.(joinWorkspacePath(parentPath, name.trim()));
     } catch (err) {
       alert('Failed to create folder: ' + err.message);
     }
@@ -245,7 +247,7 @@ export default function Workspace({
     const newName = prompt(`Rename "${oldName}" to:`, oldName);
     if (!newName?.trim() || newName.trim() === oldName) return;
     const parentPath = node.path.substring(0, node.path.lastIndexOf('/'));
-    const newPath = parentPath + '/' + newName.trim();
+    const newPath = joinWorkspacePath(parentPath, newName.trim());
     try {
       await onFileRename?.(node.path, newPath);
     } catch (err) {
@@ -300,10 +302,10 @@ export default function Workspace({
               <p>{workspace.name || 'Device storage'}</p>
             </div>
             <div className="ws-header-actions">
-              <button className="ws-action-btn" onClick={() => handleNewFile(workspace.path?.startsWith('content://') ? '' : (workspace.path || ''))} title="New file">
+              <button className="ws-action-btn" onClick={() => handleNewFile('')} title="New file">
                 <FilePlus size={16} />
               </button>
-              <button className="ws-action-btn" onClick={() => handleNewFolder(workspace.path?.startsWith('content://') ? '' : (workspace.path || ''))} title="New folder">
+              <button className="ws-action-btn" onClick={() => handleNewFolder('')} title="New folder">
                 <FolderPlus size={16} />
               </button>
               <button className="ws-action-btn" onClick={onRefresh} title="Refresh">

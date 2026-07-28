@@ -386,6 +386,9 @@ export class AgentCore {
     if (toolName === 'read_file' && !input.path) {
       input.path = workspace.selectedPath || workspace.path || '';
     }
+    if (toolName === 'search' || toolName === 'index') {
+      input.workspaceTree = workspace.tree || [];
+    }
 
     return input;
   }

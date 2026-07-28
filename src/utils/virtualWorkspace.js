@@ -16,6 +16,7 @@ export class VirtualWorkspace {
   }
 
   loadFromStorage() {
+    if (typeof localStorage === 'undefined') return;
     try {
       const saved = localStorage.getItem(VIRTUAL_STORAGE_KEY);
       if (saved) {
@@ -29,6 +30,7 @@ export class VirtualWorkspace {
   }
 
   saveToStorage() {
+    if (typeof localStorage === 'undefined') return;
     try {
       const data = {
         files: Array.from(this.files.entries()),
@@ -222,7 +224,7 @@ export class VirtualWorkspace {
   clear() {
     this.files.clear();
     this.folders.clear();
-    localStorage.removeItem(VIRTUAL_STORAGE_KEY);
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(VIRTUAL_STORAGE_KEY);
   }
 }
 

@@ -18,7 +18,7 @@ const OnDeviceRuntime = registerPlugin('OnDeviceRuntime');
 const WorkspaceStorage = registerPlugin('WorkspaceStorage');
 
 export async function pickWorkspaceFolder() { return WorkspaceStorage.pickFolder(); }
-export async function listWorkspace(uri) { return WorkspaceStorage.list({ uri }); }
+export async function listWorkspace(uri, path = '') { return WorkspaceStorage.list({ uri, path }); }
 export async function readWorkspaceFile(uri, path) { return (await WorkspaceStorage.readFile({ uri, path })).content; }
 export async function writeWorkspaceFile(uri, path, content) { return WorkspaceStorage.writeFile({ uri, path, content }); }
 export async function createWorkspaceFile(uri, path) { return WorkspaceStorage.createFile({ uri, path }); }

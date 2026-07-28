@@ -21,10 +21,10 @@ export async function retrieveRelevantContext({
   query = '',
   workspaceTree = [],
   selectedPath = '',
-  fileSystem = null,
+  workspaceProvider = null,
   maxFiles = MAX_FILES,
 } = {}) {
-  if (!fileSystem || !workspaceTree.length) {
+  if (!workspaceProvider || !workspaceTree.length) {
     return [];
   }
 
@@ -78,7 +78,7 @@ export async function retrieveRelevantContext({
     if (totalChars >= MAX_TOTAL_CHARS) break;
 
     try {
-      const rawContent = await fileSystem.readFile(candidate.path);
+      const rawContent = await workspaceProvider.readText(candidate.path);
       if (!rawContent) continue;
 
       let content = String(rawContent);

@@ -8,16 +8,13 @@ import Workspace from './components/Workspace';
 import Settings from './components/Settings';
 import useModelCollection from './hooks/useModelCollection';
 import useDeviceCapability from './hooks/useDeviceCapability';
-import { haptics, isNative, pickWorkspaceFolder, listWorkspace, readWorkspaceFile, writeWorkspaceFile, createWorkspaceFile, createWorkspaceFolder, renameWorkspaceItem, deleteWorkspaceItem } from './nativeBridge';
+import { haptics, isNative, pickWorkspaceFolder } from './nativeBridge';
 import { createModelProvider } from './providers/modelProvider';
 import { AgentCore } from './agent/core.js';
-import { ToolRegistry } from './tools/toolRegistry.js';
 import { ApprovalGate } from './tools/toolApproval.js';
-import { fileSystem } from './nativeBridge.js';
-import { buildFileIndex, searchFiles } from './utils/fileIndex.js';
+import { createWorkspaceToolRegistry } from './tools/workspaceTools.js';
 import { retrieveRelevantContext, formatContextForPrompt } from './utils/rag.js';
-import { virtualWorkspace } from './utils/virtualWorkspace.js';
-import { normalizeWorkspacePath, isSensitiveWorkspaceFile } from './workspace/safePath.js';
+import { createSafWorkspaceProvider, createVirtualWorkspaceProvider } from './workspace/workspaceProvider.js';
 import { recordError } from './utils/errorLog.js';
 import './styles/index.css';
 
@@ -76,89 +73,43 @@ export default function App() {
   useEffect(() => { localStorage.setItem('forgeai_conversations', JSON.stringify(conversations)); localStorage.setItem('forgeai_active_conversation', activeConversationId); }, [conversations, activeConversationId]);
   useEffect(() => { if (activeConversationId) setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, messages } : c)); }, [messages, activeConversationId]);
 
-  // Request storage permissions on Android (improves workspace reliability)
-  const requestStoragePermission = useCallback(async () => {
-    if (!isNative || window.Capacitor?.getPlatform?.() !== 'android') return true;
+  const workspaceProvider = useMemo(
+    () => isNative
+      ? createSafWorkspaceProvider(workspaceRootPath)
+      : createVirtualWorkspaceProvider(),
+    [workspaceRootPath],
+  );
 
-    try {
-      // Try to use Capacitor's Permissions API if available
-      if (window.Capacitor?.Plugins?.Permissions) {
-        const result = await window.Capacitor.Plugins.Permissions.requestPermissions({
-          permissions: ['storage']
-        });
-        return result?.storage === 'granted';
-      }
-      
-      // Fallback: Try to access a writable path to trigger permission dialog
-      await fileSystem.createDirectory('/storage/emulated/0/Download/ForgeAI').catch(() => {});
-      return true;
-    } catch (err) {
-      console.warn('Permission request failed:', err);
-      return false;
-    }
-  }, []);
-
-  // Load workspace file tree (supports both Android and Web virtual workspace)
-  const loadWorkspace = useCallback(async () => {
+  const loadWorkspace = useCallback(async (providerOverride = workspaceProvider) => {
     setWorkspaceLoading(true);
     try {
-      if (isNative) {
-        const savedUri = localStorage.getItem('forgeai_workspace_uri');
-        if (!savedUri || !savedUri.startsWith('content://')) { if (savedUri) localStorage.removeItem('forgeai_workspace_uri'); setWorkspaceRootPath(''); setWorkspaceTree([]); return; }
-        if (savedUri?.startsWith('content://')) {
-          const result = await listWorkspace(savedUri);
-          setWorkspaceRootPath(savedUri);
-          setWorkspaceTree(result?.children || result?.value || result || []);
-          return;
-        }
-        // Do not attempt raw shared-storage paths on modern Android. Require SAF.
-        if (!savedUri) { setWorkspaceRootPath(''); setWorkspaceTree([]); return; }
-        let rootPath = '';
-        const candidates = [
-          '/storage/emulated/0/Download/ForgeAI',
-          '/storage/emulated/0/Documents/ForgeAI',
-        ];
-        
-        for (const candidate of candidates) {
-          try {
-            await fileSystem.createDirectory(candidate).catch(() => {});
-            const exists = await fileSystem.exists(candidate);
-            if (exists) {
-              rootPath = candidate;
-              break;
-            }
-          } catch (e) {}
-        }
-        
-        if (!rootPath) {
-          rootPath = '/storage/emulated/0/Download/ForgeAI';
-          await fileSystem.createDirectory(rootPath).catch(() => {});
-        }
-        
-        setWorkspaceRootPath(rootPath);
-        const tree = await fileSystem.loadTree(rootPath);
-        setWorkspaceTree(tree);
-      } else {
-        // Web/Desktop: Use virtual workspace
-        setWorkspaceRootPath('virtual://workspace');
-        const tree = virtualWorkspace.getTree();
-        setWorkspaceTree(tree);
+      if (!providerOverride.available) {
+        setWorkspaceTree([]);
+        return;
       }
-    } catch (err) {
-      console.warn('Failed to load workspace:', err);
+      const tree = await providerOverride.list();
+      setWorkspaceTree(tree);
+    } catch (error) {
+      console.warn('Failed to load workspace:', error);
+      setWorkspaceTree([]);
     } finally {
       setWorkspaceLoading(false);
     }
-  }, []);
+  }, [workspaceProvider]);
 
-  useEffect(() => { 
-    // Request permission on first load for Android
-    if (isNative) {
-      requestStoragePermission().then(() => loadWorkspace());
-    } else {
-      loadWorkspace(); 
+  useEffect(() => {
+    if (isNative && workspaceRootPath && !workspaceRootPath.startsWith('content://')) {
+      localStorage.removeItem('forgeai_workspace_uri');
+      setWorkspaceRootPath('');
+      setWorkspaceTree([]);
+      return;
     }
-  }, [loadWorkspace, requestStoragePermission]);
+    if (!isNative && workspaceRootPath !== 'virtual://workspace') {
+      setWorkspaceRootPath('virtual://workspace');
+    }
+    setSelectedFilePath('');
+    loadWorkspace();
+  }, [loadWorkspace, workspaceRootPath]);
 
   const chooseModelFolder = useCallback(async () => {
     if (!isNative) return;
@@ -169,73 +120,54 @@ export default function App() {
   const chooseWorkspace = useCallback(async () => {
     if (!isNative) return;
     const result = await pickWorkspaceFolder();
-    if (result?.uri) {
-      localStorage.setItem('forgeai_workspace_uri', result.uri);
-      setWorkspaceRootPath(result.uri);
-      await loadWorkspace();
-    }
+    if (!result?.uri) return;
+    localStorage.setItem('forgeai_workspace_uri', result.uri);
+    setWorkspaceRootPath(result.uri);
+    setSelectedFilePath('');
+    await loadWorkspace(createSafWorkspaceProvider(result.uri));
   }, [loadWorkspace]);
 
-  // File CRUD handlers
-  const safePath = useCallback((path) => normalizeWorkspacePath(workspaceRootPath, path), [workspaceRootPath]);
-
-  const handleFileRead = useCallback(async (path) => {
-    const uri = localStorage.getItem('forgeai_workspace_uri');
-    if (uri?.startsWith('content://')) return readWorkspaceFile(uri, path);
-    const target = safePath(path);
-    if (isSensitiveWorkspaceFile(target)) throw new Error('Secret and private-key files are blocked by default.');
-    return await fileSystem.readFile(target);
-  }, [safePath]);
+  // All UI workspace operations use the same scoped provider as RAG and agent tools.
+  const handleFileRead = useCallback(
+    path => workspaceProvider.readText(path),
+    [workspaceProvider],
+  );
 
   const handleFileSave = useCallback(async (path, content) => {
-    const uri = localStorage.getItem('forgeai_workspace_uri');
-    if (uri?.startsWith('content://')) { await writeWorkspaceFile(uri, path, content); await loadWorkspace(); return; }
-    const target = safePath(path);
-    if (isSensitiveWorkspaceFile(target)) throw new Error('Secret and private-key files are blocked by default.');
-    await fileSystem.writeFile(target, content);
+    await workspaceProvider.writeText(path, content);
     await loadWorkspace();
-  }, [loadWorkspace, safePath]);
+  }, [loadWorkspace, workspaceProvider]);
 
   const handleFileCreate = useCallback(async (path) => {
     try {
-      const uri = localStorage.getItem('forgeai_workspace_uri');
-      if (isNative && !uri?.startsWith('content://')) throw new Error('Choose a device folder first using the folder button in Files.');
-      if (uri?.startsWith('content://')) await createWorkspaceFile(uri, path); else await fileSystem.writeFile(safePath(path), '');
+      await workspaceProvider.createFile(path);
       await loadWorkspace();
-    } catch (err) {
-      console.error('File creation failed:', err);
-      recordError(err, 'workspace-create-file');
-      // Re-throw so Workspace.jsx can also show alert if needed
-      throw err;
+    } catch (error) {
+      recordError(error, 'workspace-create-file');
+      throw error;
     }
-  }, [loadWorkspace, safePath]);
+  }, [loadWorkspace, workspaceProvider]);
 
   const handleFolderCreate = useCallback(async (path) => {
     try {
-      const uri = localStorage.getItem('forgeai_workspace_uri');
-      if (isNative && !uri?.startsWith('content://')) throw new Error('Choose a device folder first using the folder button in Files.');
-      if (uri?.startsWith('content://')) await createWorkspaceFolder(uri, path); else await fileSystem.createDirectory(safePath(path));
+      await workspaceProvider.createFolder(path);
       await loadWorkspace();
-    } catch (err) {
-      console.error('Folder creation failed:', err);
-      recordError(err, 'workspace-create-folder');
-      throw err;
+    } catch (error) {
+      recordError(error, 'workspace-create-folder');
+      throw error;
     }
-  }, [loadWorkspace, safePath]);
+  }, [loadWorkspace, workspaceProvider]);
 
   const handleFileRename = useCallback(async (oldPath, newPath) => {
-    const uri = localStorage.getItem('forgeai_workspace_uri');
-    if (uri?.startsWith('content://')) { await renameWorkspaceItem(uri, oldPath, newPath.split('/').pop()); await loadWorkspace(); return; }
-    await fileSystem.rename(safePath(oldPath), safePath(newPath));
+    const newName = newPath.split('/').pop();
+    await workspaceProvider.rename(oldPath, newName);
     await loadWorkspace();
-  }, [loadWorkspace, safePath]);
+  }, [loadWorkspace, workspaceProvider]);
 
-  const handleFileDelete = useCallback(async (path, type) => {
-    const uri = localStorage.getItem('forgeai_workspace_uri');
-    if (uri?.startsWith('content://')) { await deleteWorkspaceItem(uri, path); await loadWorkspace(); return; }
-    await fileSystem.deleteFile(safePath(path));
+  const handleFileDelete = useCallback(async (path) => {
+    await workspaceProvider.delete(path);
     await loadWorkspace();
-  }, [loadWorkspace, safePath]);
+  }, [loadWorkspace, workspaceProvider]);
 
   const handleFilePick = useCallback((path, node) => {
     const name = path.split('/').pop();
@@ -272,259 +204,23 @@ export default function App() {
     return createModelProvider({ mode: 'ollama', endpoint });
   }, [endpoint, isNative]);
 
-  // Agent core setup with plugin contract for scalable integrations
-  const agentToolRegistry = useMemo(() => {
-    const registry = new ToolRegistry();
-    // Real read_file using native bridge filesystem
-    registry.register({
-      name: 'read_file',
-      description: 'Read a user-selected workspace file',
-      permission: 'read',
-      execute: async ({ path }) => {
-        if (typeof path !== 'string' || !path.trim()) throw new Error('A file path is required.');
-        const content = await fileSystem.readFile(path);
-        return { path, content, type: 'read' };
-      },
-    });
-    // Real write_file using native bridge filesystem
-    registry.register({
-      name: 'write_file',
-      description: 'Write or edit a workspace file (requires approval)',
-      permission: 'write',
-      execute: async ({ path, content }) => {
-        if (typeof path !== 'string' || !path.trim()) throw new Error('A file path is required.');
-        await fileSystem.writeFile(path, content || '');
-        return { path, content: content || '', type: 'write' };
-      },
-    });
-    // Search workspace files by query
-    registry.register({
-      name: 'search',
-      description: 'Search workspace files and folders by name or extension',
-      permission: 'read',
-      execute: async ({ query, workspaceTree }) => {
-        const results = searchFiles(query || '', workspaceTree || []);
-        return { query, results, count: results.length, type: 'search' };
-      },
-    });
-    // Terminal command execution (improved - supports common commands)
-    registry.register({
-      name: 'terminal',
-      description: 'Execute terminal/shell commands (ls, pwd, echo, cat, mkdir, touch, rm)',
-      permission: 'dangerous',
-      execute: async ({ command, workspacePath = '' }) => {
-        if (typeof command !== 'string' || !command.trim()) {
-          throw new Error('A command is required.');
-        }
-
-        const cmd = command.trim();
-        const lowerCmd = cmd.toLowerCase();
-
-        if (lowerCmd === 'pwd' || lowerCmd === 'ls' || lowerCmd.startsWith('ls ')) {
-          return {
-            command: cmd,
-            output: `Current directory: ${workspacePath || '/workspace'}\n(Use Workspace tab for full file listing)`,
-            type: 'terminal',
-            status: 'completed',
-            simulated: true,
-          };
-        }
-
-        if (lowerCmd.startsWith('echo ')) {
-          return {
-            command: cmd,
-            output: cmd.slice(5),
-            type: 'terminal',
-            status: 'completed',
-            simulated: true,
-          };
-        }
-
-        if (lowerCmd.startsWith('cat ')) {
-          return {
-            command: cmd,
-            output: `[Simulated] Would show contents of: ${cmd.slice(4).trim()}`,
-            type: 'terminal',
-            status: 'completed',
-            simulated: true,
-          };
-        }
-
-        if (lowerCmd.startsWith('mkdir ')) {
-          return {
-            command: cmd,
-            output: `Created directory: ${cmd.slice(6).trim()}`,
-            type: 'terminal',
-            status: 'completed',
-            simulated: true,
-          };
-        }
-
-        if (lowerCmd.startsWith('touch ')) {
-          return {
-            command: cmd,
-            output: `Created file: ${cmd.slice(6).trim()}`,
-            type: 'terminal',
-            status: 'completed',
-            simulated: true,
-          };
-        }
-
-        if (lowerCmd.startsWith('rm ')) {
-          return {
-            command: cmd,
-            output: `Would delete: ${cmd.slice(3).trim()}`,
-            type: 'terminal',
-            status: 'completed',
-            simulated: true,
-          };
-        }
-
-        return {
-          command: cmd,
-          output: `Executed (simulated): ${cmd}\n\nNote: Full shell execution is limited for safety.`,
-          type: 'terminal',
-          status: 'completed',
-          simulated: true,
-        };
-      },
-    });
-    // Index files by extension/folder for retrieval
-    registry.register({
-      name: 'index',
-      description: 'Build or retrieve workspace file index',
-      permission: 'read',
-      execute: async ({ workspaceTree, filterType }) => {
-        const index = buildFileIndex(workspaceTree || []);
-        const result = filterType ? index.byExtension[filterType] || [] : index;
-        return { index: result, type: 'index', count: Array.isArray(result) ? result.length : (result.count || 0) };
-      },
-    });
-    // Rename a file or folder
-    registry.register({
-      name: 'rename',
-      description: 'Rename a file or folder (requires approval)',
-      permission: 'write',
-      execute: async ({ path, newName }) => {
-        if (!path || !newName) throw new Error('Both path and newName are required.');
-        const parentPath = path.substring(0, path.lastIndexOf('/'));
-        const newPath = parentPath + '/' + newName;
-        await fileSystem.rename(path, newPath);
-        return { oldPath: path, newPath, type: 'rename' };
-      },
-    });
-    // Delete a file or folder
-    registry.register({
-      name: 'delete',
-      description: 'Delete a file or folder (requires approval)',
-      permission: 'dangerous',
-      execute: async ({ path }) => {
-        if (!path) throw new Error('A file path is required.');
-        await fileSystem.deleteFile(safePath(path));
-        return { path, type: 'delete' };
-      },
-    });
-    return registry;
-  }, []);
+  // One registry executes tools through the same scoped provider used by the UI.
+  const agentToolRegistry = useMemo(
+    () => createWorkspaceToolRegistry(workspaceProvider),
+    [workspaceProvider],
+  );
 
   const agentApprovalGate = useMemo(() => new ApprovalGate(), []);
+  useEffect(() => {
+    agentApprovalGate.clear();
+    setPendingActions([]);
+  }, [agentApprovalGate, workspaceProvider.id]);
 
-  const agentCore = useMemo(() => {
-    const core = new AgentCore({
-      toolRegistry: agentToolRegistry,
-      approvalGate: agentApprovalGate,
-      provider,
-    });
-    core.registerPlugin({
-      id: 'base-capabilities',
-      name: 'Base Capabilities',
-      version: '0.1.0',
-      registerTools: ({ register }) => {
-        register({
-          name: 'read_file',
-          description: 'Read a workspace file using native filesystem',
-          permission: 'read',
-          execute: async ({ path }) => {
-            if (typeof path !== 'string' || !path.trim()) throw new Error('A file path is required.');
-            const content = await fileSystem.readFile(path);
-            return { path, content, type: 'read' };
-          },
-        });
-        register({
-          name: 'write_file',
-          description: 'Write or edit a workspace file (approval required)',
-          permission: 'write',
-          execute: async ({ path, content }) => {
-            if (typeof path !== 'string' || !path.trim()) throw new Error('A file path is required.');
-            await fileSystem.writeFile(path, content || '');
-            return { path, content: content || '', type: 'write' };
-          },
-        });
-        register({
-          name: 'search',
-          description: 'Search workspace files by query and extension',
-          permission: 'read',
-          execute: async ({ query, workspaceTree }) => {
-            const results = searchFiles(query || '', workspaceTree || []);
-            return { query, results, count: results.length, type: 'search' };
-          },
-        });
-        register({
-          name: 'terminal',
-          description: 'Execute terminal/shell commands (ls, pwd, echo, cat, mkdir, touch)',
-          permission: 'dangerous',
-          execute: async ({ command, workspacePath = '' }) => {
-            if (typeof command !== 'string' || !command.trim()) {
-              throw new Error('A command is required.');
-            }
-            const cmd = command.trim();
-            const lowerCmd = cmd.toLowerCase();
-
-            if (lowerCmd === 'pwd' || lowerCmd === 'ls' || lowerCmd.startsWith('ls ')) {
-              return { command: cmd, output: `Current directory: ${workspacePath || '/workspace'}`, type: 'terminal', status: 'completed', simulated: true };
-            }
-            if (lowerCmd.startsWith('echo ')) {
-              return { command: cmd, output: cmd.slice(5), type: 'terminal', status: 'completed', simulated: true };
-            }
-            return { command: cmd, output: `Executed (simulated): ${cmd}`, type: 'terminal', status: 'completed', simulated: true };
-          },
-        });
-        register({
-          name: 'index',
-          description: 'Build or retrieve a workspace file index by extension or folder',
-          permission: 'read',
-          execute: async ({ workspaceTree, filterType }) => {
-            const index = buildFileIndex(workspaceTree || []);
-            const result = filterType ? index.byExtension[filterType] || [] : index;
-            return { index: result, type: 'index', count: Array.isArray(result) ? result.length : result.count || 0 };
-          },
-        });
-        register({
-          name: 'rename',
-          description: 'Rename a file or folder (approval required)',
-          permission: 'write',
-          execute: async ({ path, newName }) => {
-            if (!path || !newName) throw new Error('Both path and newName are required.');
-            const parentPath = path.substring(0, path.lastIndexOf('/'));
-            const newPath = parentPath + '/' + newName;
-            await fileSystem.rename(path, newPath);
-            return { oldPath: path, newPath, type: 'rename' };
-          },
-        });
-        register({
-          name: 'delete',
-          description: 'Delete a file or folder (approval required)',
-          permission: 'dangerous',
-          execute: async ({ path }) => {
-            if (!path) throw new Error('A file path is required.');
-            await fileSystem.deleteFile(safePath(path));
-            return { path, type: 'delete' };
-          },
-        });
-      },
-    });
-    return core;
-  }, [agentToolRegistry, agentApprovalGate, provider]);
+  const agentCore = useMemo(() => new AgentCore({
+    toolRegistry: agentToolRegistry,
+    approvalGate: agentApprovalGate,
+    provider,
+  }), [agentToolRegistry, agentApprovalGate, provider]);
 
   // Execute read-only agent actions without showing an approval prompt.
   // The approval gate still consumes each request and the tool registry remains the authority.
@@ -601,7 +297,7 @@ export default function App() {
         query: text,
         workspaceTree,
         selectedPath: selectedFilePath,
-        fileSystem,
+        workspaceProvider,
         maxFiles: 4,
       });
       ragContext = formatContextForPrompt(contextItems);
@@ -614,7 +310,7 @@ export default function App() {
     try {
       const agentResult = await agentCore.processMessage({
         message: text,
-        workspace: { path: workspaceRootPath, name: 'workspace', tree: workspaceTree, selectedPath: selectedFilePath },
+        workspace: { path: '', rootId: workspaceProvider.id, name: 'workspace', tree: workspaceTree, selectedPath: selectedFilePath },
       });
       // Only keep tool-based proposed actions (those that have a gate entry).
       // agent_review / plan_task items are informational and have no gate entry,
@@ -682,7 +378,7 @@ export default function App() {
         setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: friendly, level: 'error' } : m));
       }
     } finally { setIsTyping(false); setModelStatus('idle'); setAbortController(null); }
-  }, [activeModel, messages, downloads, provider, agentCore, autoExecuteSafeActions, trimHistory, workspaceTree, workspaceRootPath, selectedFilePath]);
+  }, [activeModel, messages, downloads, provider, agentCore, autoExecuteSafeActions, trimHistory, workspaceTree, workspaceRootPath, selectedFilePath, workspaceProvider]);
 
   const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
 
@@ -706,6 +402,7 @@ export default function App() {
     // Execute through agent core with approval
     try {
       const result = await agentCore.executeApprovedAction(actionId);
+      if (['write_file', 'rename', 'delete'].includes(action.type)) await loadWorkspace();
       addSystemMessage(`Agent executed: ${action.type} -> ${JSON.stringify(result)}`, 'info');
       addMessage('assistant', `Done! Executed ${action.type} with result: ${JSON.stringify(result)}`);
     } catch (execError) {
@@ -713,7 +410,7 @@ export default function App() {
     }
 
     if (isNative) await haptics.success();
-  }, [pendingActions, agentCore]);
+  }, [pendingActions, agentCore, loadWorkspace]);
 
   // Handle action discard
   const handleDiscardAction = useCallback((actionId) => {
@@ -909,7 +606,7 @@ export default function App() {
               onFolderCreate={handleFolderCreate}
               onFileRename={handleFileRename}
               onFileDelete={handleFileDelete}
-              onRefresh={loadWorkspace}
+              onRefresh={() => loadWorkspace()}
               onChooseWorkspace={chooseWorkspace}
             />
           </motion.div>

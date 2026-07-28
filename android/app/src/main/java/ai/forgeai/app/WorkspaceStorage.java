@@ -91,8 +91,11 @@ public class WorkspaceStorage extends Plugin {
     @PluginMethod
     public void list(PluginCall call) {
         try {
+            String path = call.getString("path", "");
+            DocumentFile directory = resolve(root(call), path, false);
+            if (!directory.isDirectory()) throw new IllegalArgumentException("Workspace path is not a folder.");
             JSObject result = new JSObject();
-            result.put("children", listNode(root(call), "", 0));
+            result.put("children", listNode(directory, path, 0));
             call.resolve(result);
         } catch (Exception e) { call.reject(e.getMessage()); }
     }

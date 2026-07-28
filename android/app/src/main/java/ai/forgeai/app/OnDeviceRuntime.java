@@ -10,6 +10,7 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.RandomAccessFile;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -57,7 +58,14 @@ public class OnDeviceRuntime extends Plugin {
         }
         String path = call.getString("path", "");
         if (path.isEmpty()) { runtimeState = nativeIsLoaded() ? "READY" : "IDLE"; call.reject("A model path is required"); return; }
-        if (nativeLoad(path)) { runtimeState = "READY"; call.resolve(); } else { runtimeState = "ERROR"; call.reject("Model could not be loaded safely"); }
+        File model = new File(path);
+        if (!model.isFile()) { runtimeState = "ERROR"; call.reject("Model file does not exist: " + path); return; }
+        if (model.length() < 4096) { runtimeState = "ERROR"; call.reject("Model file is too small or incomplete: " + model.length() + " bytes"); return; }
+        try (RandomAccessFile input = new RandomAccessFile(model, "r")) {
+            byte[] magic = new byte[4]; input.readFully(magic);
+            if (magic[0] != 'G' || magic[1] != 'G' || magic[2] != 'U' || magic[3] != 'F') { runtimeState = "ERROR"; call.reject("Invalid GGUF header; file may be corrupted or not a GGUF model"); return; }
+        } catch (Exception error) { runtimeState = "ERROR"; call.reject("Unable to inspect model file: " + error.getMessage()); return; }
+        if (nativeLoad(path)) { runtimeState = "READY"; call.resolve(); } else { runtimeState = "ERROR"; call.reject("llama.cpp rejected the GGUF model. File size: " + model.length() + " bytes"); }
     }
 
     @PluginMethod

@@ -79,6 +79,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
           const durablePath = model.file || `${model.id}.gguf`;
           await trackProgress({ status: 'downloading', progress: 0 });
           const durable = await downloadModelToWorkspace(modelFolderUri, model.downloadUrl, durablePath, trackProgress);
+          if (durable?.paused) return { success: false, paused: true, completed: durable.completed, total: durable.total };
           const imported = await importModelToRuntime(modelFolderUri, durablePath);
           result = { ...durable, ...imported, sourceUri: modelFolderUri, durablePath };
           trackProgress({ status: 'completed', progress: 100, completed: result.size || 0, total: result.size || 0 });
@@ -128,8 +129,11 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
   const pauseDownload = useCallback(async (model) => {
     if (isNative) {
       const uri = localStorage.getItem('forgeai_model_folder_uri') || '';
-      if (uri.startsWith('content://')) return pauseWorkspaceModelDownload(uri, model.file || `${model.id}.gguf`);
-      return pauseOnDeviceDownload(model.file || `${model.id}.gguf`);
+      const result = uri.startsWith('content://')
+        ? await pauseWorkspaceModelDownload(uri, model.file || `${model.id}.gguf`)
+        : await pauseOnDeviceDownload(model.file || `${model.id}.gguf`);
+      setDownloads(d => ({ ...d, [model.id]: { ...d[model.id], status: 'paused' } }));
+      return result;
     }
     controllers.current.get(model.id)?.abort();
     setDownloads(d => ({ ...d, [model.id]: { ...d[model.id], status: 'paused' } }));

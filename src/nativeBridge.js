@@ -30,6 +30,8 @@ export async function downloadModelToWorkspace(uri, url, path, onProgress) {
   const listener = await WorkspaceStorage.addListener('modelDownloadProgress', event => { if (event.path === path) onProgress?.(event); });
   try { return await WorkspaceStorage.download({ uri, url, path }); } finally { await listener.remove(); }
 }
+export async function pauseWorkspaceModelDownload(uri, path) { return WorkspaceStorage.pauseDownload({ uri, path }); }
+export async function cancelWorkspaceModelDownload(uri, path) { return WorkspaceStorage.cancelDownload({ uri, path }); }
 export async function importModelToRuntime(uri, path) { return WorkspaceStorage.importToRuntime({ uri, path }); }
 
 export async function getOnDeviceRuntimeInfo() {

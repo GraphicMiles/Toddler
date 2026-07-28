@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   checkOllamaConnection, pullOllamaModel, deleteOllamaModel,
-  downloadOnDeviceModel, pauseOnDeviceDownload, cancelOnDeviceDownload, deleteOnDeviceModel, isNative, downloadModelToWorkspace, importModelToRuntime, listWorkspace
+  downloadOnDeviceModel, pauseOnDeviceDownload, cancelOnDeviceDownload, deleteOnDeviceModel, isNative, downloadModelToWorkspace, pauseWorkspaceModelDownload, cancelWorkspaceModelDownload, importModelToRuntime, listWorkspace
 } from '../nativeBridge';
 
 const STORAGE_KEY = 'forgeai_models';
@@ -127,6 +127,8 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
 
   const pauseDownload = useCallback(async (model) => {
     if (isNative) {
+      const uri = localStorage.getItem('forgeai_model_folder_uri') || '';
+      if (uri.startsWith('content://')) return pauseWorkspaceModelDownload(uri, model.file || `${model.id}.gguf`);
       return pauseOnDeviceDownload(model.file || `${model.id}.gguf`);
     }
     controllers.current.get(model.id)?.abort();
@@ -137,7 +139,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
   const cancelDownload = useCallback(async (modelId) => {
     // Abort the JS request and the native download thread
     controllers.current.get(modelId)?.abort();
-    if (isNative) await cancelOnDeviceDownload(downloadFiles.current.get(modelId) || `${modelId}.gguf`).catch(() => {});
+    if (isNative) { const uri = localStorage.getItem('forgeai_model_folder_uri') || ''; const filename = downloadFiles.current.get(modelId) || `${modelId}.gguf`; if (uri.startsWith('content://')) await cancelWorkspaceModelDownload(uri, filename).catch(() => {}); else await cancelOnDeviceDownload(filename).catch(() => {}); }
     controllers.current.delete(modelId);
     downloadFiles.current.delete(modelId);
     // Remove from downloads entirely so it can be retried immediately

@@ -26,6 +26,9 @@ public class WorkspaceStorage extends Plugin {
     private static final int PICK_TREE = 4101;
     private Uri rootUri;
     private PluginCall pendingPick;
+    private final java.util.concurrent.ConcurrentHashMap<String, Thread> activeModelDownloads = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.concurrent.ConcurrentHashMap<String, HttpURLConnection> modelConnections = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Set<String> pausedModelDownloads = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     @PluginMethod
     public void pickFolder(PluginCall call) {
@@ -156,7 +159,7 @@ public class WorkspaceStorage extends Plugin {
 
     @PluginMethod
     public void download(PluginCall call) {
-        new Thread(() -> {
+        Thread worker = new Thread(() -> {
             try {
                 String url = call.getString("url", ""); String path = call.getString("path", "");
                 if (!url.startsWith("https://") || blocked(path)) throw new IllegalArgumentException("Only HTTPS model downloads are allowed.");
@@ -164,17 +167,29 @@ public class WorkspaceStorage extends Plugin {
                 DocumentFile dir = resolve(folder, slash < 0 ? "" : path.substring(0, slash), true);
                 String name = slash < 0 ? path : path.substring(slash + 1);
                 DocumentFile existing = dir.findFile(name);
-                if (existing != null) existing.delete();
                 String tempName = name + ".part";
-                DocumentFile target = dir.findFile(tempName); if (target != null) target.delete();
-                target = dir.createFile("application/octet-stream", tempName);
+                DocumentFile target = dir.findFile(tempName);
+                long resumed = target == null ? 0 : target.length();
+                if (existing != null && resumed == 0) existing.delete();
+                if (target == null) target = dir.createFile("application/octet-stream", tempName);
                 if (target == null) throw new IllegalArgumentException("Unable to create temporary model file.");
-                HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection(); connection.setConnectTimeout(20000); connection.setReadTimeout(120000); connection.connect();
-                if (connection.getResponseCode() < 200 || connection.getResponseCode() >= 300) throw new IllegalArgumentException("Model download failed: HTTP " + connection.getResponseCode());
-                long expected = connection.getContentLengthLong();
-                try (InputStream in = connection.getInputStream(); OutputStream out = getContext().getContentResolver().openOutputStream(target.getUri(), "wt")) { byte[] buffer = new byte[262144]; int n; long total = 0; long last = 0; while ((n = in.read(buffer)) != -1) { out.write(buffer, 0, n); total += n; long now = System.currentTimeMillis(); if (now - last > 250) { last = now; JSObject progress = new JSObject(); progress.put("path", path); progress.put("completed", total); progress.put("total", expected); progress.put("progress", expected > 0 ? (int)(total * 100 / expected) : 0); notifyListeners("modelDownloadProgress", progress); } } JSObject progress = new JSObject(); progress.put("path", path); progress.put("completed", total); progress.put("total", total); progress.put("progress", 100); notifyListeners("modelDownloadProgress", progress); if (!target.renameTo(name)) { target.delete(); throw new IllegalArgumentException("Unable to finalize model download."); } JSObject result = new JSObject(); result.put("path", path); result.put("size", total); call.resolve(result); }
+                HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection(); connection.setConnectTimeout(20000); connection.setReadTimeout(120000); if (resumed > 0) connection.setRequestProperty("Range", "bytes=" + resumed + "-"); connection.connect();
+                int response = connection.getResponseCode();
+                if (resumed > 0 && response != 206) { target.delete(); resumed = 0; connection.disconnect(); connection = (HttpURLConnection) new URL(url).openConnection(); connection.setConnectTimeout(20000); connection.setReadTimeout(120000); connection.connect(); response = connection.getResponseCode(); }
+                if (response < 200 || response >= 300) throw new IllegalArgumentException("Model download failed: HTTP " + response);
+                modelConnections.put(path, connection);
+                long expected = connection.getContentLengthLong(); if (expected > 0) expected += resumed;
+                try (InputStream in = connection.getInputStream(); OutputStream out = getContext().getContentResolver().openOutputStream(target.getUri(), resumed > 0 ? "wa" : "wt")) { byte[] buffer = new byte[262144]; int n; long total = resumed; long last = 0; while ((n = in.read(buffer)) != -1) { if (Thread.currentThread().isInterrupted() || pausedModelDownloads.contains(path)) { out.flush(); break; } out.write(buffer, 0, n); total += n; long now = System.currentTimeMillis(); if (now - last > 250) { last = now; JSObject progress = new JSObject(); progress.put("path", path); progress.put("completed", total); progress.put("total", expected); progress.put("progress", expected > 0 ? (int)(total * 100 / expected) : 0); notifyListeners("modelDownloadProgress", progress); } } if (!pausedModelDownloads.contains(path) && !Thread.currentThread().isInterrupted()) { JSObject progress = new JSObject(); progress.put("path", path); progress.put("completed", total); progress.put("total", total); progress.put("progress", 100); notifyListeners("modelDownloadProgress", progress); if (!target.renameTo(name)) { target.delete(); throw new IllegalArgumentException("Unable to finalize model download."); } JSObject result = new JSObject(); result.put("path", path); result.put("size", total); call.resolve(result); } else { JSObject result = new JSObject(); result.put("paused", true); result.put("path", path); result.put("completed", total); call.resolve(result); } }
+                modelConnections.remove(path); connection.disconnect();
                 connection.disconnect();
             } catch (Exception e) { call.reject(e.getMessage()); }
-        }).start();
+        });
+        String key = call.getString("path", ""); activeModelDownloads.put(key, worker); worker.start();
     }
+
+    @PluginMethod
+    public void pauseDownload(PluginCall call) { String path = call.getString("path", ""); pausedModelDownloads.add(path); HttpURLConnection c = modelConnections.get(path); if (c != null) c.disconnect(); Thread t = activeModelDownloads.get(path); if (t != null) t.interrupt(); call.resolve(); }
+
+    @PluginMethod
+    public void cancelDownload(PluginCall call) { String path = call.getString("path", ""); pausedModelDownloads.remove(path); HttpURLConnection c = modelConnections.remove(path); if (c != null) c.disconnect(); Thread t = activeModelDownloads.remove(path); if (t != null) t.interrupt(); try { DocumentFile folder = root(call); int slash = path.lastIndexOf('/'); DocumentFile dir = resolve(folder, slash < 0 ? "" : path.substring(0, slash), false); DocumentFile part = dir.findFile((slash < 0 ? path : path.substring(slash + 1)) + ".part"); if (part != null) part.delete(); } catch (Exception ignored) {} call.resolve(); }
 }

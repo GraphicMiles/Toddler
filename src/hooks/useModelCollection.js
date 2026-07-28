@@ -78,7 +78,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
         if (modelFolderUri.startsWith('content://')) {
           const durablePath = model.file || `${model.id}.gguf`;
           await trackProgress({ status: 'downloading', progress: 0 });
-          const durable = await downloadModelToWorkspace(modelFolderUri, model.downloadUrl, durablePath);
+          const durable = await downloadModelToWorkspace(modelFolderUri, model.downloadUrl, durablePath, trackProgress);
           const imported = await importModelToRuntime(modelFolderUri, durablePath);
           result = { ...durable, ...imported, sourceUri: modelFolderUri, durablePath };
           trackProgress({ status: 'completed', progress: 100, completed: result.size || 0, total: result.size || 0 });

@@ -26,7 +26,10 @@ export async function createWorkspaceFolder(uri, path) { return WorkspaceStorage
 export async function renameWorkspaceItem(uri, path, newName) { return WorkspaceStorage.rename({ uri, path, newName }); }
 export async function deleteWorkspaceItem(uri, path) { return WorkspaceStorage.delete({ uri, path }); }
 export async function inspectWorkspaceItem(uri, path) { return WorkspaceStorage.inspect({ uri, path }); }
-export async function downloadModelToWorkspace(uri, url, path) { return WorkspaceStorage.download({ uri, url, path }); }
+export async function downloadModelToWorkspace(uri, url, path, onProgress) {
+  const listener = await WorkspaceStorage.addListener('modelDownloadProgress', event => { if (event.path === path) onProgress?.(event); });
+  try { return await WorkspaceStorage.download({ uri, url, path }); } finally { await listener.remove(); }
+}
 export async function importModelToRuntime(uri, path) { return WorkspaceStorage.importToRuntime({ uri, path }); }
 
 export async function getOnDeviceRuntimeInfo() {

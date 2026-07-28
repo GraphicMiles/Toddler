@@ -1,20 +1,23 @@
 /**
- * Native Android Browser Automation
- * Uses Android intents and App plugin for real browser control.
+ * Native Android Browser Automation (WebView + JavaScript Injection)
+ * 
+ * This provides deeper browser automation than just opening URLs.
+ * It uses Android's WebView capabilities.
  */
 
-import { App } from '@capacitor/app';
+import { registerPlugin } from '@capacitor/core';
+
+const BrowserAutomationPlugin = registerPlugin('BrowserAutomationPlugin');
 
 export class NativeBrowserAutomation {
   async navigate(url) {
     try {
-      // On Android, we can open URLs via the system browser
-      await App.openUrl({ url });
+      const result = await BrowserAutomationPlugin.navigate({ url });
       return {
         status: 'success',
         url,
-        note: 'Opened in system browser',
         native: true,
+        ...result,
       };
     } catch (error) {
       return {
@@ -26,39 +29,39 @@ export class NativeBrowserAutomation {
   }
 
   async click(selector) {
-    return {
-      status: 'limited',
-      selector,
-      note: 'Deep browser automation requires WebView plugin',
-      native: true,
-    };
+    try {
+      const result = await BrowserAutomationPlugin.click({ selector });
+      return { status: 'success', selector, native: true, ...result };
+    } catch (error) {
+      return { status: 'error', selector, message: error.message };
+    }
   }
 
   async fill(selector, value) {
-    return {
-      status: 'limited',
-      selector,
-      value,
-      note: 'Form filling requires WebView plugin',
-      native: true,
-    };
+    try {
+      const result = await BrowserAutomationPlugin.fill({ selector, value });
+      return { status: 'success', selector, value, native: true, ...result };
+    } catch (error) {
+      return { status: 'error', selector, value, message: error.message };
+    }
   }
 
   async extract(selector) {
-    return {
-      status: 'limited',
-      selector,
-      note: 'Content extraction requires WebView plugin',
-      native: true,
-    };
+    try {
+      const result = await BrowserAutomationPlugin.extract({ selector });
+      return { status: 'success', selector, data: result?.data || [], native: true };
+    } catch (error) {
+      return { status: 'error', selector, message: error.message };
+    }
   }
 
   async screenshot() {
-    return {
-      status: 'limited',
-      note: 'Screenshots require native implementation',
-      native: true,
-    };
+    try {
+      const result = await BrowserAutomationPlugin.screenshot();
+      return { status: 'success', native: true, ...result };
+    } catch (error) {
+      return { status: 'error', message: error.message };
+    }
   }
 }
 

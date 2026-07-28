@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   checkOllamaConnection, pullOllamaModel, deleteOllamaModel,
-  downloadOnDeviceModel, pauseOnDeviceDownload, cancelOnDeviceDownload, deleteOnDeviceModel, isNative, downloadModelToWorkspace, pauseWorkspaceModelDownload, cancelWorkspaceModelDownload, importModelToRuntime, pickModelFile, importDocumentToRuntime, listWorkspace
+  downloadOnDeviceModel, pauseOnDeviceDownload, cancelOnDeviceDownload, deleteOnDeviceModel, isNative, downloadModelToWorkspace, pauseWorkspaceModelDownload, cancelWorkspaceModelDownload, importModelToRuntime, pickModelFile, importDocumentToRuntime, deleteWorkspaceItem, listWorkspace
 } from '../nativeBridge';
 
 const STORAGE_KEY = 'forgeai_models';
@@ -41,7 +41,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
         const treeResult = await listWorkspace(uri);
         const paths = flatten(treeResult?.children || treeResult?.value || treeResult || []);
         for (const path of paths) {
-          if (cancelled || models.some(model => model.sourcePath === path)) continue;
+          if (cancelled || models.some(model => model.sourcePath === path || model.file === path.split('/').pop())) continue;
           try {
             const imported = await importModelToRuntime(uri, path);
             const id = `imported-${path.split('/').pop().replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
@@ -160,8 +160,9 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     const model = models.find(m => m.id === modelId);
     if (!model) return;
     try {
+      if (isNative && model.sourceUri && model.sourcePath) await deleteWorkspaceItem(model.sourceUri, model.sourcePath);
       if (isNative && model.localPath) await deleteOnDeviceModel(model.localPath);
-      else await deleteOllamaModel(model.ollamaName || model.id, endpoint);
+      else if (!isNative) await deleteOllamaModel(model.ollamaName || model.id, endpoint);
     } catch (e) {
       console.warn('Model delete failed', e);
       return;

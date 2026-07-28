@@ -300,10 +300,10 @@ export default function Workspace({
               <p>{workspace.name || 'Device storage'}</p>
             </div>
             <div className="ws-header-actions">
-              <button className="ws-action-btn" onClick={() => handleNewFile(workspace.path || '')} title="New file">
+              <button className="ws-action-btn" onClick={() => handleNewFile(workspace.path?.startsWith('content://') ? '' : (workspace.path || ''))} title="New file">
                 <FilePlus size={16} />
               </button>
-              <button className="ws-action-btn" onClick={() => handleNewFolder(workspace.path || '')} title="New folder">
+              <button className="ws-action-btn" onClick={() => handleNewFolder(workspace.path?.startsWith('content://') ? '' : (workspace.path || ''))} title="New folder">
                 <FolderPlus size={16} />
               </button>
               <button className="ws-action-btn" onClick={onRefresh} title="Refresh">
@@ -333,7 +333,7 @@ export default function Workspace({
           )}
         </div>
 
-        {workspace.path && <div className="ws-path mono">Path: {workspace.path}</div>}
+        {workspace.path && <div className="ws-path mono">Path: {workspace.path.startsWith('content://') ? 'Selected Android folder' : workspace.path}</div>}
 
         {/* Index summary */}
         {fileIndex.count > 0 && (

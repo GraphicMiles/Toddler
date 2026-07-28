@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { validatorRegistry } from '../skills/validators/ValidatorRegistry.js';
-import { AlertTriangle, Shield, CheckCircle } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 
 export default function SkillValidatorSettings() {
   const [activeValidators, setActiveValidators] = useState(validatorRegistry.getActiveValidators());
@@ -45,11 +45,6 @@ export default function SkillValidatorSettings() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {available.map(key => {
             const isActive = activeValidators.includes(key);
-            const ValidatorClass = {
-              'strict-security': 'StrictSecurityScanner',
-              'basic-syntax': 'BasicSyntaxChecker',
-              'passthrough': 'PassthroughValidator'
-            }[key];
 
             return (
               <label key={key} style={{

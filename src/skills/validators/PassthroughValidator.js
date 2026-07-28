@@ -5,7 +5,7 @@ export class PassthroughValidator extends SkillValidator {
     return 'No validation. All skills are accepted (use with trusted sources only).';
   }
 
-  validate(skill, files = {}) {
+  validate(_skill, _files = {}) {
     return {
       validator: this.getName(),
       findings: [],

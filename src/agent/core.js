@@ -12,6 +12,8 @@ import { AgentPluginRegistry, AGENT_PERMISSIONS } from './pluginContract.js';
 import { parseStructuredActions } from './actionProtocol.js';
 import { summarizeUnifiedDiff } from '../patch/unifiedDiff.js';
 import { executeWithApproval } from '../tools/toolApproval.js';
+import { createAdvancedToolRegistry } from '../tools/advancedToolRegistry.js';
+import { episodicMemory } from '../memory/episodicMemory.js';
 
 export class AgentCore {
   constructor(options = {}) {
@@ -20,13 +22,19 @@ export class AgentCore {
     this.approvalGate = options.approvalGate || null;
     this.provider = options.provider || null;
 
+    // Initialize advanced tools if not provided
+    if (!this.toolRegistry && options.workspaceProvider) {
+      this.toolRegistry = createAdvancedToolRegistry(options.workspaceProvider);
+    }
+
     this.context = {
       history: [],
       workspace: {},
       plan: [],
       review: null,
       activeModel: null,
-      previousActions: [], // Track what was done recently
+      previousActions: [],
+      memories: episodicMemory, // Episodic Memory instance
     };
   }
 
@@ -331,6 +339,14 @@ export class AgentCore {
     }
 
     return null;
+  }
+
+  /**
+   * Get list of all available advanced tools (for prompt injection)
+   */
+  getAvailableAdvancedTools() {
+    if (!this.toolRegistry) return [];
+    return this.toolRegistry.list().map(t => t.name);
   }
 
   proposeActions(plan) {

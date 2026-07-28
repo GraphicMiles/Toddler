@@ -44,7 +44,7 @@ export class ValidatorRegistry {
       // Load trusted sources
       const trusted = JSON.parse(localStorage.getItem(TRUSTED_SOURCES_KEY) || '[]');
       this.trustedSources = new Set(trusted);
-    } catch (e) {
+    } catch (_e) {
       console.warn('Failed to load validator config, using defaults');
       this._loadDefaults();
     }

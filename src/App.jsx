@@ -24,10 +24,14 @@ import { enqueueAutonomousTask, readAutonomousQueue, removeAutonomousTask, updat
 import { isAutonomousToolRequest, runFullAutonomyAgent } from './agent/fullAutonomyRunner.js';
 import { ApprovalGate } from './tools/toolApproval.js';
 import { createWorkspaceToolRegistry } from './tools/workspaceTools.js';
+import { createAdvancedToolRegistry } from './tools/advancedToolRegistry.js';
+import { contextCompressor } from './memory/contextCompressor.js';
+import { episodicMemory } from './memory/episodicMemory.js';
 import { retrieveRelevantContext, formatContextForPrompt, shouldRetrieveWorkspaceContext } from './utils/rag.js';
 import { createSafWorkspaceProvider, createVirtualWorkspaceProvider } from './workspace/workspaceProvider.js';
 import { recordError } from './utils/errorLog.js';
 import { loadSafetyPolicyFromFile, setCurrentSafetyPolicy } from './safety/SafetyPolicy.js';
+import { createAdvancedToolRegistry } from './tools/advancedToolRegistry.js';
 import './styles/index.css';
 
 const defaultConversationTitle = () => `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -289,7 +293,7 @@ export default function App() {
 
   // One registry executes tools through the same scoped provider used by the UI.
   const agentToolRegistry = useMemo(
-    () => createWorkspaceToolRegistry(workspaceProvider),
+    () => createAdvancedToolRegistry(workspaceProvider),
     [workspaceProvider],
   );
 
@@ -414,7 +418,25 @@ export default function App() {
     try {
       const ragTokens = Math.ceil(ragContext.length / 4);
       const historyBudget = Math.max(256, activeProfile.contextTokens - activeProfile.maxOutputTokens - ragTokens - 128);
-      const history = trimHistory([...messages, userMessage], historyBudget);
+      
+      // === Apply Context Compression ===
+      let history = trimHistory([...messages, userMessage], historyBudget);
+      history = contextCompressor.compress(history, historyBudget);
+
+      // === Episodic Memory Recall ===
+      const relevantMemories = episodicMemory.recall(text, 3);
+      if (relevantMemories.length > 0) {
+        const memoryContext = relevantMemories.map(m => 
+          `Past experience: ${m.task} → ${m.outcome}. Lesson: ${m.analysis || 'N/A'}`
+        ).join('\n');
+        
+        if (history.length > 0 && history[0].role === 'user') {
+          history[0] = {
+            ...history[0],
+            content: `Relevant past experiences:\n${memoryContext}\n\nCurrent request: ${history[0].content}`
+          };
+        }
+      }
       
       // Inject RAG context into the first user message for the model
       const messagesWithContext = [...history];
@@ -519,6 +541,15 @@ export default function App() {
           measuredAt: Date.now(),
         });
         await haptics.success();
+
+        // === Store Episodic Memory after successful generation ===
+        episodicMemory.store({
+          task: text,
+          outcome: 'Completed successfully',
+          success: true,
+          analysis: `Used model ${activeModel.name}. Task involved ${isCodeChangeRequest(text) ? 'code changes' : 'general assistance'}.`,
+          tags: isCodeChangeRequest(text) ? ['code'] : ['general'],
+        });
       }
     } catch (error) {
       if (phase4Task) {

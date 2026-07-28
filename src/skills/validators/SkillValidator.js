@@ -21,7 +21,7 @@ export class SkillValidator {
    * @param {Object} files - { path: content }
    * @returns {{ verdict: 'pass'|'review'|'reject', findings: Array, summary: Object }}
    */
-  validate(skill, files = {}) {
+  validate(_skill, _files = {}) {
     throw new Error('validate() must be implemented by subclass');
   }
 

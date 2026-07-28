@@ -92,6 +92,8 @@ export default function MyCollection({
           >
             <UserPlus size={14} /> Create Profile
           </button>
+
+          <div className={`ollama-status ${ollamaConnected ? 'connected' : 'disconnected'}`}>
             {ollamaConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
             <span>{runtimeMode || (ollamaConnected ? 'Ollama active' : 'Offline')}</span>
           </div>

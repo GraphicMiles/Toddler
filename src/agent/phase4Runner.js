@@ -3,11 +3,26 @@ import { AGENT_ROLES } from './agentRoles.js';
 import { AgentRunBudget, emitSubagentStage } from './subagentOrchestrator.js';
 import { parseUnifiedDiff } from '../patch/unifiedDiff.js';
 import { skillRegistry } from '../skills/skillRegistry.js';
-import { formatReviewForModel, reviewPatchDeterministically } from '../skills/reviewSkills.js';
+import { formatReviewForModel, reviewCreatedFileDeterministically, reviewPatchDeterministically } from '../skills/reviewSkills.js';
+
+export function isFileCreationRequest(message = '') {
+  return /\b(create|add|make|write|generate)\b/i.test(message)
+    && /\b[\w.-]+\.(?:js|jsx|ts|tsx|json|py|java|kt|cpp|css|html|md|txt|yml|yaml)\b/i.test(message);
+}
+
+export function requestedFilePath(message = '') {
+  return String(message).match(/\b([A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\.(?:js|jsx|ts|tsx|json|py|java|kt|cpp|css|html|md|txt|yml|yaml))\b/i)?.[1] || '';
+}
+
+export function needsCreationFilename(message = '') {
+  return /\b(create|add|make|write|generate)\b/i.test(message)
+    && /\b(file|landing page|stylesheet|component|script|document)\b/i.test(message)
+    && !requestedFilePath(message);
+}
 
 export function isCodeChangeRequest(message = '') {
-  return /\b(fix|implement|change|update|modify|refactor|replace|patch|correct|optimize|remove|rename)\b/i.test(message)
-    && /\b(code|file|function|class|component|bug|error|project|workspace|[\w-]+\.(?:js|jsx|ts|tsx|json|py|java|kt|cpp|css|html|md))\b/i.test(message);
+  return isFileCreationRequest(message) || (/\b(fix|implement|change|update|modify|refactor|replace|patch|correct|optimize|remove|rename)\b/i.test(message)
+    && /\b(code|file|function|class|component|bug|error|project|workspace|[\w-]+\.(?:js|jsx|ts|tsx|json|py|java|kt|cpp|css|html|md))\b/i.test(message));
 }
 
 async function generateText(provider, model, messages, signal, budget) {
@@ -28,6 +43,21 @@ function patchActionFromOutput(output) {
   if (!patch) throw new Error('The local model did not return a JSON patch action or unified diff.');
   const paths = parseUnifiedDiff(patch).map(file => file.newPath);
   return validateStructuredAction({ type: 'propose_patch', paths, rationale: 'Local model returned a directly parseable unified diff.', patch });
+}
+
+function createFileActionFromOutput(output, expectedPath) {
+  try {
+    const actions = parseStructuredActions(output).filter(action => action.type === 'create_file');
+    if (actions.length === 1) return validateStructuredAction({ ...actions[0], paths: [expectedPath || actions[0].paths[0]] });
+  } catch {}
+  const fenced = output.match(/```(?:[a-z0-9_-]+)?\s*([\s\S]*?)```/i);
+  if (!fenced?.[1]?.trim()) throw new Error('The local model did not return a valid create_file action or fenced file content.');
+  return validateStructuredAction({
+    type: 'create_file',
+    paths: [expectedPath],
+    rationale: `Create ${expectedPath} inside the selected workspace root.`,
+    content: fenced[1].trim() + '\n',
+  });
 }
 
 function reviewerVerdict(output) {
@@ -55,7 +85,10 @@ export async function generatePatchProposal({
   budgetOptions,
 }) {
   if (!provider?.stream || !model?.id) throw new Error('A loaded model provider is required for Phase 4.');
-  if (!workspaceContext?.trim()) throw new Error('Workspace context is required before proposing a patch.');
+  const creatingFile = isFileCreationRequest(request);
+  const expectedPath = creatingFile ? requestedFilePath(request) : '';
+  if (creatingFile && !expectedPath) throw new Error('Name the new file with an extension, for example body.css.');
+  if (!workspaceContext?.trim() && !creatingFile) throw new Error('Workspace context is required before proposing a patch.');
   const budget = new AgentRunBudget(budgetOptions);
   emitSubagentStage(onStage, 'planning', { role: AGENT_ROLES.planner.id, budget: budget.snapshot() });
   emitSubagentStage(onStage, 'context', { role: AGENT_ROLES.contextScout.id, budget: budget.snapshot() });
@@ -67,23 +100,25 @@ export async function generatePatchProposal({
   const allowedBySkills = new Set(activeSkills.flatMap(skill => skill.allowedTools));
   const visibleToolNames = toolNames.filter(name => allowedBySkills.has(name));
   const skillInstructions = activeSkills.map(skill => `SKILL ${skill.name}: ${skill.instructions}`).join('\n');
-  const instruction = `${AGENT_ROLES.coder.instructions}\n${structuredActionPrompt(visibleToolNames)}\nReturn exactly one propose_patch action for this request. Modify existing text files only. Preserve unrelated code. The patch must use --- a/path and +++ b/path headers and exact context lines.\n${skillInstructions}`;
-  const userContent = `REQUEST:\n${request}\n\n${projectMemory ? `${projectMemory}\n\n` : ''}WORKSPACE CONTEXT:\n${workspaceContext}`;
+  const operationInstruction = creatingFile
+    ? `Return exactly one create_file action. The path must be exactly "${expectedPath}" relative to the selected workspace root. Return the complete file content and no shell commands or tutorial.`
+    : 'Return exactly one propose_patch action for this request. Modify existing text files only. Preserve unrelated code. The patch must use --- a/path and +++ b/path headers and exact context lines.';
+  const instruction = `${AGENT_ROLES.coder.instructions}\n${structuredActionPrompt(visibleToolNames)}\n${operationInstruction}\n${skillInstructions}`;
+  const userContent = `REQUEST:\n${request}\n\n${projectMemory ? `${projectMemory}\n\n` : ''}WORKSPACE CONTEXT:\n${workspaceContext || '(Selected workspace root is available; no existing file context is required for this new file.)'}`;
   emitSubagentStage(onStage, 'coding', { role: AGENT_ROLES.coder.id, skills: activeSkills.map(skill => skill.id), budget: budget.snapshot() });
   const initial = await generateText(provider, model, [
     { role: 'system', content: instruction },
     { role: 'user', content: userContent },
   ], signal, budget);
-  let action = patchActionFromOutput(initial.output);
+  let action = creatingFile ? createFileActionFromOutput(initial.output, expectedPath) : patchActionFromOutput(initial.output);
   budget.addFiles(action.paths);
 
   emitSubagentStage(onStage, 'reviewing', { role: AGENT_ROLES.reviewer.id, files: action.paths, budget: budget.snapshot() });
-  const deterministic = reviewPatchDeterministically({
-    request,
-    patch: action.patch,
-    enabledSkillIds: reviewerSkillIds,
-  });
-  const reviewPrompt = `${AGENT_ROLES.reviewer.instructions}\nReturn JSON only: {"verdict":"pass"|"revise","issues":["specific issue"]}.\nOriginal request:\n${request}\n\nProposed patch:\n${action.patch}\n\n${formatReviewForModel(deterministic)}`;
+  const deterministic = creatingFile
+    ? reviewCreatedFileDeterministically({ request, path: action.paths[0], content: action.content, enabledSkillIds: reviewerSkillIds })
+    : reviewPatchDeterministically({ request, patch: action.patch, enabledSkillIds: reviewerSkillIds });
+  const artifactLabel = creatingFile ? `Proposed new file ${action.paths[0]}:\n${action.content}` : `Proposed patch:\n${action.patch}`;
+  const reviewPrompt = `${AGENT_ROLES.reviewer.instructions}\nReturn JSON only: {"verdict":"pass"|"revise","issues":["specific issue"]}.\nOriginal request:\n${request}\n\n${artifactLabel}\n\n${formatReviewForModel(deterministic)}`;
   const critic = await generateText(provider, model, [{ role: 'system', content: reviewPrompt }, { role: 'user', content: 'Review this patch now.' }], signal, budget);
   const modelReview = reviewerVerdict(critic.output);
   const needsRevision = deterministic.verdict === 'revise' || modelReview.verdict === 'revise';
@@ -93,16 +128,18 @@ export async function generatePatchProposal({
     emitSubagentStage(onStage, 'revising', { role: AGENT_ROLES.coder.id, budget: budget.snapshot() });
     const critique = [formatReviewForModel(deterministic), ...modelReview.issues.map(issue => `- Model reviewer: ${issue}`)].join('\n');
     const revision = await generateText(provider, model, [
-      { role: 'system', content: `${AGENT_ROLES.coder.instructions}\n${structuredActionPrompt(visibleToolNames)}\nRevise the patch once. Return exactly one propose_patch action and no commentary.` },
-      { role: 'user', content: `${userContent}\n\nORIGINAL PATCH:\n${action.patch}\n\nREVIEW TO ADDRESS:\n${critique}` },
+      { role: 'system', content: `${AGENT_ROLES.coder.instructions}\n${structuredActionPrompt(visibleToolNames)}\nRevise the ${creatingFile ? 'new file' : 'patch'} once. Return exactly one ${creatingFile ? 'create_file' : 'propose_patch'} action and no commentary.` },
+      { role: 'user', content: `${userContent}\n\nORIGINAL ${creatingFile ? 'FILE' : 'PATCH'}:\n${creatingFile ? action.content : action.patch}\n\nREVIEW TO ADDRESS:\n${critique}` },
     ], signal, budget);
-    action = patchActionFromOutput(revision.output);
+    action = creatingFile ? createFileActionFromOutput(revision.output, expectedPath) : patchActionFromOutput(revision.output);
     budget.addFiles(action.paths);
     revisionResult = revision.generationResult;
   }
 
   emitSubagentStage(onStage, 'verifying', { role: AGENT_ROLES.verifier.id, files: action.paths, budget: budget.snapshot() });
-  const finalReview = reviewPatchDeterministically({ request, patch: action.patch, enabledSkillIds: reviewerSkillIds });
+  const finalReview = creatingFile
+    ? reviewCreatedFileDeterministically({ request, path: action.paths[0], content: action.content, enabledSkillIds: reviewerSkillIds })
+    : reviewPatchDeterministically({ request, patch: action.patch, enabledSkillIds: reviewerSkillIds });
   if (finalReview.verdict === 'revise') {
     throw new Error(`Patch remained blocked after one revision: ${finalReview.issues.filter(issue => issue.severity === 'high' || issue.severity === 'critical').map(issue => `${issue.path}: ${issue.message}`).join('; ')}`);
   }

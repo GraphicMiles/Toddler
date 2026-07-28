@@ -4,6 +4,7 @@ export const STRUCTURED_ACTION_TYPES = Object.freeze([
   'read_file',
   'search_files',
   'propose_patch',
+  'create_file',
   'plan',
 ]);
 
@@ -11,6 +12,7 @@ const MAX_ACTIONS = 8;
 const MAX_PATHS = 12;
 const MAX_RATIONALE = 2000;
 const MAX_PATCH = 200_000;
+const MAX_FILE_CONTENT = 200_000;
 
 function requireString(value, label, maximum) {
   if (typeof value !== 'string' || !value.trim()) throw new Error(`${label} is required.`);
@@ -28,6 +30,10 @@ export function validateStructuredAction(input) {
   const action = { type: input.type, paths: normalizedPaths, rationale };
 
   if (input.type === 'read_file' && normalizedPaths.length !== 1) throw new Error('read_file requires exactly one path.');
+  if (input.type === 'create_file') {
+    if (normalizedPaths.length !== 1) throw new Error('create_file requires exactly one path.');
+    action.content = requireString(input.content, 'New file content', MAX_FILE_CONTENT);
+  }
   if (input.type === 'search_files') action.query = requireString(input.query || input.rationale, 'Search query', 500);
   if (input.type === 'propose_patch') {
     action.patch = requireString(input.patch, 'Unified diff', MAX_PATCH);
@@ -37,6 +43,7 @@ export function validateStructuredAction(input) {
   } else if (input.patch != null) {
     throw new Error(`${input.type} must not include a patch.`);
   }
+  if (input.type !== 'create_file' && input.content != null) throw new Error(`${input.type} must not include file content.`);
   return Object.freeze(action);
 }
 
@@ -62,5 +69,5 @@ export function parseStructuredActions(text) {
 }
 
 export function structuredActionPrompt(toolNames = []) {
-  return `Return JSON only with an actions array. Each action must use one of: ${STRUCTURED_ACTION_TYPES.join(', ')}. Paths must be relative to the selected workspace. Never request a shell command. Available app tools: ${toolNames.join(', ') || 'none'}. For code changes, return a standard unified diff in a propose_patch action. Writes are proposals only and require user approval.`;
+  return `Return JSON only with an actions array. Each action must use one of: ${STRUCTURED_ACTION_TYPES.join(', ')}. Paths must be relative to the selected workspace root. Never repeat the root folder name and never request a shell command. Available app tools: ${toolNames.join(', ') || 'none'}. For existing-file code changes, return a standard unified diff in a propose_patch action. For a new file, return create_file with exactly one path and complete content. Writes are proposals only and require user approval.`;
 }

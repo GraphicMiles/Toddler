@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
-import { generatePatchProposal, isCodeChangeRequest } from '../src/agent/phase4Runner.js';
+import { generatePatchProposal, isCodeChangeRequest, isFileCreationRequest, needsCreationFilename, requestedFilePath } from '../src/agent/phase4Runner.js';
 
 assert.equal(isCodeChangeRequest('Fix the bug in src/App.jsx'), true);
+assert.equal(isFileCreationRequest('Create body.css in the workspace'), true);
+assert.equal(requestedFilePath('Create body.css in the toddler workspace'), 'body.css');
+assert.equal(needsCreationFilename('Write a landing page for me'), true);
+assert.equal(needsCreationFilename('Create index.html'), false);
 assert.equal(isCodeChangeRequest('Explain src/App.jsx'), false);
 assert.equal(isCodeChangeRequest('Hello'), false);
 
@@ -43,5 +47,19 @@ const directProvider = {
 };
 const direct = await generatePatchProposal({ provider: directProvider, model: { id: 'coder' }, request: 'Fix src/App.jsx', workspaceContext: 'old' });
 assert.equal(direct.action.paths[0], 'src/App.jsx');
+let createCalls = 0;
+const createProvider = {
+  async stream({ onToken }) {
+    createCalls++;
+    onToken(createCalls === 1
+      ? JSON.stringify({ actions: [{ type: 'create_file', paths: ['toddler/body.css'], rationale: 'Create stylesheet.', content: 'body { color: white; }' }] })
+      : JSON.stringify({ verdict: 'pass', issues: [] }));
+    return { tokenCount: 20 };
+  },
+};
+const created = await generatePatchProposal({ provider: createProvider, model: { id: 'coder' }, request: 'Create body.css in the toddler workspace', workspaceContext: '' });
+assert.equal(created.action.type, 'create_file');
+assert.deepEqual(created.action.paths, ['body.css']);
+assert.match(created.action.content, /color: white/);
 await assert.rejects(() => generatePatchProposal({ provider, model: { id: 'coder' }, request: 'Fix it', workspaceContext: '' }), /context is required/);
 console.log('phase 4 runner tests passed');

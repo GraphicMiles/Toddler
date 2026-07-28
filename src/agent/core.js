@@ -451,16 +451,18 @@ export class AgentCore {
       if (!this.toolRegistry.get(toolName)) throw new Error(`Structured action requested an unavailable tool: ${toolName}`);
       const input = action.type === 'propose_patch'
         ? { patch: action.patch }
-        : action.type === 'search_files'
-          ? { query: action.query, workspaceTree: this.context.workspace?.tree || [] }
-          : { path: action.paths[0] };
+        : action.type === 'create_file'
+          ? { path: action.paths[0], content: action.content }
+          : action.type === 'search_files'
+            ? { query: action.query, workspaceTree: this.context.workspace?.tree || [] }
+            : { path: action.paths[0] };
       const request = this.approvalGate.request(toolName, input);
       return {
         id: request.id,
         type: toolName,
         path: action.paths.join(', '),
         paths: action.paths,
-        content: action.patch || action.query || '',
+        content: action.patch || action.content || action.query || '',
         description: action.rationale,
         permission: this.toolRegistry.get(toolName)?.permission,
         diffSummary: action.patch ? summarizeUnifiedDiff(action.patch) : undefined,

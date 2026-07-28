@@ -77,6 +77,28 @@ export function reviewPatchDeterministically({ request, patch, enabledSkillIds =
   return { verdict: blocking ? 'revise' : 'pass', issues, suggestions: [...new Set(suggestions)], summary };
 }
 
+export function reviewCreatedFileDeterministically({ request, path, content, enabledSkillIds = [] }) {
+  const enabled = new Set(enabledSkillIds);
+  const issues = [];
+  const suggestions = [];
+  if (enabled.has('scope-creep-detector')) {
+    const requestedNames = String(request).toLowerCase();
+    if (!requestedNames.includes(path.split('/').pop().toLowerCase())) {
+      issues.push({ skill: 'scope-creep-detector', severity: 'medium', path, message: 'Proposed filename was not explicitly named in the request.' });
+    }
+  }
+  if (enabled.has('security-reviewer')) {
+    for (const line of String(content).split('\n')) {
+      for (const pattern of SECURITY_PATTERNS) {
+        if (pattern.expression.test(line)) issues.push({ skill: 'security-reviewer', severity: pattern.severity, path, message: pattern.message, evidence: line.slice(0, 160) });
+      }
+    }
+  }
+  if (enabled.has('test-planner')) suggestions.push(`Verify ${path} is referenced by the intended HTML/component and renders as expected.`);
+  const blocking = issues.some(issue => issue.severity === 'high' || issue.severity === 'critical');
+  return { verdict: blocking ? 'revise' : 'pass', issues, suggestions, summary: [{ path, additions: String(content).split('\n').length, deletions: 0 }] };
+}
+
 export function formatReviewForModel(review) {
   const issueText = review.issues.length
     ? review.issues.map(issue => `- [${issue.severity}] ${issue.path}: ${issue.message}${issue.evidence ? ` Evidence: ${issue.evidence}` : ''}`).join('\n')

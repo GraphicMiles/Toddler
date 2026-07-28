@@ -13,7 +13,7 @@ import { haptics, isNative, pickWorkspaceFolder } from './nativeBridge';
 import { createModelProvider } from './providers/modelProvider';
 import { getModelProfile } from './models/catalog.js';
 import { AgentCore } from './agent/core.js';
-import { generatePatchProposal, isCodeChangeRequest } from './agent/phase4Runner.js';
+import { generatePatchProposal, isCodeChangeRequest, isFileCreationRequest, needsCreationFilename } from './agent/phase4Runner.js';
 import { buildRequirementsEcho, shouldEchoRequirements } from './skills/reviewSkills.js';
 import { createAgentTask, projectMemoryPrompt, readProjectMemory, updateAgentTask } from './memory/agentMemory.js';
 import { AUTONOMY_LEVELS, readAutonomyLevel, suggestNextActions } from './agent/autonomyPolicy.js';
@@ -170,6 +170,15 @@ export default function App() {
   }, [loadWorkspace, workspaceProvider]);
 
   const handleWorkspaceUndo = useCallback(async () => {
+    if (lastWorkspaceBackup?.operation === 'agent-create' && lastWorkspaceBackup.path) {
+      try {
+        await workspaceProvider.delete(lastWorkspaceBackup.path);
+        await loadWorkspace();
+        setLastWorkspaceBackup(null);
+        addSystemMessage(`Removed newly created ${lastWorkspaceBackup.path}.`, 'info');
+      } catch (error) { addSystemMessage(`Workspace restore failed: ${error.message}`, 'error'); }
+      return;
+    }
     const backupIds = lastWorkspaceBackup?.ids || (lastWorkspaceBackup?.id ? [lastWorkspaceBackup.id] : []);
     if (backupIds.length === 0) return;
     try {
@@ -335,6 +344,13 @@ export default function App() {
       ]);
       return;
     }
+    if (needsCreationFilename(text)) {
+      setMessages(previous => [...previous,
+        { id: generateId(), role: 'user', content: text, timestamp: Date.now() },
+        { id: generateId(), role: 'assistant', content: 'What exact relative filename should I create inside the selected workspace? For example: index.html, body.css, or src/components/Hero.jsx.', timestamp: Date.now() },
+      ]);
+      return;
+    }
     if (!activeModel) { addSystemMessage('Please select a model from My Collection first.', 'warn'); return; }
     const activeDownload = downloads[activeModel.id];
     if (activeDownload && (activeDownload.status === 'downloading' || activeDownload.status === 'paused')) {
@@ -401,7 +417,7 @@ export default function App() {
         if (activeModel.task === 'smoke-test' || /135m/i.test(`${activeModel.name} ${activeModel.file}`)) {
           throw new Error('The 135M smoke-test model is too small to produce safe code patches. Select a Qwen Coder model.');
         }
-        if (!ragContext) throw new Error('A code patch needs approved workspace context. Select the relevant file and allow context access.');
+        if (!ragContext && !isFileCreationRequest(text)) throw new Error('A code patch needs approved workspace context. Select the relevant file and allow context access.');
         const proposal = await generatePatchProposal({
           provider,
           model: activeModel,
@@ -423,8 +439,9 @@ export default function App() {
           files: proposal.action.paths,
           event: { type: 'patch-proposed', skills: proposal.activeSkills, revised: proposal.review.revised },
         });
+        const proposalKind = proposal.action.type === 'create_file' ? 'new file' : 'patch';
         setMessages(previous => previous.map(message => message.id === assistantId
-          ? { ...message, content: `I prepared a validated patch proposal for ${proposal.action.paths.join(', ')}. ${proposal.review.revised ? 'The coder revised it once after review. ' : ''}Active skills: ${proposal.activeSkills.join(', ')}. Review the exact diff below before approving it.` }
+          ? { ...message, content: `I prepared a validated ${proposalKind} proposal for ${proposal.action.paths.join(', ')}. ${proposal.review.revised ? 'The coder revised it once after review. ' : ''}Active skills: ${proposal.activeSkills.join(', ')}. Review the exact content below before approving it.` }
           : message));
         generationResult = proposal.generationResult;
       } else {
@@ -516,8 +533,17 @@ export default function App() {
     // Execute through agent core with approval
     try {
       const result = await agentCore.executeApprovedAction(actionId);
-      if (['write_file', 'apply_patch', 'rename', 'delete'].includes(action.type)) await loadWorkspace();
-      if (action.type === 'apply_patch' && result?.receipts?.length) {
+      if (['write_file', 'create_file', 'apply_patch', 'rename', 'delete'].includes(action.type)) await loadWorkspace();
+      if (action.type === 'create_file' && result?.created) {
+        setLastWorkspaceBackup({ path: result.path, operation: 'agent-create', createdAt: Date.now() });
+        if (action.taskId) updateAgentTask(workspaceProvider.id, action.taskId, { status: 'verified', files: [result.path], event: { type: 'file-created-and-verified' } });
+        const queued = readAutonomousQueue(workspaceProvider.id).find(item => item.status === 'waiting-approval');
+        if (queued) {
+          updateAutonomousTask(workspaceProvider.id, queued.id, 'completed', 'New file approved, created, and verified.');
+          setAutonomousQueue(readAutonomousQueue(workspaceProvider.id));
+        }
+        addMessage('assistant', `${result.path} was created inside the selected workspace, written, and reread successfully. You can undo the creation from Files.`);
+      } else if (action.type === 'apply_patch' && result?.receipts?.length) {
         const receipts = result.receipts.filter(receipt => receipt.backupId);
         setLastWorkspaceBackup({
           ids: receipts.map(receipt => receipt.backupId),

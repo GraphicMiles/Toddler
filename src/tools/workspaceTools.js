@@ -26,6 +26,25 @@ export function createWorkspaceToolRegistry(workspaceProvider) {
       },
     })
     .register({
+      name: 'create_file',
+      description: 'Create a new text file inside the selected workspace and write approved content.',
+      permission: 'write',
+      execute: async ({ path, content }) => {
+        try { await workspaceProvider.inspect(path); throw new Error(`Workspace item already exists: ${path}`); }
+        catch (error) { if (!/not found/i.test(error.message) && !/path not found/i.test(error.message)) throw error; }
+        await workspaceProvider.createFile(path);
+        try {
+          const receipt = await workspaceProvider.writeText(path, content ?? '');
+          const verified = await workspaceProvider.readText(path);
+          if (verified !== String(content ?? '')) throw new Error(`Post-create verification failed for ${path}.`);
+          return { path, content: content ?? '', type: 'create_file', created: true, backupId: receipt?.backupId || null };
+        } catch (error) {
+          await workspaceProvider.delete(path).catch(() => {});
+          throw error;
+        }
+      },
+    })
+    .register({
       name: 'search',
       description: 'Search the selected workspace tree by file or folder name.',
       permission: 'read',

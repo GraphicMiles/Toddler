@@ -5,6 +5,7 @@ import './ActionCard.css';
 const ACTION_ICONS = {
   write_file: FileEdit,
   apply_patch: FileEdit,
+  create_file: FileEdit,
   terminal: Terminal,
   git: GitBranch,
   default: AlertTriangle,
@@ -13,6 +14,7 @@ const ACTION_ICONS = {
 const ACTION_LABELS = {
   write_file: 'Proposed write',
   apply_patch: 'Proposed patch',
+  create_file: 'Proposed new file',
   terminal: 'Terminal command',
   git: 'Git operation',
   default: 'Action required',
@@ -24,7 +26,7 @@ export default function ActionCard({ action, onApprove, onDiscard }) {
   const Icon = ACTION_ICONS[type] || ACTION_ICONS.default;
   const label = ACTION_LABELS[type] || ACTION_LABELS.default;
 
-  const previewLimit = type === 'apply_patch' ? 5000 : 500;
+  const previewLimit = ['apply_patch', 'create_file'].includes(type) ? 5000 : 500;
   const previewContent = content?.length > previewLimit
     ? content.slice(0, previewLimit) + '...\n\n[truncated]'
     : content;

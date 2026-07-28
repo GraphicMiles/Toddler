@@ -37,7 +37,7 @@ Next context work:
 - diagnostics and test-failure retrieval;
 - context budget accounting using native tokenization.
 
-### 4.3 Unified diff workflow — implemented for existing text files
+### 4.3 Unified diff workflow and approved file creation — implemented
 
 - Parse and validate unified diffs.
 - Reject traversal, file deletion/creation, implicit rename, duplicate sections, malformed counts, and context mismatch.
@@ -45,6 +45,8 @@ Next context work:
 - Apply only after approval through `apply_patch`.
 - Read and prepare every file before writing.
 - Roll back already-written files if a later file fails.
+- `create_file` proposals carry one exact relative path and complete content, require approval, reject existing paths, write through the workspace provider, reread verification, and support Undo.
+- Ambiguous requests such as “write a landing page” ask for an exact filename before generation.
 
 Next patch work:
 

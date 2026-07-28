@@ -15,4 +15,7 @@ assert.equal(validateStructuredAction({
   rationale: 'Correct the greeting.',
   patch: '--- a/src/App.jsx\n+++ b/src/App.jsx\n@@ -1 +1 @@\n-old\n+new',
 }).type, 'propose_patch');
+const create = validateStructuredAction({ type: 'create_file', paths: ['body.css'], rationale: 'Create the requested stylesheet.', content: 'body { color: white; }' });
+assert.equal(create.content, 'body { color: white; }');
+assert.throws(() => validateStructuredAction({ type: 'create_file', paths: ['../body.css'], rationale: 'Unsafe', content: 'x' }), /unsafe/);
 console.log('action protocol tests passed');

@@ -30,6 +30,11 @@ const tools = new ToolRegistry()
     name: 'apply_patch',
     permission: 'write',
     execute: async ({ patch }) => ({ type: 'patch_apply', patch }),
+  })
+  .register({
+    name: 'create_file',
+    permission: 'write',
+    execute: async ({ path, content }) => ({ type: 'create_file', path, content }),
   });
 
 const gate = new ApprovalGate();
@@ -73,5 +78,11 @@ const structured = agent.proposeStructuredModelActions(JSON.stringify({
 assert.equal(structured[0].type, 'apply_patch');
 assert.deepEqual(structured[0].diffSummary, [{ path: 'src/App.jsx', additions: 1, deletions: 1 }]);
 agent.discardAction(structured[0].id);
+const createActions = agent.proposeStructuredModelActions(JSON.stringify({
+  actions: [{ type: 'create_file', paths: ['body.css'], rationale: 'Create stylesheet.', content: 'body { margin: 0; }' }],
+}));
+assert.equal(createActions[0].type, 'create_file');
+assert.equal(createActions[0].path, 'body.css');
+agent.discardAction(createActions[0].id);
 
 console.log('agent core tests passed');

@@ -3,7 +3,7 @@ import { researchProvider } from '../research/ResearchProvider.js';
 export function registerResearchTools(registry) {
   registry.register({
     name: 'research:query',
-    description: 'Perform research using configurable depth (standard/comprehensive/raw)',
+    description: 'Perform research (currently simulated - real scraping requires native plugin)',
     permission: 'read',
     execute: async ({ query, depth, archiveMode }) => {
       if (!query) throw new Error('Query is required');

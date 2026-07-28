@@ -103,11 +103,13 @@ export function createWorkspaceToolRegistry(workspaceProvider) {
     })
     .register({
       name: 'terminal',
-      description: 'Preview a terminal request. Shell execution is not available.',
+      description: 'Preview a terminal request. Real shell execution requires native Android plugin.',
       permission: 'dangerous',
       execute: async ({ command, workspacePath = '' }) => {
         if (typeof command !== 'string' || !command.trim()) throw new Error('A command is required.');
         const cmd = command.trim();
+
+        // Currently SIMULATED only. Real shell execution needs native plugin.
         if (cmd === 'pwd') {
           return { command: cmd, output: workspacePath || 'selected-workspace', type: 'terminal', status: 'completed', simulated: true };
         }
@@ -117,11 +119,12 @@ export function createWorkspaceToolRegistry(workspaceProvider) {
         if (cmd.startsWith('echo ')) {
           return { command: cmd, output: cmd.slice(5), type: 'terminal', status: 'completed', simulated: true };
         }
+
         return {
           command: cmd,
-          output: `Not executed: ${cmd}. Shell execution is disabled.`,
+          output: `Not executed (simulated). Real terminal execution requires native Android plugin.`,
           type: 'terminal',
-          status: 'blocked',
+          status: 'simulated',
           simulated: true,
         };
       },

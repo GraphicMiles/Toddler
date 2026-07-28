@@ -66,11 +66,14 @@ export class ResearchProvider {
     const depth = options.depth || this.depth;
     const useArchive = options.archiveMode ?? this.archiveMode;
 
-    // Simulate different providers based on depth
+    // NOTE: This is currently a SIMULATED research implementation.
+    // Real web scraping, DuckDuckGo, SearXNG, and Playwright integration
+    // require native Android plugins (Capacitor/Kotlin).
+    // Current results are mock data.
+
     let results = [];
 
     if (depth === RESEARCH_DEPTH.RAW) {
-      // Raw mode - minimal processing
       results = await this._rawSearch(query);
     } else if (depth === RESEARCH_DEPTH.COMPREHENSIVE) {
       results = await this._comprehensiveSearch(query);
@@ -92,6 +95,7 @@ export class ResearchProvider {
       results,
       timestamp: Date.now(),
       provider: this._getProviderName(depth),
+      simulated: true, // Explicit flag
     };
   }
 

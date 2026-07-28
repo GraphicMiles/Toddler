@@ -33,15 +33,21 @@ export class SocialMediaManager {
 
   // Encrypted credential storage simulation
   async addAccount(platform, username, credentials) {
-    const encrypted = btoa(JSON.stringify(credentials)); // placeholder encryption
+    // NOTE: This is a placeholder. Real implementation requires:
+    // - Proper OAuth 2.0 flow
+    // - 2FA handling
+    // - Account rotation / session management
+    // Current version does not support real posting or 2FA.
+    const encrypted = btoa(JSON.stringify(credentials));
     this.accounts.set(`${platform}:${username}`, {
       platform,
       username,
       credentials: encrypted,
       addedAt: Date.now(),
+      realApi: false, // Explicitly mark as simulated
     });
     this.saveConfig();
-    return true;
+    return { success: true, warning: 'This is a simulated account. Real API integration requires native plugins.' };
   }
 
   getAccounts() {
@@ -56,6 +62,20 @@ export class SocialMediaManager {
     const key = `${platform}:${username}`;
     if (!this.accounts.has(key)) throw new Error('Account not found');
 
+    const account = this.accounts.get(key);
+
+    // Real API posting is NOT implemented yet.
+    if (!account.realApi) {
+      return {
+        status: 'simulated',
+        warning: 'Real social media posting requires native API integration (OAuth + 2FA handling).',
+        platform,
+        username,
+        content: content.slice(0, 100),
+        timestamp: Date.now(),
+      };
+    }
+
     if (options.schedule) {
       this.scheduledPosts.push({
         id: Date.now(),
@@ -68,14 +88,12 @@ export class SocialMediaManager {
       return { status: 'scheduled', id: Date.now() };
     }
 
-    // Simulate posting
     return {
       status: 'posted',
       platform,
       username,
       content: content.slice(0, 100),
       timestamp: Date.now(),
-      url: `https://${platform}.com/post/${Date.now()}`,
     };
   }
 

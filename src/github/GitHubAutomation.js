@@ -55,23 +55,44 @@ export class GitHubAutomation {
     this.saveConfig();
   }
 
-  async proposeCommit(changes, message) {
+  async proposeCommit(changes, message, options = {}) {
     if (this.dryRun) return { status: 'dry-run', message };
-    
+
+    const { githubToken, branchProtectionBypass = false } = options;
+
     if (this.tier === GITHUB_AUTOMATION_TIERS.MANUAL) {
       return { status: 'pending-review', changes, message };
     }
-    
+
     if (this.tier === GITHUB_AUTOMATION_TIERS.SUGGESTED) {
       return { status: 'suggested', prTitle: message, changes };
     }
-    
+
     if (this.tier === GITHUB_AUTOMATION_TIERS.AUTO_COMMIT) {
-      return { status: 'committed', branch: 'feature/forgeai-auto', message };
+      return {
+        status: 'committed',
+        branch: 'feature/forgeai-auto',
+        message,
+        requiresToken: !githubToken,
+      };
     }
-    
+
     if (this.tier === GITHUB_AUTOMATION_TIERS.AUTO_DEPLOY) {
-      return { status: 'deployed', release: message, merged: true };
+      // Branch protection bypass requires explicit token + flag
+      if (branchProtectionBypass && !githubToken) {
+        return {
+          status: 'blocked',
+          reason: 'Branch protection bypass requires a valid GitHub token',
+          message,
+        };
+      }
+
+      return {
+        status: 'deployed',
+        release: message,
+        merged: true,
+        branchProtectionBypass: branchProtectionBypass && !!githubToken,
+      };
     }
   }
 

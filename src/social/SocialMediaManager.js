@@ -92,8 +92,20 @@ export class SocialMediaManager {
     const encodedContent = encodeURIComponent(content);
 
     try {
-      // Use the advanced real social provider
-    return await realSocialProvider.post(platform, username, content, options);
+      const experimentalEnabled = isExperimentalEnabled('realSocial');
+
+    if (!experimentalEnabled || !isNative) {
+      return {
+        status: 'simulated',
+        warning: 'Enable "Real Social Media Posting" in Experimental Features on Android.',
+        platform,
+        username,
+        content: content.slice(0, 100),
+        timestamp: Date.now(),
+      };
+    }
+
+    return await nativeSocialProvider.post(platform, username, content, options);
     } catch (error) {
       return {
         status: 'error',

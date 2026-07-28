@@ -1,8 +1,9 @@
 import { buildFileIndex, searchFiles } from '../utils/fileIndex.js';
 import { applyUnifiedDiff, summarizeUnifiedDiff } from '../patch/unifiedDiff.js';
 import { ToolRegistry } from './toolRegistry.js';
-import { realTerminal } from '../terminal/RealTerminal.js';
+import { nativeTerminal } from '../terminal/NativeTerminal.js';
 import { isExperimentalEnabled } from '../components/ExperimentalFeatures.jsx';
+import { isNative } from '../nativeBridge.js';
 
 export function createWorkspaceToolRegistry(workspaceProvider) {
   if (!workspaceProvider) throw new Error('A workspace provider is required.');
@@ -105,7 +106,7 @@ export function createWorkspaceToolRegistry(workspaceProvider) {
     })
     .register({
       name: 'terminal',
-      description: 'Execute terminal commands (real when Experimental Terminal is enabled)',
+      description: 'Execute terminal commands (real on Android when Experimental Terminal is enabled)',
       permission: 'dangerous',
       execute: async ({ command, workspacePath = '' }) => {
         if (typeof command !== 'string' || !command.trim()) throw new Error('A command is required.');
@@ -113,34 +114,26 @@ export function createWorkspaceToolRegistry(workspaceProvider) {
 
         const experimentalEnabled = isExperimentalEnabled('realTerminal');
 
-        if (!experimentalEnabled) {
-          // Simulated mode
-          if (cmd === 'pwd') {
-            return { command: cmd, output: workspacePath || 'selected-workspace', type: 'terminal', status: 'completed', simulated: true };
-          }
-          if (cmd === 'ls' || cmd.startsWith('ls ')) {
-            return { command: cmd, output: 'Use the Files tab for the contained workspace listing.', type: 'terminal', status: 'completed', simulated: true };
-          }
-          if (cmd.startsWith('echo ')) {
-            return { command: cmd, output: cmd.slice(5), type: 'terminal', status: 'completed', simulated: true };
-          }
+        if (!experimentalEnabled || !isNative) {
+          // Simulated mode (non-Android or toggle off)
           return {
             command: cmd,
-            output: `Simulated (enable Experimental Terminal in Settings for real execution)`,
+            output: `Terminal is simulated. Enable "Real Terminal Execution" in Experimental Features on Android.`,
             type: 'terminal',
             status: 'simulated',
             simulated: true,
           };
         }
 
-        // Real terminal execution
-        const result = await realTerminal.execute(cmd, workspacePath);
+        // Real native terminal execution
+        const result = await nativeTerminal.execute(cmd, { cwd: workspacePath });
         return {
           command: cmd,
           output: result.output,
           type: 'terminal',
           status: result.status,
           experimental: true,
+          native: true,
         };
       },
     });

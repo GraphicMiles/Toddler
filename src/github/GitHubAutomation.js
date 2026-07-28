@@ -61,7 +61,7 @@ export class GitHubAutomation {
     const experimentalEnabled = isExperimentalEnabled('realGitHub');
     const { githubToken, branchProtectionBypass = false } = options;
 
-    if (!experimentalEnabled) {
+    if (!experimentalEnabled || !isNative) {
       if (this.tier === GITHUB_AUTOMATION_TIERS.MANUAL) {
         return { status: 'pending-review', changes, message };
       }
@@ -71,12 +71,12 @@ export class GitHubAutomation {
       return {
         status: 'simulated',
         tier: this.tier,
-        message: 'Enable "Real GitHub Automation" in Experimental Features for real execution',
+        message: 'Enable "Real GitHub Automation" in Experimental Features on Android',
       };
     }
 
-    // Real GitHub API call
-    return await realGitHubProvider.proposeCommit(changes, message, {
+    // Native GitHub execution
+    return await nativeGitHubProvider.proposeCommit(changes, message, {
       githubToken,
       branchProtectionBypass,
     });

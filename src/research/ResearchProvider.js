@@ -66,19 +66,14 @@ export class ResearchProvider {
     const depth = options.depth || this.depth;
     const useArchive = options.archiveMode ?? this.archiveMode;
 
-    // Check if experimental real research is enabled
-    let experimentalEnabled = false;
-    try {
-      const exp = JSON.parse(localStorage.getItem('forgeai_experimental_features') || '{}');
-      experimentalEnabled = exp.realResearch === true;
-    } catch {}
+    const experimentalEnabled = isExperimentalEnabled('realResearch');
 
-    if (experimentalEnabled) {
-      // Use real DuckDuckGo API
-      return await realResearchProvider.search(query, { depth });
+    if (experimentalEnabled && isNative) {
+      // Use native Android ResearchRuntime
+      return await nativeResearchProvider.search(query, options);
     }
 
-    // Simulated mode (default)
+    // Simulated mode (default for web or when disabled)
     let results = [];
     if (depth === RESEARCH_DEPTH.RAW) {
       results = await this._rawSearch(query);
@@ -138,27 +133,17 @@ export class ResearchProvider {
   }
 
   async fetchFullPage(url) {
+    const experimentalEnabled = isExperimentalEnabled('realResearch');
+
+    if (experimentalEnabled && isNative) {
+      return await nativeResearchProvider.fetchFullPage(url);
+    }
+
     if (this.proxyEnabled) {
       return `[PROXY] Full content of ${url}`;
     }
 
-    try {
-      // Attempt real fetch for public pages
-      const response = await fetch(url, { mode: 'cors' });
-      if (response.ok) {
-        const text = await response.text();
-        return {
-          url,
-          content: text.slice(0, 5000), // Limit size
-          status: 'real_fetch',
-          experimental: true,
-        };
-      }
-    } catch (error) {
-      // CORS or network error - expected for many sites
-    }
-
-    return `Full page content for: ${url} (real fetch blocked by CORS)`;
+    return `Full page content for: ${url} (real fetch requires Android native plugin)`;
   }
 }
 

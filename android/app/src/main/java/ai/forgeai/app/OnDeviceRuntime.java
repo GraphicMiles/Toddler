@@ -35,6 +35,7 @@ public class OnDeviceRuntime extends Plugin {
     private final Map<String, Boolean> pausedDownloads = new ConcurrentHashMap<>();
     /** Tracks active download threads so we can signal them. Key = filename. */
     private final Map<String, Thread> activeDownloads = new ConcurrentHashMap<>();
+    private final Map<String, HttpURLConnection> activeConnections = new ConcurrentHashMap<>();
 
     @PluginMethod
     public void getInfo(PluginCall call) {
@@ -100,6 +101,7 @@ public class OnDeviceRuntime extends Plugin {
                     connection.setRequestProperty("Range", "bytes=" + existingBytes + "-");
                 }
                 connection.connect();
+                activeConnections.put(filename, connection);
 
                 int code = connection.getResponseCode();
                 boolean supportsResume = (code == 206);
@@ -154,6 +156,7 @@ public class OnDeviceRuntime extends Plugin {
                         }
                     }
                 } finally {
+                    activeConnections.remove(filename);
                     connection.disconnect();
                 }
 
@@ -212,8 +215,10 @@ public class OnDeviceRuntime extends Plugin {
     @PluginMethod
     public void cancelDownload(PluginCall call) {
         String filename = call.getString("filename", "");
-        Thread thread = activeDownloads.get(filename);
+        Thread thread = activeDownloads.remove(filename);
         if (thread != null) { thread.interrupt(); }
+        HttpURLConnection connection = activeConnections.remove(filename);
+        if (connection != null) connection.disconnect();
         pausedDownloads.remove(filename);
         call.resolve();
     }

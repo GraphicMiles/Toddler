@@ -2,8 +2,12 @@ import { useState } from 'react';
 import { RefreshCw, Trash2, Wifi, Bug, Cpu } from 'lucide-react';
 import { readErrorLog, clearErrorLog } from '../utils/errorLog.js';
 import { skillRegistry } from '../skills/skillRegistry.js';
+import { scanSkillPackage } from '../skills/skillScanner.js';
+import { parseSkillMarkdown } from '../skills/skillPackage.js';
+import { pickSkillFile } from '../nativeBridge.js';
 import { readProjectMemory } from '../memory/agentMemory.js';
 import { AUTONOMY_LEVELS, readAutonomyLevel, writeAutonomyLevel } from '../agent/autonomyPolicy.js';
+import TaskTimeline from './TaskTimeline.jsx';
 import './Settings.css';
 
 export default function Settings({
@@ -28,6 +32,26 @@ export default function Settings({
   };
   const toggleSkill = (id, enabled) => {
     skillRegistry.setEnabled(id, enabled);
+    setSkills(skillRegistry.list());
+  };
+  const importSkill = async () => {
+    try {
+      const selected = await pickSkillFile();
+      if (!selected?.content) return;
+      const manifest = parseSkillMarkdown(selected.content);
+      const report = scanSkillPackage(manifest, { 'SKILL.md': selected.content });
+      if (report.verdict === 'reject') throw new Error(`Security scanner rejected this skill with ${report.summary.critical} critical finding(s).`);
+      if (report.verdict === 'review' && !window.confirm(`Skill scanner found ${report.summary.warnings} warning(s). Install it disabled for review?`)) return;
+      const installed = skillRegistry.install(manifest, report);
+      setSkills(skillRegistry.list());
+      alert(`${installed.name} was imported in disabled mode. Review its instructions and permissions before enabling it.`);
+    } catch (error) {
+      alert(`Skill import failed: ${error.message}`);
+    }
+  };
+  const removeSkill = id => {
+    if (!window.confirm('Remove this external skill?')) return;
+    skillRegistry.remove(id);
     setSkills(skillRegistry.list());
   };
 
@@ -63,11 +87,13 @@ export default function Settings({
         <section className="settings-card">
           <h3>Android agent skills</h3>
           <p className="setting-help">Skills load on demand and only receive their declared ForgeAI tools. Skill scripts are never executed on Android.</p>
+          {isNative && <button onClick={importSkill}>Import SKILL.md</button>}
           {skills.map(skill => (
-            <label className="setting-row" key={skill.id} style={{ alignItems: 'flex-start' }}>
+            <div className="setting-row" key={skill.id} style={{ alignItems: 'flex-start' }}>
               <input type="checkbox" checked={skill.enabled} onChange={event => toggleSkill(skill.id, event.target.checked)} />
-              <span><strong>{skill.name}</strong><br /><small>{skill.description}</small></span>
-            </label>
+              <span style={{ flex: 1 }}><strong>{skill.name}</strong>{skill.external ? ' · External' : ''}<br /><small>{skill.description}</small></span>
+              {skill.external && <button className="danger" onClick={() => removeSkill(skill.id)}>Remove</button>}
+            </div>
           ))}
           <label className="setting-label" htmlFor="autonomy-level">Autonomy level</label>
           <select id="autonomy-level" value={autonomy} onChange={event => { setAutonomy(writeAutonomyLevel(event.target.value)); }}>
@@ -79,6 +105,8 @@ export default function Settings({
           <p className="setting-help">Android never auto-applies writes and never executes commands, regardless of this setting.</p>
           <p className="setting-help">Project memory: {memory.facts.length} approved fact(s), {memory.tasks.length} bounded task record(s). Model guesses are not persisted as facts.</p>
         </section>
+
+        <TaskTimeline workspaceId={workspaceId} />
 
         <section className="settings-card">
           <h3><Bug size={16} /> Error log</h3>

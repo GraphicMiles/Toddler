@@ -1,0 +1,31 @@
+.forge-code-editor {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #111318;
+}
+
+.forge-code-editor .cm-editor {
+  height: 100%;
+  outline: none;
+}
+
+.forge-code-editor .cm-scroller {
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.forge-code-editor .cm-focused {
+  outline: none;
+}
+
+.forge-code-editor .cm-tooltip-autocomplete {
+  border: 1px solid #343a45;
+  background: #191c22;
+}
+
+.forge-code-editor .cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background: #30411a;
+  color: #eefbd7;
+}

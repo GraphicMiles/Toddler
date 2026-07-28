@@ -32,6 +32,7 @@ import org.json.JSONObject;
 @CapacitorPlugin(name = "WorkspaceStorage")
 public class WorkspaceStorage extends Plugin {
     private static final int MAX_TEXT_BYTES = 2 * 1024 * 1024;
+    private static final int MAX_SKILL_BYTES = 256 * 1024;
     private static final int MAX_BACKUPS = 20;
     private static final long MAX_BACKUP_BYTES = 40L * 1024L * 1024L;
     private static final Pattern BACKUP_ID = Pattern.compile("^[A-Za-z0-9-]{8,80}$");
@@ -81,6 +82,44 @@ public class WorkspaceStorage extends Plugin {
         response.put("uri", uri.toString());
         response.put("name", name);
         call.resolve(response);
+    }
+
+    @PluginMethod
+    public void pickSkillFile(PluginCall call) {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.setType("text/*");
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivityForResult(call, intent, "skillFilePickerResult");
+    }
+
+    @ActivityCallback
+    public void skillFilePickerResult(PluginCall call, ActivityResult result) {
+        Intent data = result.getData();
+        if (data == null || data.getData() == null) { call.reject("No SKILL.md file was selected."); return; }
+        Uri uri = data.getData();
+        DocumentFile document = DocumentFile.fromSingleUri(getContext(), uri);
+        String name = document == null || document.getName() == null ? "SKILL.md" : document.getName();
+        if (!name.toLowerCase(Locale.ROOT).endsWith(".md")) { call.reject("Select a SKILL.md Markdown file."); return; }
+        try (InputStream input = getContext().getContentResolver().openInputStream(uri);
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            if (input == null) throw new IllegalArgumentException("Selected skill file is unavailable.");
+            byte[] buffer = new byte[8192];
+            int count;
+            int total = 0;
+            while ((count = input.read(buffer)) != -1) {
+                total += count;
+                if (total > MAX_SKILL_BYTES) throw new IllegalArgumentException("SKILL.md exceeds the 256 KiB Android limit.");
+                output.write(buffer, 0, count);
+            }
+            JSObject response = new JSObject();
+            response.put("name", name);
+            response.put("uri", uri.toString());
+            response.put("content", new String(output.toByteArray(), StandardCharsets.UTF_8));
+            response.put("size", total);
+            call.resolve(response);
+        } catch (Exception error) { call.reject(error.getMessage()); }
     }
 
     @PluginMethod
@@ -223,13 +262,30 @@ public class WorkspaceStorage extends Plugin {
         return array;
     }
 
+    private String mimeTypeForName(String name) {
+        String lower = name == null ? "" : name.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".css")) return "text/css";
+        if (lower.endsWith(".html") || lower.endsWith(".htm")) return "text/html";
+        if (lower.endsWith(".js") || lower.endsWith(".mjs") || lower.endsWith(".cjs") || lower.endsWith(".jsx")) return "text/javascript";
+        if (lower.endsWith(".ts") || lower.endsWith(".tsx")) return "application/typescript";
+        if (lower.endsWith(".json")) return "application/json";
+        if (lower.endsWith(".xml")) return "application/xml";
+        if (lower.endsWith(".md") || lower.endsWith(".markdown")) return "text/markdown";
+        if (lower.endsWith(".java")) return "text/x-java-source";
+        if (lower.endsWith(".kt") || lower.endsWith(".kts")) return "text/x-kotlin";
+        if (lower.endsWith(".py")) return "text/x-python";
+        if (lower.endsWith(".yml") || lower.endsWith(".yaml")) return "application/yaml";
+        if (lower.endsWith(".txt")) return "text/plain";
+        return "application/x-forgeai-text";
+    }
+
     @PluginMethod
     public void createFile(PluginCall call) {
         try {
             PathParts path = splitPath(call.getString("path", ""));
             DocumentFile parent = resolve(root(call), path.parent, true);
             if (parent.findFile(path.name) != null) throw new IllegalArgumentException("Workspace item already exists.");
-            DocumentFile file = parent.createFile("text/plain", path.name);
+            DocumentFile file = parent.createFile(mimeTypeForName(path.name), path.name);
             if (file == null) throw new IllegalArgumentException("Unable to create file.");
             call.resolve();
         } catch (Exception error) { call.reject(error.getMessage()); }

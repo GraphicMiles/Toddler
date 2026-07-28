@@ -29,9 +29,9 @@ export function autonomyAllows(level, capability) {
 export function suggestNextActions({ tasks = [], workspaceTree = [] } = {}) {
   const suggestions = [];
   const latest = tasks[0];
-  if (latest?.status === 'failed') suggestions.push({ type: 'review-failure', reason: 'The most recent agent task failed and has a stored failure event.' });
-  if (latest?.status === 'verified') suggestions.push({ type: 'consider-tests', reason: 'A patch was applied and verified; consider adding or running focused tests later.' });
+  if (latest?.status === 'failed') suggestions.push({ type: 'review-failure', reason: 'The most recent agent task failed and has a stored failure event.', prompt: 'Review the last failed agent task and explain the smallest safe next step.' });
+  if (latest?.status === 'verified') suggestions.push({ type: 'consider-tests', reason: 'A patch was applied and verified; consider adding focused regression tests.', prompt: `Suggest focused regression tests for ${latest.files?.join(', ') || 'the last verified patch'}.` });
   const hasReadme = JSON.stringify(workspaceTree).toLowerCase().includes('readme.md');
-  if (workspaceTree.length && !hasReadme) suggestions.push({ type: 'documentation', reason: 'The selected workspace has no visible README.md.' });
+  if (workspaceTree.length && !hasReadme) suggestions.push({ type: 'documentation', reason: 'The selected workspace has no visible README.md.', prompt: 'Review this project and propose a concise README.md plan without creating files yet.' });
   return suggestions.slice(0, 5);
 }

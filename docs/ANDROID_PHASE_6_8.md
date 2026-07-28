@@ -4,27 +4,27 @@ Desktop/Tauri, stdio MCP, Docker, shell execution, and desktop command runners a
 
 ## Phase 6 — Android Skills Kernel
 
-Implemented foundation:
+Implemented:
 
 - modular built-in skill manifests;
 - enable/disable lifecycle in Settings;
+- external single-file `SKILL.md` picker through Android SAF;
+- YAML frontmatter/body parser;
+- static security scanner before installation;
+- critical findings reject installation;
+- warning findings require confirmation;
+- external skills install disabled by default;
+- external skill removal and persistence;
+- external skills cannot replace built-ins, request network access, or request execution;
 - lexical on-demand routing with tool allow-lists;
-- Android manifest validation rejects execution permission;
-- static skill package scanner for remote-shell, dynamic execution, credentials, undeclared networking, environment enumeration, and obfuscation;
-- all external script files remain inert on Android;
+- all skill scripts remain inert and are never executed on Android;
 - built-in Requirements Echo, Scope Creep Detector, Patch Reviewer, Security Reviewer, and Test Planner.
 
-Next before external skill import is exposed:
-
-- SAF skill-folder picker;
-- immutable package digest and provenance manifest;
-- scanner report UI and explicit install approval;
-- trigger-case import/evaluation;
-- app-private skill package storage and uninstall cleanup.
+External Android skill packages intentionally support one `SKILL.md` file first. Multi-file references/scripts can be added later only with a signed archive manifest and per-file digest policy.
 
 ## Phase 7 — Smarter Local Agent Roles and Memory
 
-Implemented foundation:
+Implemented:
 
 - Planner, Context Scout, Coder, Reviewer, and Verifier role contracts;
 - same loaded local model reused across roles to avoid multiple model residency;
@@ -33,27 +33,34 @@ Implemented foundation:
 - at most one coder revision;
 - high-severity deterministic findings block approval after revision;
 - Requirements Echo stops long/reversing requests before code action;
+- richer file context includes symbols, imports, calls, and bounded local import-edge following;
 - project memory persists only approved user facts and mechanically verified facts;
 - task memory records request, files, proposal, skills, review, approval/rejection, apply failure, and verification status;
+- task timeline UI exposes the local event ledger in Settings;
 - memory is local and bounded; raw workspace file contents are not persisted as facts.
 
-Next intelligence work:
+Potential later Android intelligence work:
 
-- import graph and symbol-reference index;
-- function/class-level context chunks;
-- rolling conversation summary;
-- user UI to approve/edit project facts;
-- task timeline and review ledger UI;
+- a complete repository-wide symbol-reference index for large projects;
+- user UI to approve/edit durable project facts;
 - optional local embedding/reranking model only after RAM/storage profiling.
 
 ## Phase 8 — Suggested and Bounded Autonomous Work
 
-Implemented safety policy:
+Implemented policy levels:
 
 - Off;
 - Suggest only;
 - Automatic read-only context;
 - Prepare patches for approval.
+
+Implemented presentation:
+
+- proactive suggestion chips above chat input;
+- failed-task review suggestion;
+- focused-test suggestion after verified patches;
+- missing-README suggestion;
+- one tap pre-fills the suggested prompt but never sends it automatically.
 
 Hard Android rules:
 
@@ -62,6 +69,13 @@ Hard Android rules:
 - no command or shell execution;
 - no tool can elevate its own permission;
 - prepared patches still require exact user approval;
-- network remains disabled for local skills unless a future explicit Android network-tool policy is designed.
+- network remains disabled for external local skills.
 
-Current suggestion engine can recommend failure review, focused tests after verified patches, and missing project documentation. Broader proactive work remains opt-in and bounded.
+## Android Workspace Editor
+
+- SAF file creation selects MIME from the requested extension, preventing `index.css` from becoming `index.css.txt`;
+- unknown filenames use a ForgeAI custom text MIME so providers do not append `.txt`;
+- CodeMirror editor with line numbers, keyword highlighting, active line, folding, search, completion, multi-selection, bracket matching, and mobile scrolling;
+- lazy-loaded syntax support for JS/JSX, TS/TSX, JSON, CSS, HTML, Markdown, Python, Java/Kotlin, C/C++, PHP, Rust, SQL, XML, and YAML;
+- lazy-loaded Prettier formatting for JS/TS/JSON/CSS/SCSS/Less/HTML/Markdown/YAML;
+- Java, Kotlin, Python, C/C++, PHP, Rust, and SQL are highlighted but not automatically reformatted without a safe language-specific formatter.

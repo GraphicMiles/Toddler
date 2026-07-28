@@ -1,6 +1,7 @@
 import { BUILTIN_SKILLS } from './builtinSkills.js';
 
 const STORAGE_KEY = 'forgeai_skills_v1';
+const EXTERNAL_STORAGE_KEY = 'forgeai_external_skills_v1';
 const NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ALLOWED_PERMISSIONS = new Set(['workspaceRead', 'workspaceWrite', 'network', 'execute']);
 
@@ -11,6 +12,18 @@ function readState() {
 
 function writeState(state) {
   if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function readExternalSkills() {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    const value = JSON.parse(localStorage.getItem(EXTERNAL_STORAGE_KEY) || '[]');
+    return Array.isArray(value) ? value : [];
+  } catch { return []; }
+}
+
+function writeExternalSkills(skills) {
+  if (typeof localStorage !== 'undefined') localStorage.setItem(EXTERNAL_STORAGE_KEY, JSON.stringify(skills));
 }
 
 function tokens(value) {
@@ -27,15 +40,25 @@ export function validateSkillManifest(skill) {
   if (!skill.permissions || typeof skill.permissions !== 'object') throw new Error('Skill permissions are required.');
   for (const key of Object.keys(skill.permissions)) if (!ALLOWED_PERMISSIONS.has(key)) throw new Error(`Unknown skill permission: ${key}`);
   if (skill.permissions.execute) throw new Error('Android skills cannot request command execution.');
+  if (skill.external && skill.permissions.network) throw new Error('External Android skills cannot request network access in local-only mode.');
   return Object.freeze({ ...skill, allowedTools: Object.freeze([...new Set(skill.allowedTools)]) });
 }
 
 export class SkillRegistry {
   constructor(skills = BUILTIN_SKILLS) {
-    this.skills = new Map(skills.map(skill => {
+    this.skills = new Map();
+    for (const skill of skills) {
       const validated = validateSkillManifest(skill);
-      return [validated.id, validated];
-    }));
+      this.skills.set(validated.id, validated);
+    }
+    for (const skill of readExternalSkills()) {
+      try {
+        const validated = validateSkillManifest({ ...skill, external: true });
+        if (!this.skills.has(validated.id)) this.skills.set(validated.id, validated);
+      } catch (error) {
+        console.warn('Skipped invalid external Android skill:', error.message);
+      }
+    }
     this.state = readState();
   }
 
@@ -52,6 +75,26 @@ export class SkillRegistry {
     this.state = { ...this.state, [id]: { enabled: Boolean(enabled), updatedAt: Date.now() } };
     writeState(this.state);
     return this.isEnabled(id);
+  }
+
+  install(skill, scanReport) {
+    if (scanReport?.verdict === 'reject') throw new Error('Skill package was rejected by the Android security scanner.');
+    const validated = validateSkillManifest({ ...skill, external: true });
+    if (BUILTIN_SKILLS.some(item => item.id === validated.id)) throw new Error('External skills cannot replace a built-in skill.');
+    this.skills.set(validated.id, validated);
+    writeExternalSkills([...this.skills.values()].filter(item => item.external));
+    this.setEnabled(validated.id, false);
+    return validated;
+  }
+
+  remove(id) {
+    const skill = this.skills.get(id);
+    if (!skill?.external) throw new Error('Only external skills can be removed.');
+    this.skills.delete(id);
+    delete this.state[id];
+    writeState(this.state);
+    writeExternalSkills([...this.skills.values()].filter(item => item.external));
+    return true;
   }
 
   route(message, { limit = 4 } = {}) {

@@ -37,6 +37,7 @@ export async function pauseWorkspaceModelDownload(uri, path) { return WorkspaceS
 export async function cancelWorkspaceModelDownload(uri, path) { return WorkspaceStorage.cancelDownload({ uri, path }); }
 export async function importModelToRuntime(uri, path) { return WorkspaceStorage.importToRuntime({ uri, path }); }
 export async function pickModelFile() { return WorkspaceStorage.pickModelFile(); }
+export async function pickSkillFile() { return WorkspaceStorage.pickSkillFile(); }
 export async function importDocumentToRuntime(uri, name) { return WorkspaceStorage.importDocumentToRuntime({ uri, name }); }
 
 export async function getOnDeviceRuntimeInfo() {

@@ -29,6 +29,7 @@ export default function ChatContainer({
   onClearChat,
   onOpenZoo,
   onOpenCollection,
+  proactiveSuggestions = [],
 }) {
   const scrollRef = useRef(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -304,6 +305,16 @@ export default function ChatContainer({
         <button className="scroll-to-bottom" onClick={scrollToBottom} aria-label="Scroll to latest messages">
           v
         </button>
+      )}
+      {!isTyping && proactiveSuggestions.length > 0 && (
+        <div className="proactive-suggestions" aria-label="Suggested next actions">
+          {proactiveSuggestions.map(suggestion => (
+            <button key={suggestion.type} onClick={() => handleSuggestionClick(suggestion.prompt)} title={suggestion.reason}>
+              <span>{suggestion.type.replace(/-/g, ' ')}</span>
+              <small>{suggestion.reason}</small>
+            </button>
+          ))}
+        </div>
       )}
       <MessageInput onSend={onSendMessage} onStop={onStopGeneration} disabled={isTyping} prefilledText={prefilledText} onPrefilledTextConsumed={() => setPrefilledText('')} />
     </div>

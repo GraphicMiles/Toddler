@@ -400,3 +400,44 @@
     font-size: 20px;
   }
 }
+
+/* Bounded proactive suggestion chips */
+.proactive-suggestions {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 14px 0;
+  background: var(--bg);
+  flex-shrink: 0;
+  scrollbar-width: none;
+}
+
+.proactive-suggestions::-webkit-scrollbar { display: none; }
+
+.proactive-suggestions button {
+  min-width: 170px;
+  max-width: 240px;
+  padding: 8px 10px;
+  border: 1px solid var(--accent-border);
+  border-radius: 10px;
+  background: var(--accent-dim);
+  color: var(--paper);
+  text-align: left;
+  cursor: pointer;
+}
+
+.proactive-suggestions span {
+  display: block;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.proactive-suggestions small {
+  display: block;
+  margin-top: 3px;
+  color: var(--paper-dim);
+  font-size: 10px;
+  line-height: 1.3;
+}

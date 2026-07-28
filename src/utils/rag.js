@@ -7,7 +7,7 @@
  * - Never reads more than MAX_FILES or MAX_TOTAL_CHARS.
  */
 
-import { rankWorkspaceFiles } from '../context/contextEngine.js';
+import { analyzeCodeRelationships, flattenWorkspaceFiles, rankWorkspaceFiles, resolveRelativeImport } from '../context/contextEngine.js';
 import { WORKSPACE_LIMITS } from '../workspace/workspacePolicy.js';
 
 const MAX_FILES = 4;
@@ -44,29 +44,42 @@ export async function retrieveRelevantContext({
     query,
     workspaceTree,
     selectedPath,
-    limit: maxFiles,
+    limit: Math.max(1, maxFiles - 1),
   }).map(file => ({
     ...file,
     extension: file.name?.split('.').pop()?.toLowerCase() || 'none',
     priority: file.score,
   }));
 
-  // Read file contents (with limits)
+  // Read ranked files, then follow local import edges while budget remains.
   const results = [];
+  const workspaceFiles = flattenWorkspaceFiles(workspaceTree);
+  const queued = new Set(candidates.map(candidate => candidate.path));
   let totalChars = 0;
 
-  for (const candidate of candidates) {
+  for (let index = 0; index < candidates.length && results.length < maxFiles; index++) {
+    const candidate = candidates[index];
     if (totalChars >= MAX_TOTAL_CHARS) break;
 
     try {
       const rawContent = await workspaceProvider.readText(candidate.path, { maxBytes: WORKSPACE_LIMITS.ragReadBytes });
       if (!rawContent) continue;
-
-      let content = String(rawContent);
-      if (content.length > MAX_FILE_CHARS) {
-        content = content.slice(0, MAX_FILE_CHARS) + '\n... [truncated]';
+      const relationships = analyzeCodeRelationships(candidate.path, String(rawContent));
+      for (const specifier of relationships.imports) {
+        const importedPath = resolveRelativeImport(candidate.path, specifier, workspaceFiles);
+        if (!importedPath || queued.has(importedPath) || candidates.length >= maxFiles) continue;
+        queued.add(importedPath);
+        candidates.push({
+          name: importedPath.split('/').pop(),
+          path: importedPath,
+          extension: importedPath.split('.').pop()?.toLowerCase() || 'none',
+          priority: 45,
+          score: 45,
+        });
       }
 
+      let content = String(rawContent);
+      if (content.length > MAX_FILE_CHARS) content = content.slice(0, MAX_FILE_CHARS) + '\n... [truncated]';
       const charCount = content.length;
       if (totalChars + charCount > MAX_TOTAL_CHARS) {
         const remaining = MAX_TOTAL_CHARS - totalChars;
@@ -78,9 +91,9 @@ export async function retrieveRelevantContext({
         name: candidate.name,
         extension: candidate.extension,
         content,
+        relationships,
         relevance: candidate.priority >= 80 ? 'high' : candidate.priority >= 50 ? 'medium' : 'low',
       });
-
       totalChars += content.length;
     } catch (err) {
       console.warn(`RAG: Failed to read ${candidate.path}`, err.message);
@@ -100,6 +113,9 @@ export function formatContextForPrompt(contextItems = []) {
 
   for (const item of contextItems) {
     output += `--- ${item.path} (${item.relevance} relevance) ---\n`;
+    if (item.relationships?.symbols?.length) output += `Symbols: ${item.relationships.symbols.slice(0, 20).join(', ')}\n`;
+    if (item.relationships?.imports?.length) output += `Imports: ${item.relationships.imports.slice(0, 20).join(', ')}\n`;
+    if (item.relationships?.calls?.length) output += `Calls: ${item.relationships.calls.slice(0, 20).join(', ')}\n`;
     output += item.content + '\n\n';
   }
 

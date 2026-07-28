@@ -1,12 +1,14 @@
-import { useState, useMemo, useCallback } from 'react';
+import { lazy, Suspense, useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, FolderOpen, ChevronRight, X, FileText, Database,
-  Pencil, Trash2, FilePlus, FolderPlus, Save, ArrowLeft, RotateCcw,
+  Pencil, Trash2, FilePlus, FolderPlus, Save, ArrowLeft, RotateCcw, AlignLeft,
 } from 'lucide-react';
 import { getFileIconInfo, buildFileIndex, searchFiles } from '../utils/fileIndex';
+import { canFormatPath, formatSource } from '../editor/codeFormatting.js';
 import './Workspace.css';
 
+const CodeEditor = lazy(() => import('../editor/CodeEditor.jsx'));
 const joinWorkspacePath = (parent, name) => parent ? `${parent}/${name}` : name;
 
 /* ── File tree node ── */
@@ -108,6 +110,7 @@ function FileViewer({ path, content, onClose, onSave, onPick, readOnly }) {
   const [editContent, setEditContent] = useState(content);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [formatting, setFormatting] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
@@ -121,8 +124,22 @@ function FileViewer({ path, content, onClose, onSave, onPick, readOnly }) {
     }
   };
 
+  const handleFormat = async () => {
+    setFormatting(true);
+    try {
+      const formatted = await formatSource(path, editContent);
+      setEditContent(formatted);
+      setDirty(formatted !== content);
+    } catch (error) {
+      alert('Format failed: ' + error.message);
+    } finally {
+      setFormatting(false);
+    }
+  };
+
   const fileName = path.split('/').pop();
   const fileInfo = getFileIconInfo(fileName);
+  const lineCount = editContent.split('\n').length;
 
   return (
     <div className="ws-viewer">
@@ -139,6 +156,11 @@ function FileViewer({ path, content, onClose, onSave, onPick, readOnly }) {
               <FileText size={14} /> Select
             </button>
           )}
+          {!readOnly && canFormatPath(path) && (
+            <button className="ws-viewer-pick" onClick={handleFormat} disabled={formatting} title="Format document">
+              <AlignLeft size={14} /> {formatting ? 'Formatting...' : 'Format'}
+            </button>
+          )}
           {!readOnly && (
             <button className="ws-viewer-save" onClick={handleSave} disabled={!dirty || saving}>
               <Save size={14} /> {saving ? 'Saving...' : 'Save'}
@@ -146,13 +168,20 @@ function FileViewer({ path, content, onClose, onSave, onPick, readOnly }) {
           )}
         </div>
       </div>
-      <textarea
-        className="ws-viewer-content mono"
-        value={editContent}
-        onChange={(e) => { setEditContent(e.target.value); setDirty(true); }}
-        readOnly={readOnly}
-        spellCheck={false}
-      />
+      <Suspense fallback={<div className="ws-empty">Loading code editor...</div>}>
+        <CodeEditor
+          path={path}
+          value={editContent}
+          onChange={value => { setEditContent(value); setDirty(value !== content); }}
+          readOnly={readOnly}
+        />
+      </Suspense>
+      <div className="ws-editor-status mono">
+        <span>{fileInfo?.label || 'TEXT'}</span>
+        <span>{lineCount} lines</span>
+        <span>{editContent.length} chars</span>
+        {dirty && <span className="dirty-indicator">Modified</span>}
+      </div>
     </div>
   );
 }

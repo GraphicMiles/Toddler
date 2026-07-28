@@ -358,6 +358,29 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.ws-editor-status {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 12px;
+  border-top: 1px solid var(--border);
+  background: #17191e;
+  color: var(--faint);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.ws-editor-status .dirty-indicator {
+  margin-left: auto;
+  color: var(--accent);
+}
+
+.ws-viewer-pick:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+
 /* Responsive */
 @media (max-width: 640px) {
   .ws-header-actions {
@@ -367,5 +390,17 @@
   .ws-action-btn {
     width: 30px;
     height: 30px;
+  }
+
+  .ws-viewer-header {
+    gap: 5px;
+    padding: 8px;
+  }
+
+  .ws-viewer-actions button,
+  .ws-viewer-back {
+    padding: 8px;
+    gap: 0;
+    font-size: 0;
   }
 }

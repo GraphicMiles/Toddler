@@ -15,7 +15,8 @@ import { getModelProfile } from './models/catalog.js';
 import { AgentCore } from './agent/core.js';
 import { generatePatchProposal, isCodeChangeRequest } from './agent/phase4Runner.js';
 import { buildRequirementsEcho, shouldEchoRequirements } from './skills/reviewSkills.js';
-import { createAgentTask, projectMemoryPrompt, updateAgentTask } from './memory/agentMemory.js';
+import { createAgentTask, projectMemoryPrompt, readProjectMemory, updateAgentTask } from './memory/agentMemory.js';
+import { AUTONOMY_LEVELS, readAutonomyLevel, suggestNextActions } from './agent/autonomyPolicy.js';
 import { ApprovalGate } from './tools/toolApproval.js';
 import { createWorkspaceToolRegistry } from './tools/workspaceTools.js';
 import { retrieveRelevantContext, formatContextForPrompt, shouldRetrieveWorkspaceContext } from './utils/rag.js';
@@ -558,6 +559,10 @@ export default function App() {
     animate: { opacity: 1, x: 0 },
     exit: { opacity: 0, x: -20 },
   };
+  const autonomyLevel = readAutonomyLevel();
+  const proactiveSuggestions = autonomyLevel === AUTONOMY_LEVELS.OFF
+    ? []
+    : suggestNextActions({ tasks: readProjectMemory(workspaceProvider.id).tasks, workspaceTree });
 
   return (
     <Layout
@@ -601,6 +606,7 @@ export default function App() {
               onClearChat={clearChat}
               onOpenZoo={() => setCurrentScreen(SCREENS.ZOO)}
               onOpenCollection={() => setCurrentScreen(SCREENS.COLLECTION)}
+              proactiveSuggestions={proactiveSuggestions}
             />
           </motion.div>
         )}

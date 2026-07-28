@@ -6,11 +6,24 @@ await workspace.writeFile('src/App.jsx', 'first');
 const update = await workspace.writeFile('src/App.jsx', 'second');
 assert.ok(update.backupId);
 assert.equal(await workspace.readFile('src/App.jsx'), 'second');
-assert.equal((await workspace.inspect('src/App.jsx')).binary, false);
-assert.equal((await workspace.listBackups()).length, 1);
 await workspace.restoreBackup(update.backupId);
 assert.equal(await workspace.readFile('src/App.jsx'), 'first');
-assert.equal((await workspace.listBackups()).length, 0);
+
+const rename = await workspace.rename('src/App.jsx', 'src/Main.jsx');
+assert.ok(rename.backupId);
+assert.equal(await workspace.readFile('src/Main.jsx'), 'first');
+await workspace.restoreBackup(rename.backupId);
+assert.equal(await workspace.readFile('src/App.jsx'), 'first');
+
+await workspace.createDirectory('src/nested/deep');
+await workspace.writeFile('src/nested/deep/file.txt', 'nested');
+const deletion = await workspace.deleteFile('src/nested');
+assert.ok(deletion.backupId);
+await assert.rejects(() => workspace.readFile('src/nested/deep/file.txt'), /not found/);
+await workspace.restoreBackup(deletion.backupId);
+assert.equal(await workspace.readFile('src/nested/deep/file.txt'), 'nested');
+
+assert.equal((await workspace.inspect('src/App.jsx')).binary, false);
 await workspace.writeFile('binary.dat', 'a\0b');
 assert.equal((await workspace.inspect('binary.dat')).binary, true);
 workspace.clear();

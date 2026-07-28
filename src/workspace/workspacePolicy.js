@@ -13,7 +13,7 @@ const SENSITIVE_EXACT = new Set([
   'id_rsa', 'id_ed25519', 'credentials', 'credentials.json',
 ]);
 const SENSITIVE_EXTENSIONS = ['.pem', '.key', '.p12', '.pfx', '.jks', '.keystore'];
-const INTERNAL_MARKERS = ['.forgeai-tmp-', '.forgeai-old-'];
+const INTERNAL_MARKERS = ['.forgeai-tmp-', '.forgeai-old-', '.forgeai-trash-'];
 
 export function isSensitiveWorkspacePath(path) {
   const parts = String(path || '').split('/').filter(Boolean).map(part => part.toLowerCase());

@@ -16,6 +16,8 @@ export default function MyCollection({
   isRunning = false,
   ollamaConnected = false,
   runtimeMode,
+  runtimeInfo = null,
+  benchmark = null,
   deviceCapability = {},
   onOpenZoo,
   onImportModel,
@@ -112,6 +114,23 @@ export default function MyCollection({
         </motion.div>
       )}
 
+      {isNative && benchmark && benchmark.modelId === activeModel?.id && (
+        <section className="active-model-banner" aria-label="Last on-device benchmark">
+          <div className="active-model-info">
+            <Database size={18} />
+            <div>
+              <span className="active-label">Last benchmark</span>
+              <span className="active-name">{benchmark.tokensPerSecond?.toFixed(1) || '0.0'} tok/s</span>
+            </div>
+          </div>
+          <div className="mono" style={{ fontSize: 11, lineHeight: 1.5, textAlign: 'right' }}>
+            <div>Load {Math.round(benchmark.loadMs || 0)} ms{benchmark.loadReused ? ' (cached)' : ''}</div>
+            <div>Prefill {benchmark.prefillTokensPerSecond?.toFixed(1) || '0.0'} tok/s</div>
+            <div>{benchmark.contextTokens} ctx · {benchmark.threads} threads · {benchmark.abi || runtimeInfo?.abi || 'unknown'}</div>
+          </div>
+        </section>
+      )}
+
       {/* Model List */}
       <div className="model-list">
         {models.length === 0 ? (
@@ -161,7 +180,7 @@ export default function MyCollection({
                       <div className="model-item-info">
                         <span className="model-item-name">{model.name}</span>
                         <span className="model-item-size mono">
-                          {model.size}{model.sizeUnit}
+                          {formatModelSize(getModelSizeBytes(model))}
                         </span>
                       </div>
                     </div>
@@ -218,8 +237,20 @@ export default function MyCollection({
                             <span className="detail-value">{model.license || 'Unknown'}</span>
                           </div>
                           <div className="detail">
+                            <span className="detail-label">Source</span>
+                            <span className="detail-value mono">{model.source || (model.sourceUri ? 'Device import' : 'Unknown')}</span>
+                          </div>
+                          <div className="detail">
+                            <span className="detail-label">Revision</span>
+                            <span className="detail-value mono">{model.revision?.slice(0, 12) || 'User supplied'}</span>
+                          </div>
+                          <div className="detail">
                             <span className="detail-label">Integrity</span>
                             <span className="detail-value">{model.integrity || (model.verified ? 'publisher-verified' : 'unverified')}</span>
+                          </div>
+                          <div className="detail">
+                            <span className="detail-label">SHA-256</span>
+                            <span className="detail-value mono" title={model.sha256 || ''}>{model.sha256 ? `${model.sha256.slice(0, 12)}…` : 'Unavailable'}</span>
                           </div>
                           <div className="detail">
                             <span className="detail-label">Downloaded</span>

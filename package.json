@@ -8,6 +8,7 @@
     "dev:mobile": "vite --host",
     "build": "vite build",
     "lint": "oxlint .",
+    "catalog:validate-release": "node scripts/validate-release-catalog.js",
     "preview": "vite preview",
     "android:init": "npx cap init ForgeAI ai.forgeai.app --web-dir=dist",
     "android:sync": "npx cap sync android",

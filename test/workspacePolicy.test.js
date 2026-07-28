@@ -13,6 +13,7 @@ assert.equal(isSensitiveWorkspacePath('.ssh/id_rsa'), true);
 assert.equal(isSensitiveWorkspacePath('keys/release.jks'), true);
 assert.equal(isSensitiveWorkspacePath('src/App.jsx'), false);
 assert.equal(isInternalWorkspacePath('src/App.jsx.forgeai-tmp-123'), true);
+assert.equal(isInternalWorkspacePath('src/App.jsx.forgeai-trash-123'), true);
 assert.throws(() => assertWorkspacePathAllowed('credentials.json', 'reading'), /Sensitive/);
 assert.equal(utf8ByteLength('🙂'), 4);
 

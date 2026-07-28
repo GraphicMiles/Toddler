@@ -10,8 +10,12 @@ import {
 export class OllamaProvider {
   constructor(url = 'http://localhost:11434') { this.url = url; this.kind = 'ollama'; }
   async getStatus() { const result = await checkOllamaConnection(this.url); return { ...result, kind: this.kind }; }
-  async loadModel() { return { loaded: true }; }
-  async stream({ model, messages, signal, onToken }) { return streamOllamaChat({ url: this.url, model, messages, signal, onToken }); }
+  async loadModel() { return { loaded: true, reused: true, loadMs: 0 }; }
+  async stream({ model, messages, signal, onToken }) {
+    const modelName = typeof model === 'string' ? model : model?.ollamaName || model?.id;
+    if (!modelName) throw new Error('An Ollama model name is required.');
+    return streamOllamaChat({ url: this.url, model: modelName, messages, signal, onToken });
+  }
   async stop() { return { stopped: true }; }
   async unloadModel() { return { unloaded: true }; }
 }
@@ -19,7 +23,20 @@ export class OllamaProvider {
 export class OnDeviceProvider {
   constructor() { this.kind = 'on-device'; }
   async getStatus() { return { ...(await getOnDeviceRuntimeInfo()), kind: this.kind }; }
-  async loadModel(path) { if (!path) throw new Error('Select a downloaded offline model first.'); if (typeof path !== 'string' || !path.startsWith('/')) throw new Error(`Invalid Android runtime model path: ${path}`); try { return await loadOnDeviceModel(path); } catch (error) { throw new Error(`Native model load failed for ${path}: ${error.message || 'unknown error'}`); } }
+  async loadModel(model) {
+    if (!model?.localPath) throw new Error('Select a downloaded offline model first.');
+    if (typeof model.localPath !== 'string' || !model.localPath.startsWith('/')) throw new Error(`Invalid Android runtime model path: ${model.localPath}`);
+    const status = await getOnDeviceRuntimeInfo();
+    if (status.loaded && status.loadedModelId === model.id && status.loadedPath === model.localPath) {
+      return { loaded: true, reused: true, modelId: model.id, loadMs: status.lastLoadMs || 0 };
+    }
+    try { return await loadOnDeviceModel(model); }
+    catch (error) {
+      const wrapped = new Error(`Native model load failed: ${error.message || 'unknown error'}`);
+      wrapped.code = error.code || 'MODEL_LOAD_FAILED';
+      throw wrapped;
+    }
+  }
   async stream({ model, messages, signal, onToken }) { return runOnDeviceChat({ model, messages, signal, onToken }); }
   async stop() { return { stopped: true }; }
   async unloadModel() { return unloadOnDeviceModel(); }

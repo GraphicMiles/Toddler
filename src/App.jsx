@@ -11,6 +11,7 @@ import useModelCollection from './hooks/useModelCollection';
 import useDeviceCapability from './hooks/useDeviceCapability';
 import { haptics, isNative, pickWorkspaceFolder } from './nativeBridge';
 import { createModelProvider } from './providers/modelProvider';
+import { getModelProfile } from './models/catalog.js';
 import { AgentCore } from './agent/core.js';
 import { ApprovalGate } from './tools/toolApproval.js';
 import { createWorkspaceToolRegistry } from './tools/workspaceTools.js';
@@ -52,6 +53,8 @@ export default function App() {
   const [ollamaConnected, setOllamaConnected] = useState(false);
   const [modelStatus, setModelStatus] = useState('off');
   const [isConnecting, setIsConnecting] = useState(true);
+  const [runtimeInfo, setRuntimeInfo] = useState(null);
+  const [lastBenchmark, setLastBenchmark] = useState(null);
   
   // Model collection
   const {
@@ -182,16 +185,27 @@ export default function App() {
     }
   }, [loadWorkspace, workspaceProvider]);
 
+  const rememberWorkspaceBackup = useCallback((result, fallbackPath) => {
+    if (result?.backupId) setLastWorkspaceBackup({
+      id: result.backupId,
+      path: result.path || fallbackPath,
+      operation: result.operation || 'write',
+      createdAt: Date.now(),
+    });
+  }, []);
+
   const handleFileRename = useCallback(async (oldPath, newPath) => {
     const newName = newPath.split('/').pop();
-    await workspaceProvider.rename(oldPath, newName);
+    const result = await workspaceProvider.rename(oldPath, newName);
+    rememberWorkspaceBackup(result, oldPath);
     await loadWorkspace();
-  }, [loadWorkspace, workspaceProvider]);
+  }, [loadWorkspace, rememberWorkspaceBackup, workspaceProvider]);
 
-  const handleFileDelete = useCallback(async (path) => {
-    await workspaceProvider.delete(path);
+  const handleFileDelete = useCallback(async path => {
+    const result = await workspaceProvider.delete(path);
+    rememberWorkspaceBackup(result, path);
     await loadWorkspace();
-  }, [loadWorkspace, workspaceProvider]);
+  }, [loadWorkspace, rememberWorkspaceBackup, workspaceProvider]);
 
   const handleFilePick = useCallback((path, node) => {
     const name = path.split('/').pop();
@@ -266,9 +280,11 @@ export default function App() {
     try {
       const result = await provider.getStatus();
       const available = Boolean(result.connected ?? result.available);
+      setRuntimeInfo(result);
       setOllamaConnected(available);
-      setModelStatus(available ? 'idle' : 'off');
+      setModelStatus(current => current === 'busy' ? current : (available ? 'idle' : 'off'));
     } catch {
+      setRuntimeInfo(null);
       setOllamaConnected(false);
       setModelStatus('off');
     } finally {
@@ -308,6 +324,7 @@ export default function App() {
       return;
     }
 
+    const activeProfile = getModelProfile(activeModel);
     const userMessage = { id: generateId(), role: 'user', content: text, timestamp: Date.now() };
     const assistantId = generateId();
 
@@ -326,7 +343,10 @@ export default function App() {
         const approved = window.confirm(
           `Include these workspace files in the prompt sent to ${destination}?\n\n${contextItems.map(item => `• ${item.path}`).join('\n')}\n\nCancel to continue without workspace context.`,
         );
-        if (approved) ragContext = formatContextForPrompt(contextItems);
+        if (approved) {
+          const ragBudgetCharacters = Math.max(1024, Math.floor((activeProfile.contextTokens - activeProfile.maxOutputTokens) * 0.4) * 4);
+          ragContext = formatContextForPrompt(contextItems).slice(0, ragBudgetCharacters);
+        }
       }
     } catch (ragErr) {
       console.warn('RAG retrieval skipped:', ragErr);
@@ -363,13 +383,15 @@ export default function App() {
     }
 
     // Build the initial assistant message (agent summary or placeholder)
-    const initialContent = agentResponseText || '';
+    const initialContent = agentResponseText ? `${agentResponseText}\n\n` : '';
     setMessages(prev => [...prev, userMessage, { id: assistantId, role: 'assistant', content: initialContent, timestamp: Date.now() }]);
     setIsTyping(true); setModelStatus('busy');
     const controller = new AbortController(); setAbortController(controller);
     if (isNative) await haptics.light();
     try {
-      const history = trimHistory([...messages, userMessage]);
+      const ragTokens = Math.ceil(ragContext.length / 4);
+      const historyBudget = Math.max(256, activeProfile.contextTokens - activeProfile.maxOutputTokens - ragTokens - 128);
+      const history = trimHistory([...messages, userMessage], historyBudget);
       
       // Inject RAG context into the first user message for the model
       const messagesWithContext = [...history];
@@ -383,19 +405,28 @@ export default function App() {
         }
       }
 
-      const modelIdForProvider = isNative 
-        ? (activeModel.localPath || activeModel.downloadedPath || activeModel.file || activeModel.ollamaName || activeModel.id)
-        : (activeModel.ollamaName || activeModel.id);
-      
-      if (!modelIdForProvider) {
-        throw new Error('No valid model identifier found. Please re-download the model.');
-      }
-      
-      await provider.loadModel?.(modelIdForProvider);
-      await provider.stream({ model: modelIdForProvider, messages: messagesWithContext, signal: controller.signal,
-        onToken: (token) => setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: m.content + token } : m)),
+      const loadResult = await provider.loadModel(activeModel);
+      const generationResult = await provider.stream({
+        model: activeModel,
+        messages: messagesWithContext,
+        signal: controller.signal,
+        onToken: token => setMessages(prev => prev.map(message => message.id === assistantId ? { ...message, content: message.content + token } : message)),
       });
-      if (isNative) await haptics.success();
+      if (isNative && generationResult) {
+        const info = await provider.getStatus().catch(() => runtimeInfo);
+        setRuntimeInfo(info || runtimeInfo);
+        setLastBenchmark({
+          ...generationResult,
+          modelId: activeModel.id,
+          modelName: activeModel.name,
+          loadMs: loadResult?.loadMs || info?.lastLoadMs || 0,
+          loadReused: loadResult?.reused === true,
+          abi: info?.abi || 'unknown',
+          backend: info?.backend || 'llama.cpp-cpu',
+          measuredAt: Date.now(),
+        });
+        await haptics.success();
+      }
     } catch (error) {
       if (error.name !== 'AbortError') {
         recordError(error, 'model-generation');
@@ -405,7 +436,7 @@ export default function App() {
         setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: friendly, level: 'error' } : m));
       }
     } finally { setIsTyping(false); setModelStatus('idle'); setAbortController(null); }
-  }, [activeModel, messages, downloads, endpoint, provider, agentCore, autoExecuteSafeActions, trimHistory, workspaceTree, selectedFilePath, workspaceProvider]);
+  }, [activeModel, messages, downloads, endpoint, provider, runtimeInfo, agentCore, autoExecuteSafeActions, trimHistory, workspaceTree, selectedFilePath, workspaceProvider]);
 
   const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
 
@@ -566,6 +597,10 @@ export default function App() {
               onPause={(model) => pauseDownload(model)}
               onCancel={(model) => cancelDownload(model.id)}
               onUseModel={handleSelectModel}
+              onMountModel={async model => {
+                const result = await mountModel(model);
+                if (!result.success) recordError(new Error(result.error), 'model-mount');
+              }}
               deviceCapability={deviceCapability}
               ollamaConnected={ollamaConnected}
               isNative={isNative}
@@ -594,6 +629,8 @@ export default function App() {
                 isRunning={modelStatus === 'busy'}
                 ollamaConnected={ollamaConnected}
                 runtimeMode={isNative ? 'On-device runtime' : 'Ollama preview'}
+                runtimeInfo={runtimeInfo}
+                benchmark={lastBenchmark}
                 deviceCapability={deviceCapability}
                 onOpenZoo={() => setCurrentScreen(SCREENS.ZOO)}
                 onImportModel={async () => { try { await importModel(); } catch (error) { recordError(error, 'model-import'); } }}

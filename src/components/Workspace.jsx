@@ -304,7 +304,7 @@ export default function Workspace({
               <button className="ws-action-btn" onClick={() => handleNewFolder('')} title="New folder">
                 <FolderPlus size={16} />
               </button>
-              <button className="ws-action-btn" onClick={onUndo} title={undoPath ? `Undo last save to ${undoPath}` : 'No workspace backup available'} disabled={!undoPath}>
+              <button className="ws-action-btn" onClick={onUndo} title={undoPath ? `Undo last workspace change to ${undoPath}` : 'No workspace backup available'} disabled={!undoPath}>
                 <RotateCcw size={16} />
               </button>
               <button className="ws-action-btn" onClick={onRefresh} title="Refresh">

@@ -5,90 +5,14 @@ import {
   Smartphone, Pause, Play, Ban
 } from 'lucide-react';
 import {
-  formatMemoryCapacity, formatModelSize, formatStorageCapacity,
+  assessModelCompatibility, formatMemoryCapacity, formatModelSize, formatStorageCapacity,
   getModelSizeBytes, ramGigabytesForCompatibility,
 } from '../utils/deviceCapacity';
+import { MODEL_CATALOG } from '../models/catalog.js';
 import './ModelZoo.css';
 
-const MODEL_CATALOG = [
-  {
-    id: 'smollm2-360m-q3', name: 'SmolLM2 360M Q3', family: 'smollm2', params: '360M',
-    size: 235, sizeUnit: 'MB', minRam: 2, task: 'chat',
-    description: 'Small offline model for compatible Android devices.', badge: 'Offline',
-    runsOn: ['mobile'], quantizations: ['Q3_K_M'], license: 'Apache-2.0',
-    ollamaName: 'smollm2:360m',
-    file: 'SmolLM-360M-Q3_K_M.gguf',
-    downloadUrl: 'https://huggingface.co/tensorblock/SmolLM-360M-GGUF/resolve/main/SmolLM-360M-Q3_K_M.gguf?download=true',
-  },
-  {
-    id: 'smollm2-135m-q3', name: 'SmolLM2 135M Q3', family: 'smollm2', params: '135M',
-    size: 94, sizeUnit: 'MB', minRam: 1.5, task: 'chat',
-    description: 'Tiny offline test model. Fastest download for compatible Android devices.', badge: 'Tiny',
-    runsOn: ['mobile'], quantizations: ['Q3_K_M'], license: 'Apache-2.0',
-    ollamaName: 'smollm2:135m',
-    file: 'SmolLM-135M-Q3_K_M.gguf',
-    downloadUrl: 'https://huggingface.co/QuantFactory/SmolLM-135M-Instruct-GGUF/resolve/main/SmolLM-135M-Instruct.Q3_K_M.gguf?download=true',
-  },
-  {
-    id: 'smollm-360m', name: 'SmolLM2 360M', family: 'smollm2', params: '360M',
-    size: 235, sizeUnit: 'MB', minRam: 2, task: 'chat',
-    description: 'Lightweight chat model. Great for quick conversations on modest hardware.',
-    badge: 'Fast', runsOn: ['web', 'mobile'], quantizations: ['Q4_K_M'], license: 'Apache-2.0',
-    ollamaName: 'smollm2:360m',
-  },
-  {
-    id: 'smollm-1.7b', name: 'SmolLM2 1.7B', family: 'smollm2', params: '1.7B',
-    size: 1000, sizeUnit: 'MB', minRam: 3, task: 'chat',
-    description: 'Balanced quality and speed. Good for general coding chat.',
-    runsOn: ['web', 'mobile'], quantizations: ['Q4_K_M'], license: 'Apache-2.0',
-    ollamaName: 'smollm2:1.7b',
-  },
-  {
-    id: 'llama-3.2-1b', name: 'Llama 3.2 1B', family: 'llama', params: '1B',
-    size: 700, sizeUnit: 'MB', minRam: 2, task: 'chat',
-    description: "Meta's compact model. Strong reasoning for its size.",
-    runsOn: ['web', 'mobile'], quantizations: ['Q4_K_M'], license: 'Llama 3.2',
-    ollamaName: 'llama3.2:1b',
-  },
-  {
-    id: 'qwen-0.5b', name: 'Qwen 2.5 0.5B', family: 'qwen', params: '0.5B',
-    size: 380, sizeUnit: 'MB', minRam: 1.5, task: 'chat',
-    description: 'Tiny multilingual model by Alibaba. Fast inference.',
-    badge: 'Tiny', runsOn: ['web', 'mobile'], quantizations: ['Q4_K_M'], license: 'Apache-2.0',
-    ollamaName: 'qwen2.5:0.5b',
-  },
-  {
-    id: 'phi-3-mini', name: 'Phi-3 Mini', family: 'phi', params: '3.8B',
-    size: 2200, sizeUnit: 'MB', minRam: 4, task: 'chat',
-    description: "Microsoft's small-but-mighty model. Excellent reasoning.",
-    runsOn: ['web'], quantizations: ['Q4_K_M'], license: 'MIT',
-    ollamaName: 'phi3:mini',
-  },
-  {
-    id: 'codellama-3b', name: 'Code Llama 3B', family: 'codellama', params: '3B',
-    size: 1800, sizeUnit: 'MB', minRam: 4, task: 'chat',
-    description: "Meta's code-specialized model. Good for code generation.",
-    runsOn: ['web'], quantizations: ['Q4_K_M'], license: 'Llama 2',
-    ollamaName: 'codellama:3b',
-  },
-  {
-    id: 'qwen-1.5b-code', name: 'Qwen 2.5 Coder 1.5B', family: 'qwen', params: '1.5B',
-    size: 900, sizeUnit: 'MB', minRam: 3, task: 'chat',
-    description: 'Code-focused variant of Qwen. Good at code tasks.',
-    runsOn: ['web', 'mobile'], quantizations: ['Q4_K_M'], license: 'Apache-2.0',
-    ollamaName: 'qwen2.5-coder:1.5b',
-  },
-  {
-    id: 'deepseek-1.3b', name: 'DeepSeek Coder 1.3B', family: 'deepseek', params: '1.3B',
-    size: 800, sizeUnit: 'MB', minRam: 2.5, task: 'chat',
-    description: 'Compact code model by DeepSeek. Strong at code completion.',
-    runsOn: ['web', 'mobile'], quantizations: ['Q4_K_M'], license: 'DeepSeek',
-    ollamaName: 'deepseek-coder:1.3b',
-  },
-];
-
-const TASK_ICONS = { chat: MessageSquare };
-const TASK_LABELS = { chat: 'Chat' };
+const TASK_ICONS = { chat: MessageSquare, coding: Cpu, 'smoke-test': Smartphone };
+const TASK_LABELS = { chat: 'Chat', coding: 'Coding', 'smoke-test': 'Smoke test' };
 
 function heatLevel(model) {
   if (model.size < 500) return 1;
@@ -162,20 +86,18 @@ export default function ModelZoo({
       : `${formatModelSize(usedStorageBytes)} used by models`
     : `${formatModelSize(usedStorageBytes)} used by models`;
 
-  const filteredModels = MODEL_CATALOG.filter((model) => {
-    const freeStorage = deviceCapability.availableStorageBytes;
-    const hasStorage = !freeStorage || getModelSizeBytes(model) <= freeStorage;
-    const isCompatible = model.minRam <= ram && hasStorage;
+  const compatibilityFor = model => {
+    if (!isNative) return { compatible: model.runsOn.includes('web'), reason: 'Available through the Ollama development preview.' };
+    return assessModelCompatibility(model, deviceCapability);
+  };
+  const filteredModels = MODEL_CATALOG.filter(model => {
+    const compatibility = compatibilityFor(model);
+    const platformSupported = model.runsOn.includes(isNative ? 'mobile' : 'web');
     const matchesFilter = filter === 'all' || model.task === filter;
-    if (showOnlyCompatible && !isCompatible) return false;
-    if (!matchesFilter) return false;
-    return true;
+    return platformSupported && matchesFilter && (!showOnlyCompatible || compatibility.compatible);
   });
 
-  const isDownloaded = (id) => downloadedModels.some((d) => d.id === id);
-  const isCompatible = (model) =>
-    model.minRam <= ram &&
-    (!deviceCapability.availableStorageBytes || getModelSizeBytes(model) <= deviceCapability.availableStorageBytes);
+  const isDownloaded = id => downloadedModels.some(model => model.id === id);
 
   // ── Download handlers (state is in downloads prop, survives tab switches) ──
 
@@ -203,9 +125,10 @@ export default function ModelZoo({
   // ── Render a single model card ──
 
   const renderCard = (model, index) => {
-    const TaskIcon = TASK_ICONS[model.task];
+    const TaskIcon = TASK_ICONS[model.task] || MessageSquare;
     const downloaded = isDownloaded(model.id);
-    const compatible = isCompatible(model);
+    const compatibility = compatibilityFor(model);
+    const compatible = compatibility.compatible;
     const dl = getModelDownload(model.id);
     const isDownloading = dl?.status === 'downloading';
     const isPaused = dl?.status === 'paused';
@@ -251,7 +174,7 @@ export default function ModelZoo({
         {!compatible && (
           <div className="compatibility-warning">
             <WifiOff size={12} />
-            <span>{model.minRam > ram ? `Requires ${model.minRam}GB RAM` : 'Not enough storage'}</span>
+            <span>{compatibility.reason}</span>
           </div>
         )}
 
@@ -381,7 +304,7 @@ export default function ModelZoo({
               <span>Compatible</span>
             </label>
             <div className="zoo-filters">
-              {['all', 'chat'].map((f) => (
+              {['all', 'chat', 'coding', 'smoke-test'].map((f) => (
                 <button
                   key={f}
                   className={`filter-tab ${filter === f ? 'active' : ''}`}

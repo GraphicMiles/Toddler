@@ -134,22 +134,24 @@ export class VirtualWorkspace {
     return file.content;
   }
 
+  addBackup(record) {
+    const id = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    this.backups.set(id, { ...record, createdAt: Date.now() });
+    const oldest = [...this.backups.entries()].sort((a, b) => a[1].createdAt - b[1].createdAt);
+    while (oldest.length > 20) {
+      const [expiredId] = oldest.shift();
+      this.backups.delete(expiredId);
+    }
+    return id;
+  }
+
   async writeFile(path, content = '') {
     const dir = path.substring(0, path.lastIndexOf('/'));
     if (dir) this.createDirectory(dir);
-
-    let backupId = null;
     const existing = this.files.get(path);
-    if (existing) {
-      backupId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      this.backups.set(backupId, { path, content: String(existing.content ?? ''), createdAt: Date.now() });
-      const oldest = [...this.backups.entries()].sort((a, b) => a[1].createdAt - b[1].createdAt);
-      while (oldest.length > 20) {
-        const [id] = oldest.shift();
-        this.backups.delete(id);
-      }
-    }
-
+    const backupId = existing
+      ? this.addBackup({ operation: 'write', path, content: String(existing.content ?? '') })
+      : null;
     const text = String(content);
     this.files.set(path, {
       content: text,
@@ -158,80 +160,80 @@ export class VirtualWorkspace {
       updatedAt: Date.now(),
     });
     this.saveToStorage();
-    return { path, size: new TextEncoder().encode(text).byteLength, backupId };
+    return { path, size: new TextEncoder().encode(text).byteLength, backupId, operation: 'write' };
   }
 
   async listBackups() {
     return [...this.backups.entries()]
-      .map(([id, backup]) => ({ id, path: backup.path, createdAt: backup.createdAt }))
+      .map(([id, backup]) => ({ id, path: backup.path, operation: backup.operation, createdAt: backup.createdAt }))
       .sort((a, b) => b.createdAt - a.createdAt);
   }
 
   async restoreBackup(id) {
     const backup = this.backups.get(id);
     if (!backup) throw new Error('Workspace backup is missing or expired.');
-    this.files.set(backup.path, {
-      content: backup.content,
-      type: 'file',
-      createdAt: Date.now(),
-      restoredAt: Date.now(),
-    });
+    if (backup.operation === 'write') {
+      this.files.set(backup.path, { content: backup.content, type: 'file', createdAt: Date.now(), restoredAt: Date.now() });
+    } else if (backup.operation === 'delete') {
+      for (const [path] of backup.files || []) if (this.files.has(path)) throw new Error(`Cannot restore because ${path} already exists.`);
+      for (const path of backup.folders || []) if (this.folders.has(path)) throw new Error(`Cannot restore because ${path} already exists.`);
+      for (const [path, file] of backup.files || []) this.files.set(path, file);
+      for (const path of backup.folders || []) this.folders.add(path);
+    } else if (backup.operation === 'rename') {
+      await this.renameInternal(backup.newPath, backup.path, false);
+    } else {
+      throw new Error('Unsupported workspace backup operation.');
+    }
     this.backups.delete(id);
     this.saveToStorage();
-    return { path: backup.path, restored: true };
+    return { path: backup.path, operation: backup.operation, restored: true };
   }
 
   async createDirectory(path) {
     if (!path) return;
     this.folders.add(path);
-    
-    // Create parent folders recursively
     const parent = path.substring(0, path.lastIndexOf('/'));
-    if (parent) {
-      this.createDirectory(parent);
-    }
+    if (parent) this.createDirectory(parent);
     this.saveToStorage();
   }
 
   async deleteFile(path) {
-    if (this.files.has(path)) {
-      this.files.delete(path);
-    } else if (this.folders.has(path)) {
-      // Delete folder and all children
-      for (const filePath of this.files.keys()) {
-        if (filePath.startsWith(path + '/')) {
-          this.files.delete(filePath);
-        }
-      }
-      for (const folderPath of Array.from(this.folders)) {
-        if (folderPath.startsWith(path + '/')) {
-          this.folders.delete(folderPath);
-        }
-      }
-      this.folders.delete(path);
-    }
+    const isFile = this.files.has(path);
+    const isFolder = this.folders.has(path);
+    if (!isFile && !isFolder) throw new Error(`Workspace item not found: ${path}`);
+    const files = [...this.files.entries()].filter(([filePath]) => filePath === path || filePath.startsWith(`${path}/`));
+    const folders = [...this.folders].filter(folderPath => folderPath === path || folderPath.startsWith(`${path}/`));
+    const backupId = this.addBackup({ operation: 'delete', path, files, folders });
+    for (const [filePath] of files) this.files.delete(filePath);
+    for (const folderPath of folders) this.folders.delete(folderPath);
     this.saveToStorage();
+    return { path, backupId, operation: 'delete' };
   }
 
-  async rename(oldPath, newPath) {
-    if (this.files.has(oldPath)) {
+  async renameInternal(oldPath, newPath, createBackup) {
+    if (this.files.has(newPath) || this.folders.has(newPath)) throw new Error(`Workspace item already exists: ${newPath}`);
+    const isFile = this.files.has(oldPath);
+    const isFolder = this.folders.has(oldPath);
+    if (!isFile && !isFolder) throw new Error(`Workspace item not found: ${oldPath}`);
+    const backupId = createBackup ? this.addBackup({ operation: 'rename', path: oldPath, newPath }) : null;
+    if (isFile) {
       const file = this.files.get(oldPath);
       this.files.delete(oldPath);
       this.files.set(newPath, file);
-    } else if (this.folders.has(oldPath)) {
-      // Rename folder and update all children
-      this.folders.delete(oldPath);
-      this.folders.add(newPath);
-
-      for (const [filePath, file] of this.files) {
-        if (filePath.startsWith(oldPath + '/')) {
-          const newFilePath = filePath.replace(oldPath, newPath);
-          this.files.delete(filePath);
-          this.files.set(newFilePath, file);
-        }
-      }
+    } else {
+      const folderEntries = [...this.folders].filter(path => path === oldPath || path.startsWith(`${oldPath}/`));
+      const fileEntries = [...this.files.entries()].filter(([path]) => path.startsWith(`${oldPath}/`));
+      for (const path of folderEntries) this.folders.delete(path);
+      for (const [path] of fileEntries) this.files.delete(path);
+      for (const path of folderEntries) this.folders.add(newPath + path.slice(oldPath.length));
+      for (const [path, file] of fileEntries) this.files.set(newPath + path.slice(oldPath.length), file);
     }
     this.saveToStorage();
+    return { oldPath, newPath, backupId, operation: 'rename' };
+  }
+
+  async rename(oldPath, newPath) {
+    return this.renameInternal(oldPath, newPath, true);
   }
 
   // Export all files as a downloadable structure

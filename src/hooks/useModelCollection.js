@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createModelManifest } from '../models/modelManifest.js';
 import {
   checkOllamaConnection, pullOllamaModel, deleteOllamaModel,
   downloadOnDeviceModel, pauseOnDeviceDownload, cancelOnDeviceDownload, deleteOnDeviceModel, loadOnDeviceModel, unloadOnDeviceModel, isNative, downloadModelToWorkspace, pauseWorkspaceModelDownload, cancelWorkspaceModelDownload, importModelToRuntime, pickModelFile, importDocumentToRuntime, deleteWorkspaceItem, listWorkspace
@@ -45,7 +46,8 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
           try {
             const imported = await importModelToRuntime(uri, path);
             const id = `imported-${path.split('/').pop().replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
-            saveModels(prev => prev.some(model => model.id === id) ? prev : [...prev, { id, name: path.split('/').pop(), file: path.split('/').pop(), localPath: imported.runtimePath, sourcePath: path, sourceUri: uri, runtime: 'llama.cpp', format: 'GGUF', sha256: imported.sha256, verified: false, integrity: 'hash-recorded', status: 'ready', downloadedAt: new Date().toISOString(), downloadedBytes: imported.size }]);
+            const manifest = createModelManifest({ id, name: path.split('/').pop(), file: path.split('/').pop() }, { runtimePath: imported.runtimePath, sourcePath: path, sourceUri: uri, sha256: imported.sha256, verified: false, sizeBytes: imported.size });
+            saveModels(prev => prev.some(model => model.id === id) ? prev : [...prev, manifest]);
           } catch (error) { console.warn('Durable model import skipped:', path, error); }
         }
       } catch (error) { console.warn('Durable model scan failed:', error); }
@@ -78,13 +80,13 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
         if (modelFolderUri.startsWith('content://')) {
           const durablePath = model.file || `${model.id}.gguf`;
           await trackProgress({ status: 'downloading', progress: 0 });
-          const durable = await downloadModelToWorkspace(modelFolderUri, model.downloadUrl, durablePath, trackProgress);
+          const durable = await downloadModelToWorkspace(modelFolderUri, model.downloadUrl, durablePath, model.sha256, trackProgress);
           if (durable?.paused) return { success: false, paused: true, completed: durable.completed, total: durable.total };
           const imported = await importModelToRuntime(modelFolderUri, durablePath);
           result = { ...durable, ...imported, sourceUri: modelFolderUri, durablePath };
           trackProgress({ status: 'completed', progress: 100, completed: result.size || 0, total: result.size || 0 });
         } else {
-          result = await downloadOnDeviceModel(model.downloadUrl, model.file || `${model.id}.gguf`, trackProgress);
+          result = await downloadOnDeviceModel(model.downloadUrl, model.file || `${model.id}.gguf`, model.sha256, trackProgress);
         }
         trackProgress({ status: 'completed', progress: 100, completed: result.size || 0, total: result.size || 0 });
       } else {
@@ -98,25 +100,21 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
         return { success: false, paused: true };
       }
 
-      if (model.sha256 && result.sha256?.toLowerCase() !== model.sha256.toLowerCase()) {
+      if (isNative && model.sha256 && result.sha256?.toLowerCase() !== model.sha256.toLowerCase()) {
         throw new Error('Downloaded model checksum does not match the catalog manifest.');
       }
 
-      // Success - save provenance and distinguish a recorded hash from trusted verification.
-      const publisherVerified = Boolean(model.sha256 && result.sha256);
-      const installed = {
-        ...model,
-        ollamaName: name,
-        localPath: result.runtimePath || result.path,
-        sourceUri: result.sourceUri || null,
-        sourcePath: result.durablePath || null,
-        sha256: result.sha256 || null,
-        verified: publisherVerified,
-        integrity: publisherVerified ? 'publisher-verified' : (result.sha256 ? 'hash-recorded' : 'unverified'),
-        downloadedAt: new Date().toISOString(),
-        status: 'ready',
-        downloadedBytes: result.total || result.size || undefined,
-      };
+      const publisherVerified = Boolean(isNative && model.sha256 && result.sha256);
+      const installed = isNative
+        ? createModelManifest(model, {
+            runtimePath: result.runtimePath || result.path,
+            sourceUri: result.sourceUri || null,
+            sourcePath: result.durablePath || null,
+            sha256: result.sha256 || null,
+            verified: publisherVerified,
+            sizeBytes: result.total || result.size || model.sizeBytes,
+          })
+        : { ...model, ollamaName: name, status: 'ready', downloadedAt: new Date().toISOString(), verified: false, integrity: 'ollama-managed' };
       saveModels(prev => prev.some(i => i.id === model.id) ? prev : [...prev, installed]);
       controllers.current.delete(model.id);
       setDownloads(d => { const n = { ...d }; delete n[model.id]; return n; });
@@ -172,7 +170,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     try {
       if (isNative && activeModel?.id === modelId) await unloadOnDeviceModel();
       // Remove the durable source first so the discovery scan cannot immediately re-import it.
-      if (isNative && model.sourceUri && model.sourcePath) await deleteWorkspaceItem(model.sourceUri, model.sourcePath);
+      if (isNative && model.sourceUri && model.sourcePath) await deleteWorkspaceItem(model.sourceUri, model.sourcePath, false);
       if (isNative && model.localPath) await deleteOnDeviceModel(model.localPath);
       else if (!isNative) await deleteOllamaModel(model.ollamaName || model.id, endpoint);
     } catch (error) {
@@ -195,7 +193,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
 
   const mountModel = useCallback(async (model) => {
     if (isNative && model.localPath) {
-      try { await loadOnDeviceModel(model.localPath); }
+      try { await loadOnDeviceModel(model); }
       catch (error) { return { success: false, error: error.message }; }
     }
     setActiveModel(model);
@@ -214,7 +212,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     if (!selected?.uri) return { success: false, cancelled: true };
     const imported = await importDocumentToRuntime(selected.uri, selected.name);
     const id = `imported-${selected.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
-    const model = { id, name: selected.name, file: selected.name, localPath: imported.runtimePath, sourceUri: selected.uri, runtime: 'llama.cpp', format: 'GGUF', sha256: imported.sha256, verified: false, integrity: 'hash-recorded', status: 'ready', downloadedAt: new Date().toISOString(), downloadedBytes: imported.size };
+    const model = createModelManifest({ id, name: selected.name, file: selected.name }, { runtimePath: imported.runtimePath, sourceUri: selected.uri, sha256: imported.sha256, verified: false, sizeBytes: imported.size });
     saveModels(prev => prev.some(item => item.id === id) ? prev : [...prev, model]);
     return { success: true, model };
   }, [saveModels]);

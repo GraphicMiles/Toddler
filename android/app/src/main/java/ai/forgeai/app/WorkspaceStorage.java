@@ -35,6 +35,7 @@ public class WorkspaceStorage extends Plugin {
     private static final int MAX_BACKUPS = 20;
     private static final long MAX_BACKUP_BYTES = 40L * 1024L * 1024L;
     private static final Pattern BACKUP_ID = Pattern.compile("^[A-Za-z0-9-]{8,80}$");
+    private static final Pattern SHA256 = Pattern.compile("^[a-fA-F0-9]{64}$");
     private static final String[] TEXT_EXTENSIONS = {
         ".txt", ".md", ".json", ".js", ".jsx", ".ts", ".tsx", ".css", ".html", ".xml",
         ".java", ".kt", ".kts", ".cpp", ".c", ".h", ".hpp", ".py", ".rb", ".go", ".rs",
@@ -123,7 +124,7 @@ public class WorkspaceStorage extends Plugin {
             || name.equals("credentials") || name.startsWith("credentials.") || name.startsWith("secret")
             || name.endsWith(".pem") || name.endsWith(".key") || name.endsWith(".p12")
             || name.endsWith(".pfx") || name.endsWith(".jks") || name.endsWith(".keystore")
-            || name.contains(".forgeai-tmp-") || name.contains(".forgeai-old-");
+            || name.contains(".forgeai-tmp-") || name.contains(".forgeai-old-") || name.contains(".forgeai-trash-");
     }
 
     private String normalizeRelative(String relative, boolean allowRoot) {
@@ -189,11 +190,27 @@ public class WorkspaceStorage extends Plugin {
         } catch (Exception error) { call.reject(error.getMessage()); }
     }
 
+    private boolean isTrashReferenced(String trashName) {
+        File[] metadata = backupDirectory().listFiles((dir, name) -> name.endsWith(".json"));
+        if (metadata == null) return false;
+        for (File file : metadata) {
+            try {
+                JSONObject item = new JSONObject(readLocalText(file));
+                if (rootUri.toString().equals(item.optString("rootUri")) && trashName.equals(item.optString("trashName"))) return true;
+            } catch (Exception ignored) {}
+        }
+        return false;
+    }
+
     private JSArray listNode(DocumentFile directory, String parent, int depth) {
         JSArray array = new JSArray();
         if (depth > 8) return array;
         for (DocumentFile file : directory.listFiles()) {
             String name = file.getName() == null ? "" : file.getName();
+            if (name.contains(".forgeai-trash-")) {
+                if (!isTrashReferenced(name)) file.delete();
+                continue;
+            }
             if (name.isEmpty() || blockedSegment(name) || name.endsWith(".part")) continue;
             String path = parent.isEmpty() ? name : parent + "/" + name;
             JSObject item = new JSObject();
@@ -312,41 +329,73 @@ public class WorkspaceStorage extends Plugin {
         return output.toString();
     }
 
-    private String createBackup(DocumentFile original, String path, byte[] originalData) throws Exception {
+    private void writeMetadata(File file, JSONObject metadata) throws Exception {
+        try (FileOutputStream output = new FileOutputStream(file)) {
+            output.write(metadata.toString().getBytes(StandardCharsets.UTF_8));
+            output.flush();
+        }
+    }
+
+    private JSONObject baseMetadata(String id, String operation, String path) throws Exception {
+        JSONObject metadata = new JSONObject();
+        metadata.put("id", id);
+        metadata.put("operation", operation);
+        metadata.put("rootUri", rootUri.toString());
+        metadata.put("path", path);
+        metadata.put("createdAt", System.currentTimeMillis());
+        return metadata;
+    }
+
+    private String createWriteBackup(String path, byte[] originalData) throws Exception {
         String id = UUID.randomUUID().toString();
         File directory = backupDirectory();
         File dataFile = new File(directory, id + ".bak");
-        File metadataFile = new File(directory, id + ".json");
         try (FileOutputStream output = new FileOutputStream(dataFile)) {
             output.write(originalData);
             output.flush();
         }
-        JSONObject metadata = new JSONObject();
-        metadata.put("id", id);
-        metadata.put("rootUri", rootUri.toString());
-        metadata.put("path", path);
-        metadata.put("createdAt", System.currentTimeMillis());
+        JSONObject metadata = baseMetadata(id, "write", path);
         metadata.put("sha256", sha256(originalData));
-        try (FileOutputStream output = new FileOutputStream(metadataFile)) {
-            output.write(metadata.toString().getBytes(StandardCharsets.UTF_8));
-            output.flush();
-        }
+        writeMetadata(new File(directory, id + ".json"), metadata);
         pruneBackups();
         return id;
     }
 
+    private String createOperationBackup(String operation, String path, String secondaryName, String secondaryValue) throws Exception {
+        String id = UUID.randomUUID().toString();
+        JSONObject metadata = baseMetadata(id, operation, path);
+        metadata.put(secondaryName, secondaryValue);
+        writeMetadata(new File(backupDirectory(), id + ".json"), metadata);
+        pruneBackups();
+        return id;
+    }
+
+    private void cleanupExpiredBackup(JSONObject metadata) {
+        if (!"delete".equals(metadata.optString("operation"))) return;
+        try {
+            Uri uri = Uri.parse(metadata.getString("rootUri"));
+            DocumentFile workspace = DocumentFile.fromTreeUri(getContext(), uri);
+            if (workspace == null) return;
+            PathParts parts = splitPath(metadata.getString("path"));
+            DocumentFile parent = resolve(workspace, parts.parent, false);
+            DocumentFile trash = parent.findFile(metadata.getString("trashName"));
+            if (trash != null) trash.delete();
+        } catch (Exception ignored) {}
+    }
+
     private void pruneBackups() {
         File directory = backupDirectory();
-        File[] metadata = directory.listFiles((dir, name) -> name.endsWith(".json"));
-        if (metadata == null) return;
-        Arrays.sort(metadata, Comparator.comparingLong(File::lastModified).reversed());
+        File[] files = directory.listFiles((dir, name) -> name.endsWith(".json"));
+        if (files == null) return;
+        Arrays.sort(files, Comparator.comparingLong(File::lastModified).reversed());
         long total = 0;
-        for (int index = 0; index < metadata.length; index++) {
-            String id = metadata[index].getName().replace(".json", "");
+        for (int index = 0; index < files.length; index++) {
+            String id = files[index].getName().replace(".json", "");
             File data = new File(directory, id + ".bak");
             total += data.isFile() ? data.length() : 0;
             if (index >= MAX_BACKUPS || total > MAX_BACKUP_BYTES) {
-                metadata[index].delete();
+                try { cleanupExpiredBackup(new JSONObject(readLocalText(files[index]))); } catch (Exception ignored) {}
+                files[index].delete();
                 data.delete();
             }
         }
@@ -375,7 +424,7 @@ public class WorkspaceStorage extends Plugin {
             if (!sha256(data).equals(sha256(verified))) throw new IllegalArgumentException("Workspace transaction verification failed.");
 
             byte[] originalData = readDocument(original, MAX_TEXT_BYTES);
-            String backupId = keepBackup ? createBackup(original, path, originalData) : null;
+            String backupId = keepBackup ? createWriteBackup(path, originalData) : null;
 
             if (!original.renameTo(oldName)) throw new IllegalArgumentException("Unable to preserve the original workspace file.");
             if (!temp.renameTo(parts.name)) {
@@ -404,6 +453,7 @@ public class WorkspaceStorage extends Plugin {
             result.put("path", path);
             result.put("size", data.length);
             result.put("backupId", backupId);
+            result.put("operation", "write");
             call.resolve(result);
         } catch (Exception error) { call.reject(error.getMessage()); }
     }
@@ -423,6 +473,7 @@ public class WorkspaceStorage extends Plugin {
                         JSObject item = new JSObject();
                         item.put("id", metadata.getString("id"));
                         item.put("path", metadata.getString("path"));
+                        item.put("operation", metadata.optString("operation", "write"));
                         item.put("createdAt", metadata.getLong("createdAt"));
                         item.put("sha256", metadata.optString("sha256"));
                         result.put(item);
@@ -446,14 +497,36 @@ public class WorkspaceStorage extends Plugin {
             File dataFile = new File(directory, id + ".bak");
             JSONObject metadata = new JSONObject(readLocalText(metadataFile));
             if (!rootUri.toString().equals(metadata.optString("rootUri"))) throw new IllegalArgumentException("Workspace backup belongs to another root.");
+            String operation = metadata.optString("operation", "write");
             String path = normalizeRelative(metadata.getString("path"), false);
-            byte[] data = readLocalFile(dataFile, MAX_TEXT_BYTES);
-            if (!metadata.optString("sha256").equals(sha256(data))) throw new IllegalArgumentException("Workspace backup verification failed.");
-            replaceFile(workspace, path, data, false);
+            PathParts parts = splitPath(path);
+            DocumentFile parent = resolve(workspace, parts.parent, false);
+
+            if ("write".equals(operation)) {
+                byte[] data = readLocalFile(dataFile, MAX_TEXT_BYTES);
+                if (!metadata.optString("sha256").equals(sha256(data))) throw new IllegalArgumentException("Workspace backup verification failed.");
+                replaceFile(workspace, path, data, false);
+            } else if ("delete".equals(operation)) {
+                if (parent.findFile(parts.name) != null) throw new IllegalArgumentException("The original path is already occupied.");
+                DocumentFile trash = parent.findFile(metadata.getString("trashName"));
+                if (trash == null || !trash.renameTo(parts.name)) throw new IllegalArgumentException("Unable to restore deleted workspace item.");
+            } else if ("rename".equals(operation)) {
+                String newPath = normalizeRelative(metadata.getString("newPath"), false);
+                PathParts newParts = splitPath(newPath);
+                DocumentFile newParent = resolve(workspace, newParts.parent, false);
+                if (!newParts.parent.equals(parts.parent)) throw new IllegalArgumentException("Cross-folder rename restore is not supported.");
+                if (parent.findFile(parts.name) != null) throw new IllegalArgumentException("The original path is already occupied.");
+                DocumentFile renamed = newParent.findFile(newParts.name);
+                if (renamed == null || !renamed.renameTo(parts.name)) throw new IllegalArgumentException("Unable to undo workspace rename.");
+            } else {
+                throw new IllegalArgumentException("Unsupported workspace backup operation.");
+            }
+
             metadataFile.delete();
             dataFile.delete();
             JSObject response = new JSObject();
             response.put("path", path);
+            response.put("operation", operation);
             response.put("restored", true);
             call.resolve(response);
         } catch (Exception error) { call.reject(error.getMessage()); }
@@ -469,9 +542,17 @@ public class WorkspaceStorage extends Plugin {
             normalizeRelative(destination, false);
             DocumentFile parent = resolve(root(call), parts.parent, false);
             if (parent.findFile(name) != null) throw new IllegalArgumentException("Workspace item already exists.");
-            DocumentFile file = resolve(parent, parts.name, false);
-            if (!file.renameTo(name)) throw new IllegalArgumentException("Unable to rename item.");
-            call.resolve();
+            DocumentFile file = parent.findFile(parts.name);
+            if (file == null || !file.renameTo(name)) throw new IllegalArgumentException("Unable to rename item.");
+            String backupId;
+            try { backupId = createOperationBackup("rename", path, "newPath", destination); }
+            catch (Exception error) {
+                file.renameTo(parts.name);
+                throw error;
+            }
+            JSObject result = new JSObject();
+            result.put("path", path); result.put("newPath", destination); result.put("backupId", backupId); result.put("operation", "rename");
+            call.resolve(result);
         } catch (Exception error) { call.reject(error.getMessage()); }
     }
 
@@ -479,9 +560,28 @@ public class WorkspaceStorage extends Plugin {
     public void delete(PluginCall call) {
         try {
             String path = normalizeRelative(call.getString("path", ""), false);
-            DocumentFile file = resolve(root(call), path, false);
-            if (!file.delete()) throw new IllegalArgumentException("Unable to delete item.");
-            call.resolve();
+            PathParts parts = splitPath(path);
+            DocumentFile parent = resolve(root(call), parts.parent, false);
+            DocumentFile file = parent.findFile(parts.name);
+            if (file == null) throw new IllegalArgumentException("Workspace item not found.");
+            if (!call.getBoolean("recoverable", true)) {
+                if (!file.delete()) throw new IllegalArgumentException("Unable to permanently delete item.");
+                JSObject permanent = new JSObject();
+                permanent.put("path", path); permanent.put("operation", "permanent-delete");
+                call.resolve(permanent);
+                return;
+            }
+            String trashName = parts.name + ".forgeai-trash-" + UUID.randomUUID();
+            if (!file.renameTo(trashName)) throw new IllegalArgumentException("Unable to move item into recoverable trash.");
+            String backupId;
+            try { backupId = createOperationBackup("delete", path, "trashName", trashName); }
+            catch (Exception error) {
+                file.renameTo(parts.name);
+                throw error;
+            }
+            JSObject result = new JSObject();
+            result.put("path", path); result.put("backupId", backupId); result.put("operation", "delete");
+            call.resolve(result);
         } catch (Exception error) { call.reject(error.getMessage()); }
     }
 
@@ -522,6 +622,19 @@ public class WorkspaceStorage extends Plugin {
             result.put("size", file.length());
             call.resolve(result);
         } catch (Exception error) { call.reject(error.getMessage()); }
+    }
+
+    private String sha256Document(DocumentFile file) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        try (InputStream input = getContext().getContentResolver().openInputStream(file.getUri())) {
+            if (input == null) throw new IllegalArgumentException("Model file is unavailable for checksum verification.");
+            byte[] buffer = new byte[262144];
+            int count;
+            while ((count = input.read(buffer)) != -1) digest.update(buffer, 0, count);
+        }
+        StringBuilder hash = new StringBuilder();
+        for (byte value : digest.digest()) hash.append(String.format(Locale.ROOT, "%02x", value));
+        return hash.toString();
     }
 
     private boolean hasGgufHeader(DocumentFile file) throws Exception {
@@ -625,9 +738,11 @@ public class WorkspaceStorage extends Plugin {
             try {
                 String url = call.getString("url", "");
                 String path = key;
+                String expectedSha = call.getString("sha256", "").toLowerCase(Locale.ROOT);
                 if (!url.startsWith("https://") || !path.toLowerCase(Locale.ROOT).endsWith(".gguf")) {
                     throw new IllegalArgumentException("Only HTTPS GGUF model downloads are allowed.");
                 }
+                if (!SHA256.matcher(expectedSha).matches()) throw new IllegalArgumentException("A trusted SHA-256 is required for catalog downloads.");
                 DocumentFile folder = root(call);
                 PathParts parts = splitPath(path);
                 DocumentFile directory = resolve(folder, parts.parent, true);
@@ -696,6 +811,8 @@ public class WorkspaceStorage extends Plugin {
                 }
                 if (expected > 0 && total != expected) throw new IllegalArgumentException("Model download ended before the expected byte count.");
                 if (!hasGgufHeader(target)) { target.delete(); throw new IllegalArgumentException("Downloaded file does not have a GGUF header."); }
+                String actualSha = sha256Document(target);
+                if (!expectedSha.equals(actualSha)) { target.delete(); throw new IllegalArgumentException("Downloaded model failed SHA-256 verification."); }
                 DocumentFile existing = directory.findFile(parts.name);
                 if (existing != null && !existing.renameTo(parts.name + ".forgeai-old-" + UUID.randomUUID())) {
                     throw new IllegalArgumentException("Unable to preserve the existing model file.");
@@ -714,6 +831,8 @@ public class WorkspaceStorage extends Plugin {
                 JSObject result = new JSObject();
                 result.put("path", path);
                 result.put("size", total);
+                result.put("sha256", actualSha);
+                result.put("verified", true);
                 call.resolve(result);
             } catch (Exception error) {
                 if (pausedModelDownloads.contains(key)) {

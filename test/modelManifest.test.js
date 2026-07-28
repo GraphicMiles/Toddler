@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
 import { createModelManifest, isUsableManifest } from '../src/models/modelManifest.js';
-const m = createModelManifest({ id: 'test', name: 'Test', file: 'test.gguf' }, { runtimePath: '/private/test.gguf', sha256: 'a'.repeat(64), verified: true });
-assert.equal(m.runtime, 'llama.cpp');
-assert.equal(isUsableManifest(m), true);
-assert.equal(isUsableManifest({ ...m, verified: false }), false);
+const verified = createModelManifest({ id: 'test', name: 'Test', file: 'test.gguf' }, { runtimePath: '/private/test.gguf', sha256: 'a'.repeat(64), verified: true });
+assert.equal(verified.runtime, 'llama.cpp');
+assert.equal(verified.localPath, '/private/test.gguf');
+assert.equal(verified.integrity, 'publisher-verified');
+assert.equal(isUsableManifest(verified), true);
+const imported = createModelManifest({ id: 'import', file: 'import.gguf' }, { runtimePath: '/private/import.gguf', sha256: 'b'.repeat(64), verified: false });
+assert.equal(imported.integrity, 'hash-recorded');
+assert.equal(isUsableManifest(imported), true);
 assert.throws(() => createModelManifest({ id: 'bad', file: 'bad.bin' }));
 console.log('model manifest tests passed');

@@ -11,7 +11,8 @@ import { App } from '@capacitor/app';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { StatusBar } from '@capacitor/status-bar';
 import { registerPlugin } from '@capacitor/core';
-import { profileForModel, formatPrompt } from './models/promptProfiles.js';
+import { formatPrompt } from './models/promptProfiles.js';
+import { getModelProfile } from './models/catalog.js';
 
 const DeviceCapacity = registerPlugin('DeviceCapacity');
 const OnDeviceRuntime = registerPlugin('OnDeviceRuntime');
@@ -24,13 +25,13 @@ export async function writeWorkspaceFile(uri, path, content, maxBytes) { return 
 export async function createWorkspaceFile(uri, path) { return WorkspaceStorage.createFile({ uri, path }); }
 export async function createWorkspaceFolder(uri, path) { return WorkspaceStorage.createFolder({ uri, path }); }
 export async function renameWorkspaceItem(uri, path, newName) { return WorkspaceStorage.rename({ uri, path, newName }); }
-export async function deleteWorkspaceItem(uri, path) { return WorkspaceStorage.delete({ uri, path }); }
+export async function deleteWorkspaceItem(uri, path, recoverable = true) { return WorkspaceStorage.delete({ uri, path, recoverable }); }
 export async function inspectWorkspaceItem(uri, path) { return WorkspaceStorage.inspect({ uri, path }); }
 export async function listWorkspaceBackups(uri) { return WorkspaceStorage.listBackups({ uri }); }
 export async function restoreWorkspaceBackup(uri, backupId) { return WorkspaceStorage.restoreBackup({ uri, backupId }); }
-export async function downloadModelToWorkspace(uri, url, path, onProgress) {
+export async function downloadModelToWorkspace(uri, url, path, sha256, onProgress) {
   const listener = await WorkspaceStorage.addListener('modelDownloadProgress', event => { if (event.path === path) onProgress?.(event); });
-  try { return await WorkspaceStorage.download({ uri, url, path }); } finally { await listener.remove(); }
+  try { return await WorkspaceStorage.download({ uri, url, path, sha256 }); } finally { await listener.remove(); }
 }
 export async function pauseWorkspaceModelDownload(uri, path) { return WorkspaceStorage.pauseDownload({ uri, path }); }
 export async function cancelWorkspaceModelDownload(uri, path) { return WorkspaceStorage.cancelDownload({ uri, path }); }
@@ -43,12 +44,12 @@ export async function getOnDeviceRuntimeInfo() {
   try { return await OnDeviceRuntime.getInfo(); } catch { return { available: false, reason: 'Native inference runtime is not installed in this build.' }; }
 }
 
-export async function downloadOnDeviceModel(url, filename, onProgress) {
+export async function downloadOnDeviceModel(url, filename, sha256, onProgress) {
   if (!isNative) throw new Error('On-device model downloads require Android.');
   const listener = await OnDeviceRuntime.addListener('downloadProgress', event => {
     if (event.filename === filename) onProgress?.(event);
   });
-  try { return await OnDeviceRuntime.download({ url, filename }); }
+  try { return await OnDeviceRuntime.download({ url, filename, sha256 }); }
   finally { await listener.remove(); }
 }
 
@@ -64,9 +65,12 @@ export async function deleteOnDeviceModel(path) {
   if (isNative && path) return OnDeviceRuntime.deleteModel({ path });
 }
 
-export async function loadOnDeviceModel(path) {
+export async function loadOnDeviceModel(model) {
   if (!isNative) throw new Error('On-device inference requires Android.');
-  return OnDeviceRuntime.load({ path });
+  const path = typeof model === 'string' ? model : model?.localPath;
+  const modelId = typeof model === 'string' ? model.split('/').pop() : model?.id;
+  if (!path || !modelId) throw new Error('A downloaded model and runtime path are required.');
+  return OnDeviceRuntime.load({ path, modelId });
 }
 
 export async function unloadOnDeviceModel() {
@@ -75,17 +79,31 @@ export async function unloadOnDeviceModel() {
 
 export async function runOnDeviceChat({ model, messages, signal, onToken }) {
   if (!isNative) throw new Error('On-device inference requires Android.');
+  if (!model?.id) throw new Error('A model manifest is required for on-device inference.');
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-  const profile = profileForModel({ id: model || '' });
+  const profile = getModelProfile(model);
   const prompt = formatPrompt(messages, profile);
-  const requestId = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+  const requestId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+  const tokenListener = await OnDeviceRuntime.addListener('generationToken', event => {
+    if (event.requestId === requestId && event.modelId === model.id && event.token) onToken?.(event.token);
+  });
   const cancel = () => OnDeviceRuntime.cancel({ requestId }).catch(() => {});
   signal?.addEventListener('abort', cancel, { once: true });
-  const result = await OnDeviceRuntime.generate({ prompt, maxTokens: profile.maxOutputTokens, requestId });
-  signal?.removeEventListener('abort', cancel);
-  if (signal?.aborted || result?.cancelled) throw new DOMException('Aborted', 'AbortError');
-  onToken?.(result.text || '');
-  return result;
+  try {
+    const result = await OnDeviceRuntime.generate({
+      prompt,
+      modelId: model.id,
+      maxTokens: profile.maxOutputTokens,
+      contextTokens: profile.contextTokens,
+      threads: profile.preferredThreads,
+      requestId,
+    });
+    if (signal?.aborted || result?.cancelled) throw new DOMException('Aborted', 'AbortError');
+    return result;
+  } finally {
+    signal?.removeEventListener('abort', cancel);
+    await tokenListener.remove();
+  }
 }
 
 // Check if running in Capacitor

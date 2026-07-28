@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { retrieveRelevantContext } from '../src/utils/rag.js';
+import { retrieveRelevantContext, shouldRetrieveWorkspaceContext } from '../src/utils/rag.js';
 
 const reads = [];
 const workspaceProvider = {
@@ -29,5 +29,8 @@ assert.equal(context.length, 1);
 assert.equal(context[0].path, 'src/App.jsx');
 assert.deepEqual(reads, ['src/App.jsx']);
 assert.deepEqual(await retrieveRelevantContext({ workspaceTree: tree }), []);
+assert.equal(shouldRetrieveWorkspaceContext('Hi', 'src/App.jsx'), false);
+assert.equal(shouldRetrieveWorkspaceContext('Explain the selected code', 'src/App.jsx'), true);
+assert.equal(shouldRetrieveWorkspaceContext('What is wrong with App.jsx?', 'src/App.jsx'), true);
 
 console.log('rag tests passed');

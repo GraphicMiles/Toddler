@@ -1,5 +1,5 @@
 export const PROMPT_PROFILES = Object.freeze({
-  smollm: Object.freeze({ promptTemplate: 'chatml', contextTokens: 2048, maxOutputTokens: 256, preferredThreads: 2 }),
+  smollm: Object.freeze({ promptTemplate: 'chatml', contextTokens: 2048, maxOutputTokens: 128, preferredThreads: 2 }),
   smollm2: Object.freeze({ promptTemplate: 'chatml', systemPrompt: 'You are a helpful AI assistant named SmolLM, trained by Hugging Face', contextTokens: 4096, maxOutputTokens: 384, preferredThreads: 2 }),
   qwen: Object.freeze({ promptTemplate: 'chatml', systemPrompt: 'You are Qwen, created by Alibaba Cloud. You are a helpful assistant.', contextTokens: 4096, maxOutputTokens: 512, preferredThreads: 2 }),
   'qwen-coder': Object.freeze({ promptTemplate: 'chatml', systemPrompt: 'You are Qwen, created by Alibaba Cloud. You are a helpful assistant.', contextTokens: 4096, maxOutputTokens: 512, preferredThreads: 2 }),

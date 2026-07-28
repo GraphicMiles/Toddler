@@ -15,7 +15,7 @@ import { getModelProfile } from './models/catalog.js';
 import { AgentCore } from './agent/core.js';
 import { ApprovalGate } from './tools/toolApproval.js';
 import { createWorkspaceToolRegistry } from './tools/workspaceTools.js';
-import { retrieveRelevantContext, formatContextForPrompt } from './utils/rag.js';
+import { retrieveRelevantContext, formatContextForPrompt, shouldRetrieveWorkspaceContext } from './utils/rag.js';
 import { createSafWorkspaceProvider, createVirtualWorkspaceProvider } from './workspace/workspaceProvider.js';
 import { recordError } from './utils/errorLog.js';
 import './styles/index.css';
@@ -331,21 +331,23 @@ export default function App() {
     // === RAG: Retrieve relevant file context (safe & bounded) ===
     let ragContext = '';
     try {
-      const contextItems = await retrieveRelevantContext({
-        query: text,
-        workspaceTree,
-        selectedPath: selectedFilePath,
-        workspaceProvider,
-        maxFiles: 4,
-      });
-      if (contextItems.length > 0) {
-        const destination = isNative ? 'the on-device model' : `the configured model endpoint (${endpoint})`;
-        const approved = window.confirm(
-          `Include these workspace files in the prompt sent to ${destination}?\n\n${contextItems.map(item => `• ${item.path}`).join('\n')}\n\nCancel to continue without workspace context.`,
-        );
-        if (approved) {
-          const ragBudgetCharacters = Math.max(1024, Math.floor((activeProfile.contextTokens - activeProfile.maxOutputTokens) * 0.4) * 4);
-          ragContext = formatContextForPrompt(contextItems).slice(0, ragBudgetCharacters);
+      if (shouldRetrieveWorkspaceContext(text, selectedFilePath)) {
+        const contextItems = await retrieveRelevantContext({
+          query: text,
+          workspaceTree,
+          selectedPath: selectedFilePath,
+          workspaceProvider,
+          maxFiles: 4,
+        });
+        if (contextItems.length > 0) {
+          const destination = isNative ? 'the on-device model' : `the configured model endpoint (${endpoint})`;
+          const approved = window.confirm(
+            `Include these workspace files in the prompt sent to ${destination}?\n\n${contextItems.map(item => `• ${item.path}`).join('\n')}\n\nCancel to continue without workspace context.`,
+          );
+          if (approved) {
+            const ragBudgetCharacters = Math.max(1024, Math.floor((activeProfile.contextTokens - activeProfile.maxOutputTokens) * 0.4) * 4);
+            ragContext = formatContextForPrompt(contextItems).slice(0, ragBudgetCharacters);
+          }
         }
       }
     } catch (ragErr) {
@@ -353,7 +355,6 @@ export default function App() {
     }
 
     // Agent processing - best-effort, non-blocking. Never let agent errors abort the chat.
-    let agentResponseText = '';
     try {
       const agentResult = await agentCore.processMessage({
         message: text,
@@ -376,15 +377,12 @@ export default function App() {
           setPendingActions(prev => [...prev, ...toolActions]);
         }
       }
-      
-      agentResponseText = agentResult.agentResponse || '';
     } catch (agentErr) {
       console.warn('Agent processing skipped:', agentErr);
     }
 
-    // Build the initial assistant message (agent summary or placeholder)
-    const initialContent = agentResponseText ? `${agentResponseText}\n\n` : '';
-    setMessages(prev => [...prev, userMessage, { id: assistantId, role: 'assistant', content: initialContent, timestamp: Date.now() }]);
+    // Agent plans are rendered as action cards; they are not mixed into the model's answer.
+    setMessages(prev => [...prev, userMessage, { id: assistantId, role: 'assistant', content: '', timestamp: Date.now() }]);
     setIsTyping(true); setModelStatus('busy');
     const controller = new AbortController(); setAbortController(controller);
     if (isNative) await haptics.light();
@@ -494,10 +492,10 @@ export default function App() {
   const handleSelectModel = useCallback((model) => {
     setActiveModel(model);
     setModelStatus('idle');
-    void 0;
-    if (isNative) {
-      haptics.medium();
+    if (model.task === 'smoke-test' || /135m/i.test(`${model.name} ${model.file}`)) {
+      addSystemMessage('SmolLM 135M is a runtime smoke-test model. It can prove offline inference works, but it may repeat text or produce poor code. Use Qwen2.5-Coder 1.5B for coding quality.', 'warn');
     }
+    if (isNative) haptics.medium();
     setTimeout(() => setCurrentScreen(SCREENS.CHAT), 500);
   }, [setActiveModel]);
 

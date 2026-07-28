@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createModelManifest } from '../models/modelManifest.js';
+import { getModelBySha256 } from '../models/catalog.js';
 import {
   checkOllamaConnection, pullOllamaModel, deleteOllamaModel,
   downloadOnDeviceModel, pauseOnDeviceDownload, cancelOnDeviceDownload, deleteOnDeviceModel, loadOnDeviceModel, unloadOnDeviceModel, isNative, downloadModelToWorkspace, pauseWorkspaceModelDownload, cancelWorkspaceModelDownload, importModelToRuntime, pickModelFile, importDocumentToRuntime, deleteWorkspaceItem, listWorkspace
@@ -30,6 +31,37 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     });
   }, []);
 
+  // Upgrade manually imported official files when their recorded hash matches the signed catalog metadata.
+  useEffect(() => {
+    saveModels(previous => {
+      const upgraded = previous.map(model => {
+        const catalog = getModelBySha256(model.sha256);
+        if (!catalog) return model;
+        return {
+          ...model,
+          ...catalog,
+          id: catalog.id,
+          localPath: model.localPath || model.runtimePath,
+          runtimePath: model.runtimePath || model.localPath,
+          sourceUri: model.sourceUri || null,
+          sourcePath: model.sourcePath || null,
+          downloadedBytes: model.downloadedBytes || catalog.sizeBytes,
+          verified: true,
+          integrity: 'publisher-verified',
+        };
+      });
+      return [...new Map(upgraded.map(model => [model.id, model])).values()];
+    });
+    setActiveModelState(previous => {
+      if (!previous) return previous;
+      const catalog = getModelBySha256(previous.sha256);
+      if (!catalog) return previous;
+      const upgraded = { ...previous, ...catalog, id: catalog.id, localPath: previous.localPath || previous.runtimePath, verified: true, integrity: 'publisher-verified' };
+      localStorage.setItem(ACTIVE_MODEL_KEY, JSON.stringify(upgraded));
+      return upgraded;
+    });
+  }, [saveModels]);
+
   // Re-discover durable SAF models after reinstall or APK replacement.
   useEffect(() => {
     if (!isNative) return;
@@ -45,9 +77,10 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
           if (cancelled || models.some(model => model.sourcePath === path || model.file === path.split('/').pop())) continue;
           try {
             const imported = await importModelToRuntime(uri, path);
-            const id = `imported-${path.split('/').pop().replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
-            const manifest = createModelManifest({ id, name: path.split('/').pop(), file: path.split('/').pop() }, { runtimePath: imported.runtimePath, sourcePath: path, sourceUri: uri, sha256: imported.sha256, verified: false, sizeBytes: imported.size });
-            saveModels(prev => prev.some(model => model.id === id) ? prev : [...prev, manifest]);
+            const catalog = getModelBySha256(imported.sha256);
+            const fallback = { id: `imported-${path.split('/').pop().replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`, name: path.split('/').pop(), file: path.split('/').pop() };
+            const manifest = createModelManifest(catalog || fallback, { runtimePath: imported.runtimePath, sourcePath: path, sourceUri: uri, sha256: imported.sha256, verified: Boolean(catalog), sizeBytes: imported.size });
+            saveModels(prev => prev.some(model => model.id === manifest.id) ? prev : [...prev, manifest]);
           } catch (error) { console.warn('Durable model import skipped:', path, error); }
         }
       } catch (error) { console.warn('Durable model scan failed:', error); }
@@ -211,9 +244,10 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
     const selected = await pickModelFile();
     if (!selected?.uri) return { success: false, cancelled: true };
     const imported = await importDocumentToRuntime(selected.uri, selected.name);
-    const id = `imported-${selected.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
-    const model = createModelManifest({ id, name: selected.name, file: selected.name }, { runtimePath: imported.runtimePath, sourceUri: selected.uri, sha256: imported.sha256, verified: false, sizeBytes: imported.size });
-    saveModels(prev => prev.some(item => item.id === id) ? prev : [...prev, model]);
+    const catalog = getModelBySha256(imported.sha256);
+    const fallback = { id: `imported-${selected.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`, name: selected.name, file: selected.name };
+    const model = createModelManifest(catalog || fallback, { runtimePath: imported.runtimePath, sourceUri: selected.uri, sha256: imported.sha256, verified: Boolean(catalog), sizeBytes: imported.size });
+    saveModels(prev => prev.some(item => item.id === model.id) ? prev : [...prev, model]);
     return { success: true, model };
   }, [saveModels]);
 

@@ -29,7 +29,7 @@ export const MODEL_CATALOG = Object.freeze([
     runtime: 'llama.cpp',
     android: true,
     ollamaName: 'smollm2:135m',
-    profile: Object.freeze({ promptTemplate: 'chatml', contextTokens: 2048, maxOutputTokens: 256, preferredThreads: 2 }),
+    profile: Object.freeze({ promptTemplate: 'chatml', contextTokens: 2048, maxOutputTokens: 128, preferredThreads: 2 }),
   }),
   Object.freeze({
     id: 'smollm2-360m-q3',
@@ -134,6 +134,11 @@ export function validateCatalog(catalog = MODEL_CATALOG, { requireChecksums = fa
 
 export function getModelById(id) {
   return MODEL_CATALOG.find(model => model.id === id) || null;
+}
+
+export function getModelBySha256(sha256) {
+  const value = String(sha256 || '').toLowerCase();
+  return MODEL_CATALOG.find(model => model.sha256 === value) || null;
 }
 
 export function getModelProfile(model) {

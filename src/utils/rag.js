@@ -14,6 +14,17 @@ const MAX_FILES = 4;
 const MAX_TOTAL_CHARS = 12000; // ~3k tokens rough estimate
 const MAX_FILE_CHARS = 4000;   // per file limit
 
+export function shouldRetrieveWorkspaceContext(query = '', selectedPath = '') {
+  const value = query.trim().toLowerCase();
+  if (!value) return false;
+  if (/^(hi|hello|hey|good (morning|afternoon|evening)|thanks|thank you)[!.? ]*$/.test(value)) return false;
+  const selectedName = selectedPath.split('/').pop()?.toLowerCase();
+  if (selectedName && value.includes(selectedName)) return true;
+  return /\b(code|file|folder|workspace|project|function|class|component|bug|error|fix|debug|review|explain|refactor|implement|rename|delete|search|find|test|build|import|dependency|json|javascript|typescript|python|java|css|html|readme)\b/.test(value)
+    || /@[\w./-]+/.test(value)
+    || /\b[\w-]+\.(js|jsx|ts|tsx|json|py|java|kt|cpp|c|h|css|html|md|yml|yaml|toml)\b/.test(value);
+}
+
 /**
  * Retrieve relevant file contents from the workspace.
  * Returns an array of { path, content, relevance }

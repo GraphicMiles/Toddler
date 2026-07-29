@@ -6,14 +6,43 @@ import { nativeSocialProvider } from './NativeSocialProvider.js';
 import { isExperimentalEnabled } from '../utils/experimentalFeatures.js';
 import { isNative } from '../nativeBridge.js';
 
+const STORAGE_KEY = 'forgeai_social_accounts_v1';
+
+function readAccounts() {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    return Array.isArray(value) ? value.filter(item => item?.platform && item?.username) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeAccounts(accounts) {
+  if (typeof localStorage === 'undefined') return;
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts)); }
+  catch (error) { console.warn('Failed to save social accounts:', error); }
+}
+
 export class SocialMediaManager {
   constructor() {
     this.accounts = new Map();
+    for (const account of readAccounts()) {
+      this.accounts.set(`${account.platform}:${account.username}`, account);
+    }
+  }
+
+  persist() {
+    writeAccounts(this.getAccounts());
   }
 
   async addAccount(platform, username, _credentials) {
-    this.accounts.set(`${platform}:${username}`, { platform, username });
-    return { success: true, native: true };
+    const cleanPlatform = String(platform || '').trim().toLowerCase();
+    const cleanUsername = String(username || '').trim().replace(/^@/, '');
+    if (!cleanPlatform || !cleanUsername) throw new Error('Platform and username are required.');
+    this.accounts.set(`${cleanPlatform}:${cleanUsername}`, { platform: cleanPlatform, username: cleanUsername });
+    this.persist();
+    return { success: true, native: isNative };
   }
 
   getAccounts() {

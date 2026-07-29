@@ -31,7 +31,8 @@ async function executeAction(action) {
   if (action.type === 'github_api') return githubApi({ method: action.method, path: action.apiPath, body: action.body });
   if (action.type === 'git_clone') {
     const result = await gitClone(action.repository, action.branch);
-    localStorage.setItem('forgeai_last_git_repo', result.path);
+    try { localStorage.setItem('forgeai_last_git_repo', result.path); }
+    catch (error) { console.warn('Failed to persist last Git repository path:', error); }
     return result;
   }
   if (action.type === 'git') {

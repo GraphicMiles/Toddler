@@ -28,7 +28,9 @@ export default function CodeEditor({ path, value, onChange, readOnly = false }) 
   const [language, setLanguage] = useState([]);
   useEffect(() => {
     let current = true;
-    languageForPath(path).then(extension => { if (current) setLanguage(extension); });
+    languageForPath(path)
+      .then(extension => { if (current) setLanguage(extension); })
+      .catch(() => { if (current) setLanguage([]); });
     return () => { current = false; };
   }, [path]);
   const extensions = useMemo(() => [

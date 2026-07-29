@@ -11,7 +11,9 @@ function readAll() {
 }
 
 function writeAll(value) {
-  if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+  if (typeof localStorage === 'undefined') return;
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(value)); }
+  catch (error) { console.warn('Failed to save repository index:', error); }
 }
 
 function fingerprint(files) {

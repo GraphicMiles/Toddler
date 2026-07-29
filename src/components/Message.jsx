@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Copy, Check } from 'lucide-react';
 import './Message.css';
@@ -26,16 +26,27 @@ const messageVariants = {
   }
 };
 
-export default function Message({ message }) {
+export default function Message({ message = {} }) {
   const [copied, setCopied] = useState(false);
+  const copyResetTimer = useRef(null);
   const { role, content, timestamp, files = [] } = message;
+  const safeContent = typeof content === 'string' ? content : String(content ?? '');
+  const safeFiles = Array.isArray(files) ? files : [];
   const isUser = role === 'user';
   const isSystem = role === 'system';
 
+  useEffect(() => () => {
+    if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
+  }, []);
+
   const copy = useCallback((text) => {
-    navigator.clipboard?.writeText(text).then(() => {
+    if (!navigator.clipboard?.writeText) return;
+    navigator.clipboard.writeText(String(text ?? '')).then(() => {
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
+      copyResetTimer.current = setTimeout(() => setCopied(false), 1500);
+    }).catch(() => {
+      setCopied(false);
     });
   }, []);
 
@@ -106,7 +117,7 @@ export default function Message({ message }) {
   };
 
   if (isSystem) {
-    const level = message.level || (content?.toLowerCase().includes('error') || content?.toLowerCase().includes('failed') ? 'error' : 'info');
+    const level = message.level || (safeContent.toLowerCase().includes('error') || safeContent.toLowerCase().includes('failed') ? 'error' : 'info');
     return (
       <motion.div
         className={`message system system-${level}`}
@@ -117,7 +128,7 @@ export default function Message({ message }) {
         layout
       >
         <div className="message-content">
-          {renderWithCode(content)}
+          {renderWithCode(safeContent)}
         </div>
       </motion.div>
     );
@@ -159,21 +170,21 @@ export default function Message({ message }) {
         </div>
 
         <div className="message-content">
-          {renderWithCode(content)}
+          {renderWithCode(safeContent)}
         </div>
         <button 
           className="message-copy" 
           type="button" 
-          onClick={() => copy(content)} 
+          onClick={() => copy(safeContent)} 
           aria-label={copied ? 'Copied!' : 'Copy message'}
         >
           {copied ? <Check size={13} /> : <Copy size={13} />}
           {copied ? 'Copied!' : 'Copy'}
         </button>
 
-        {files.length > 0 && (
+        {safeFiles.length > 0 && (
           <div className="message-files">
-            {files.map((file, i) => (
+            {safeFiles.map((file, i) => (
               <span key={i} className="file-chip">
                 {file}
               </span>

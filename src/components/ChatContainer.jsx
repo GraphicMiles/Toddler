@@ -225,16 +225,16 @@ export default function ChatContainer({
                       </button>
                       {menuOpen && (
                         <div className="sidebar-item-actions">
-                          <button onClick={() => { setMenuForId(null); onRenameConversation?.(); }}>
+                          <button onClick={() => { setMenuForId(null); onRenameConversation?.(conv.id); }}>
                             <Pencil size={12} /> Rename
                           </button>
-                          <button onClick={() => { setMenuForId(null); onExportChat?.(); }}>
+                          <button onClick={() => { setMenuForId(null); onExportChat?.(conv.id); }}>
                             <Download size={12} /> Export
                           </button>
-                          <button onClick={() => { setMenuForId(null); onDeleteConversation?.(); }}>
+                          <button onClick={() => { setMenuForId(null); onDeleteConversation?.(conv.id); }}>
                             <Trash2 size={12} /> Delete
                           </button>
-                          <button onClick={() => { setMenuForId(null); onClearChat?.(); }}>
+                          <button onClick={() => { setMenuForId(null); onClearChat?.(conv.id); }}>
                             Clear messages
                           </button>
                         </div>

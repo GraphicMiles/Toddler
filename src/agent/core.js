@@ -234,6 +234,7 @@ export class AgentCore {
         intent: 'rename',
         description: 'Rename or move file/folder',
         targetPath: targetPath,
+        originalRequest: userMessage,
       });
     }
 

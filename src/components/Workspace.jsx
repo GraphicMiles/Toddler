@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useMemo, useCallback } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, FolderOpen, ChevronRight, X, FileText, Database,
@@ -112,6 +112,13 @@ function FileViewer({ path, content, onClose, onSave, onPick, readOnly }) {
   const [saving, setSaving] = useState(false);
   const [formatting, setFormatting] = useState(false);
 
+  useEffect(() => {
+    setEditContent(content);
+    setDirty(false);
+    setSaving(false);
+    setFormatting(false);
+  }, [path, content]);
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -207,6 +214,7 @@ export default function Workspace({
   const [selectedPath, setSelectedPath] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
   const [viewerFile, setViewerFile] = useState(null); // { path, content }
+  const readRequestId = useRef(0);
 
   const fileIndex = useMemo(() => buildFileIndex(workspace.tree || []), [workspace.tree]);
 
@@ -228,12 +236,16 @@ export default function Workspace({
   const handleSelect = useCallback(async (path, node) => {
     setSelectedPath(path);
     onFileSelect?.(path);
-    // Open file in viewer
-    if (node?.type === 'file' && onFileRead) {
-      try {
-        const content = await onFileRead(path);
+    const requestId = ++readRequestId.current;
+    if (node?.type !== 'file' || !onFileRead) return;
+
+    try {
+      const content = await onFileRead(path);
+      if (readRequestId.current === requestId) {
         setViewerFile({ path, content: content ?? '', error: false });
-      } catch (err) {
+      }
+    } catch (err) {
+      if (readRequestId.current === requestId) {
         setViewerFile({ path, content: `Error reading file: ${err.message}`, error: true });
       }
     }

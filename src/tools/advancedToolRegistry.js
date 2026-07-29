@@ -1,15 +1,18 @@
 import { ToolRegistry } from './toolRegistry.js';
+import { createWorkspaceToolRegistry } from './workspaceTools.js';
 import { registerResearchTools } from './researchTools.js';
 import { registerGitHubTools } from './githubTools.js';
 
 /**
  * Creates the full advanced tool registry with all enterprise features
  */
-export function createAdvancedToolRegistry(_workspaceProvider) {
-  const registry = new ToolRegistry();
+export function createAdvancedToolRegistry(workspaceProvider) {
+  const registry = workspaceProvider
+    ? createWorkspaceToolRegistry(workspaceProvider)
+    : new ToolRegistry();
 
-  // Existing workspace tools (already registered elsewhere)
-  // We extend with new capabilities
+  // Start from the workspace registry so core file actions remain available,
+  // then extend it with advanced capabilities.
 
   // Research Tools
   registerResearchTools(registry);

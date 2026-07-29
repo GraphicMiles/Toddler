@@ -12,7 +12,9 @@ function readState() {
 }
 
 function writeState(state) {
-  if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (typeof localStorage === 'undefined') return;
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  catch (error) { console.warn('Failed to save skill state:', error); }
 }
 
 function readExternalSkills() {
@@ -24,7 +26,9 @@ function readExternalSkills() {
 }
 
 function writeExternalSkills(skills) {
-  if (typeof localStorage !== 'undefined') localStorage.setItem(EXTERNAL_STORAGE_KEY, JSON.stringify(skills));
+  if (typeof localStorage === 'undefined') return;
+  try { localStorage.setItem(EXTERNAL_STORAGE_KEY, JSON.stringify(skills)); }
+  catch (error) { console.warn('Failed to save external skills:', error); }
 }
 
 function tokens(value) {

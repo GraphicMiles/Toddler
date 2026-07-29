@@ -6,6 +6,8 @@ import { isAutonomousToolRequest } from '../src/agent/fullAutonomyRunner.js';
 import { RESPONSE_QUALITY, generateQualityResponse } from '../src/agent/responseQuality.js';
 import { enqueueAutonomousTask, readAutonomousQueue, removeAutonomousTask, updateAutonomousTask } from '../src/agent/autonomousQueue.js';
 import { buildRepositoryIndex, queryRepositoryIndex } from '../src/context/repositoryIndex.js';
+import { githubAutomation } from '../src/github/GitHubAutomation.js';
+import { researchProvider, RESEARCH_DEPTH } from '../src/research/ResearchProvider.js';
 
 const store = new Map();
 globalThis.localStorage = {
@@ -22,6 +24,20 @@ assert.match(deterministicDeviceFact('What time is it?', fixedDate), /(?:19:19|0
 assert.match(deterministicDeviceFact("What's the date?", fixedDate), /July/);
 assert.equal(isOnlineResearchRequest('Who won the latest Spain vs France match?'), true);
 assert.equal(isAutonomousToolRequest('Clone https://github.com/owner/repo'), true);
+
+researchProvider.setDepth(RESEARCH_DEPTH.COMPREHENSIVE);
+researchProvider.setArchiveMode(true);
+researchProvider.setSourceVerification(false);
+researchProvider.setProxy(true);
+assert.equal(researchProvider.depth, RESEARCH_DEPTH.COMPREHENSIVE);
+assert.equal(researchProvider.archiveMode, true);
+assert.equal(researchProvider.sourceVerification, false);
+assert.equal(researchProvider.proxyEnabled, true);
+
+githubAutomation.setMaintenanceBot(true);
+githubAutomation.setDryRun(false);
+assert.equal(githubAutomation.maintenanceBot, true);
+assert.equal(githubAutomation.dryRun, false);
 
 const budget = new AgentRunBudget({ maxModelCalls: 2, maxFiles: 2, maxDurationMs: 1000 });
 budget.beforeModelCall();

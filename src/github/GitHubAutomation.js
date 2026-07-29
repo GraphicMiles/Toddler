@@ -16,12 +16,22 @@ export const GITHUB_AUTOMATION_TIERS = Object.freeze({
 export class GitHubAutomation {
   constructor() {
     this.tier = GITHUB_AUTOMATION_TIERS.MANUAL;
+    this.maintenanceBot = false;
+    this.dryRun = true;
   }
 
   setTier(tier) {
     if (Object.values(GITHUB_AUTOMATION_TIERS).includes(tier)) {
       this.tier = tier;
     }
+  }
+
+  setMaintenanceBot(enabled) {
+    this.maintenanceBot = Boolean(enabled);
+  }
+
+  setDryRun(enabled) {
+    this.dryRun = Boolean(enabled);
   }
 
   async proposeCommit(changes, message, options = {}) {
@@ -32,6 +42,7 @@ export class GitHubAutomation {
       return {
         status: 'simulated',
         tier: this.tier,
+        dryRun: this.dryRun,
         message: 'Enable "Real GitHub Automation" in Experimental Features on Android',
       };
     }

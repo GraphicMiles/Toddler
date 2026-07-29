@@ -9,7 +9,10 @@ export function readResponseQuality() {
 
 export function writeResponseQuality(value) {
   if (!Object.values(RESPONSE_QUALITY).includes(value)) throw new Error('Invalid response quality mode.');
-  if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, value);
+  if (typeof localStorage !== 'undefined') {
+    try { localStorage.setItem(STORAGE_KEY, value); }
+    catch (error) { console.warn('Failed to save response quality:', error); }
+  }
   return value;
 }
 

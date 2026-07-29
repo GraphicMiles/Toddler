@@ -68,8 +68,12 @@ export class ValidatorRegistry {
       config.options[key] = validator.options || {};
     }
 
-    localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
-    localStorage.setItem(TRUSTED_SOURCES_KEY, JSON.stringify([...this.trustedSources]));
+    try {
+      localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+      localStorage.setItem(TRUSTED_SOURCES_KEY, JSON.stringify([...this.trustedSources]));
+    } catch (error) {
+      console.warn('Failed to save validator config:', error);
+    }
   }
 
   // === Validator Management ===

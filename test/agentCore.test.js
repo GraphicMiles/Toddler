@@ -27,6 +27,11 @@ const tools = new ToolRegistry()
     execute: async ({ path }) => ({ type: 'delete', path }),
   })
   .register({
+    name: 'rename',
+    permission: 'write',
+    execute: async ({ path, newName }) => ({ type: 'rename', path, newName }),
+  })
+  .register({
     name: 'apply_patch',
     permission: 'write',
     execute: async ({ patch }) => ({ type: 'patch_apply', patch }),
@@ -58,6 +63,11 @@ const readAction = readPlan.proposedActions.find(action => action.type === 'read
 assert.ok(readAction, 'read action should be proposed after a completed write');
 await agent.executeApprovedAction(readAction.id);
 assert.deepEqual(calls.at(-1), ['read_file', 'src/App.jsx']);
+
+await agent.processMessage({ message: 'rename the selected file to AppRenamed.jsx', workspace });
+const renameRequest = gate.list().find(request => request.toolName === 'rename');
+assert.equal(renameRequest?.input.newName, 'AppRenamed.jsx', 'rename plans must carry the requested new name');
+if (renameRequest) agent.discardAction(renameRequest.id);
 
 const deletePlan = await agent.processMessage({ message: 'delete the selected file', workspace });
 const deleteAction = deletePlan.proposedActions.find(action => action.type === 'delete');

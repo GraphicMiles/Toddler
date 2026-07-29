@@ -16,7 +16,10 @@ export function readAutonomyLevel() {
 
 export function writeAutonomyLevel(level) {
   if (!Object.values(AUTONOMY_LEVELS).includes(level)) throw new Error(`Invalid autonomy level: ${level}`);
-  if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, level);
+  if (typeof localStorage !== 'undefined') {
+    try { localStorage.setItem(STORAGE_KEY, level); }
+    catch (error) { console.warn('Failed to save autonomy level:', error); }
+  }
   return level;
 }
 

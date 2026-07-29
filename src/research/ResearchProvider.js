@@ -16,6 +16,9 @@ export const RESEARCH_DEPTH = Object.freeze({
 export class ResearchProvider {
   constructor() {
     this.depth = RESEARCH_DEPTH.STANDARD;
+    this.archiveMode = false;
+    this.sourceVerification = true;
+    this.proxyEnabled = false;
   }
 
   setDepth(depth) {
@@ -24,18 +27,31 @@ export class ResearchProvider {
     }
   }
 
+  setArchiveMode(enabled) {
+    this.archiveMode = Boolean(enabled);
+  }
+
+  setSourceVerification(enabled) {
+    this.sourceVerification = Boolean(enabled);
+  }
+
+  setProxy(enabled) {
+    this.proxyEnabled = Boolean(enabled);
+  }
+
   async search(query, options = {}) {
     const experimentalEnabled = isExperimentalEnabled('realResearch');
+    const depth = options.depth || this.depth;
 
     if (experimentalEnabled && isNative) {
       // Real native research on Android
-      return await nativeResearchProvider.search(query, options);
+      return await nativeResearchProvider.search(query, { ...options, depth });
     }
 
     // Fallback simulated mode
     return {
       query,
-      depth: this.depth,
+      depth,
       results: [
         {
           id: 1,

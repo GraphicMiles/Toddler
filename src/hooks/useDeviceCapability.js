@@ -19,6 +19,12 @@ export default function useDeviceCapability() {
   const [deviceCapability, setDeviceCapability] = useState(INITIAL_CAPABILITY);
 
   const refresh = useCallback(async () => { const capacity = await getDeviceCapacity(); setDeviceCapability(capacity); return capacity; }, []);
-  useEffect(() => { let current = true; getDeviceCapacity().then(capacity => { if (current) setDeviceCapability(capacity); }); return () => { current = false; }; }, []);
+  useEffect(() => {
+    let current = true;
+    getDeviceCapacity()
+      .then(capacity => { if (current) setDeviceCapability(capacity); })
+      .catch(() => { if (current) setDeviceCapability(INITIAL_CAPABILITY); });
+    return () => { current = false; };
+  }, []);
   return { deviceCapability, refresh };
 }

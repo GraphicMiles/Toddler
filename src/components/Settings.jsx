@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { RefreshCw, Trash2, Wifi, Bug, Cpu } from 'lucide-react';
-import { readErrorLog, clearErrorLog } from '../utils/errorLog.js';
+import { readErrorLog, clearErrorLog, recordError } from '../utils/errorLog.js';
 import { skillRegistry } from '../skills/skillRegistry.js';
 import { scanSkillPackage } from '../skills/skillScanner.js';
 import { parseSkillMarkdown } from '../skills/skillPackage.js';
@@ -64,7 +64,8 @@ export default function Settings({
   const save = () => {
     const next = value.trim().replace(/\/$/, '');
     if (!next) return;
-    localStorage.setItem('forgeai_endpoint', next);
+    try { localStorage.setItem('forgeai_endpoint', next); }
+    catch (error) { recordError(error, 'settings-save-endpoint'); }
     onEndpointChange?.(next);
   };
   const toggleSkill = (id, enabled) => {
@@ -78,8 +79,13 @@ export default function Settings({
     }
     setAutonomy(writeAutonomyLevel(value));
     if (isNative) {
-      const result = await setFullAutonomy(value === AUTONOMY_LEVELS.FULL);
-      setNativeFullAutonomy(Boolean(result.enabled));
+      try {
+        const result = await setFullAutonomy(value === AUTONOMY_LEVELS.FULL);
+        setNativeFullAutonomy(Boolean(result.enabled));
+      } catch (error) {
+        recordError(error, 'settings-full-autonomy');
+        alert(`Could not update native autonomy setting: ${error.message}`);
+      }
     }
   };
   const importSkill = async () => {
@@ -199,12 +205,37 @@ export default function Settings({
             <input id="google-api-key" type="password" value={googleApiKey} onChange={event => setGoogleApiKey(event.target.value)} />
             <label className="setting-label" htmlFor="google-cx">Programmable Search Engine ID</label>
             <input id="google-cx" value={googleCx} onChange={event => setGoogleCx(event.target.value)} />
-            <button onClick={() => { localStorage.setItem('forgeai_google_api_key', googleApiKey.trim()); localStorage.setItem('forgeai_google_cx', googleCx.trim()); }}>Save search settings</button>
+            <button onClick={() => {
+              try {
+                localStorage.setItem('forgeai_google_api_key', googleApiKey.trim());
+                localStorage.setItem('forgeai_google_cx', googleCx.trim());
+              } catch (error) {
+                recordError(error, 'settings-save-search');
+                alert(`Could not save search settings: ${error.message}`);
+              }
+            }}>Save search settings</button>
             <label className="setting-label" htmlFor="github-pat">GitHub PAT — encrypted with Android Keystore</label>
             <input id="github-pat" type="password" value={githubPat} onChange={event => setGithubPat(event.target.value)} placeholder={githubStored ? 'Token stored' : 'github_pat_...'} />
             <div className="setting-row">
-              <button onClick={async () => { await storeGithubToken(githubPat); setGithubPat(''); setGithubStored(true); }}>Store PAT</button>
-              <button className="danger" onClick={async () => { await clearGithubToken(); setGithubStored(false); }}>Clear PAT</button>
+              <button onClick={async () => {
+                try {
+                  await storeGithubToken(githubPat);
+                  setGithubPat('');
+                  setGithubStored(true);
+                } catch (error) {
+                  recordError(error, 'settings-store-github-token');
+                  alert(`Could not store token: ${error.message}`);
+                }
+              }}>Store PAT</button>
+              <button className="danger" onClick={async () => {
+                try {
+                  await clearGithubToken();
+                  setGithubStored(false);
+                } catch (error) {
+                  recordError(error, 'settings-clear-github-token');
+                  alert(`Could not clear token: ${error.message}`);
+                }
+              }}>Clear PAT</button>
             </div>
             <p className="setting-help">PAT stored: {githubStored ? 'Yes' : 'No'}. The token is never returned to JavaScript after storage and is not added to terminal environment variables.</p>
           </section>

@@ -57,7 +57,8 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
       const catalog = getModelBySha256(previous.sha256);
       if (!catalog) return previous;
       const upgraded = { ...previous, ...catalog, id: catalog.id, localPath: previous.localPath || previous.runtimePath, verified: true, integrity: 'publisher-verified' };
-      localStorage.setItem(ACTIVE_MODEL_KEY, JSON.stringify(upgraded));
+      try { localStorage.setItem(ACTIVE_MODEL_KEY, JSON.stringify(upgraded)); }
+      catch (error) { console.warn('Unable to persist active model metadata:', error); }
       return upgraded;
     });
   }, [saveModels]);
@@ -220,8 +221,12 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
 
   const setActiveModel = useCallback((model) => {
     setActiveModelState(model);
-    if (model) localStorage.setItem(ACTIVE_MODEL_KEY, JSON.stringify(model));
-    else localStorage.removeItem(ACTIVE_MODEL_KEY);
+    try {
+      if (model) localStorage.setItem(ACTIVE_MODEL_KEY, JSON.stringify(model));
+      else localStorage.removeItem(ACTIVE_MODEL_KEY);
+    } catch (error) {
+      console.warn('Unable to persist active model:', error);
+    }
   }, []);
 
   const mountModel = useCallback(async (model) => {

@@ -119,11 +119,21 @@ export default function App() {
     unmountModel,
   } = useModelCollection({ endpoint });
 
-  useEffect(() => { localStorage.setItem('forgeai_chat', JSON.stringify(messages)); }, [messages]);
+  useEffect(() => {
+    try { localStorage.setItem('forgeai_chat', JSON.stringify(messages)); }
+    catch (error) { recordError(error, 'persist-chat'); }
+  }, [messages]);
   useEffect(() => {
     if (!activeConversationId) { const id = generateId(); setActiveConversationId(id); setConversations([{ id, title: defaultConversationTitle(), messages }]); }
   }, [activeConversationId, messages]);
-  useEffect(() => { localStorage.setItem('forgeai_conversations', JSON.stringify(conversations)); localStorage.setItem('forgeai_active_conversation', activeConversationId); }, [conversations, activeConversationId]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('forgeai_conversations', JSON.stringify(conversations));
+      localStorage.setItem('forgeai_active_conversation', activeConversationId);
+    } catch (error) {
+      recordError(error, 'persist-conversations');
+    }
+  }, [conversations, activeConversationId]);
   useEffect(() => { if (activeConversationId) setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, messages } : c)); }, [messages, activeConversationId]);
 
   const workspaceProvider = useMemo(
@@ -175,7 +185,8 @@ export default function App() {
     if (!isNative) return;
     const result = await pickWorkspaceFolder();
     if (result?.uri) {
-      localStorage.setItem('forgeai_model_folder_uri', result.uri);
+      try { localStorage.setItem('forgeai_model_folder_uri', result.uri); }
+      catch (error) { recordError(error, 'persist-model-folder'); }
       setModelFolderUri(result.uri);
     }
   }, []);
@@ -184,7 +195,8 @@ export default function App() {
     if (!isNative) return;
     const result = await pickWorkspaceFolder();
     if (!result?.uri) return;
-    localStorage.setItem('forgeai_workspace_uri', result.uri);
+    try { localStorage.setItem('forgeai_workspace_uri', result.uri); }
+    catch (error) { recordError(error, 'persist-workspace-uri'); }
     setWorkspaceRootPath(result.uri);
     setSelectedFilePath('');
     await loadWorkspace(createSafWorkspaceProvider(result.uri));
@@ -736,11 +748,32 @@ export default function App() {
   }, [deleteModel]);
 
   const newConversation = useCallback(() => { const id = generateId(); setConversations(prev => [...prev, { id, title: defaultConversationTitle(), messages: [] }]); setActiveConversationId(id); setMessages([]); }, []);
-  const switchConversation = useCallback((id) => { const target = conversations.find(c => c.id === id); if (target) { setActiveConversationId(id); setMessages(target.messages || []); } }, [conversations]);
-  const renameConversation = useCallback(() => { const current = conversations.find(c => c.id === activeConversationId); if (!current) return; const title = window.prompt('Conversation name', current.title); if (title?.trim()) setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, title: title.trim() } : c)); }, [conversations, activeConversationId]);
-  const deleteConversation = useCallback(() => { if (conversations.length <= 1 || !window.confirm('Delete this conversation?')) return; const next = conversations.filter(c => c.id !== activeConversationId); setConversations(next); setActiveConversationId(next[0].id); setMessages(next[0].messages || []); }, [conversations, activeConversationId]);
-  const exportChat = useCallback(() => { const blob = new Blob([messages.map(m => `${m.role.toUpperCase()}\n${m.content}`).join('\n\n')], { type: 'text/plain' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'forgeai-chat.txt'; a.click(); URL.revokeObjectURL(a.href); }, [messages]);
-  const clearChat = useCallback(() => { if (window.confirm('Clear this conversation?')) setMessages([]); }, []);
+  const switchConversation = useCallback((id) => { const target = conversations.find(c => c.id === id); if (target) { setActiveConversationId(id); setMessages(Array.isArray(target.messages) ? target.messages : []); } }, [conversations]);
+  const renameConversation = useCallback((id = activeConversationId) => { const current = conversations.find(c => c.id === id); if (!current) return; const title = window.prompt('Conversation name', current.title); if (title?.trim()) setConversations(prev => prev.map(c => c.id === id ? { ...c, title: title.trim() } : c)); }, [conversations, activeConversationId]);
+  const deleteConversation = useCallback((id = activeConversationId) => {
+    if (conversations.length <= 1 || !window.confirm('Delete this conversation?')) return;
+    const next = conversations.filter(c => c.id !== id);
+    if (next.length === 0) return;
+    setConversations(next);
+    if (id === activeConversationId) {
+      setActiveConversationId(next[0].id);
+      setMessages(Array.isArray(next[0].messages) ? next[0].messages : []);
+    }
+  }, [conversations, activeConversationId]);
+  const exportChat = useCallback((id = activeConversationId) => {
+    const sourceMessages = id === activeConversationId ? messages : (conversations.find(c => c.id === id)?.messages || []);
+    const blob = new Blob([sourceMessages.map(m => `${String(m.role || 'message').toUpperCase()}\n${String(m.content ?? '')}`).join('\n\n')], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'forgeai-chat.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }, [messages, conversations, activeConversationId]);
+  const clearChat = useCallback((id = activeConversationId) => {
+    if (!window.confirm('Clear this conversation?')) return;
+    setConversations(prev => prev.map(c => c.id === id ? { ...c, messages: [] } : c));
+    if (id === activeConversationId) setMessages([]);
+  }, [activeConversationId]);
 
   const handleResetApp = useCallback(() => {
     if (!window.confirm('Reset conversations, model metadata, and settings? Downloaded source files and workspace backups are not deleted.')) return;

@@ -60,8 +60,9 @@ const thinkingPhrases = [
 // Generate retro terminal-style progress bar using block characters
 function generateTerminalProgressBar(percent) {
   const totalBlocks = 24;
-  const filled = Math.floor((percent / 100) * totalBlocks);
-  const partial = ((percent / 100) * totalBlocks) - filled;
+  const safePercent = Math.min(100, Math.max(0, Number(percent) || 0));
+  const filled = Math.floor((safePercent / 100) * totalBlocks);
+  const partial = ((safePercent / 100) * totalBlocks) - filled;
 
   let bar = '';
 
@@ -165,19 +166,22 @@ export default function AgentReasoningPanel({
                   )}
 
                   {/* Terminal-style Block Progress Bar */}
-                  {step.type === 'progress' && (
-                    <div className="terminal-progress">
-                      <div className="progress-text">
-                        {step.progressText || 'Processing...'}
+                  {step.type === 'progress' && (() => {
+                    const progress = Math.min(100, Math.max(0, Number(step.progress) || 0));
+                    return (
+                      <div className="terminal-progress">
+                        <div className="progress-text">
+                          {step.progressText || 'Processing...'}
+                        </div>
+                        <div className="progress-bar terminal-blocks">
+                          {generateTerminalProgressBar(progress)}
+                        </div>
+                        <div className="progress-percent">
+                          {progress}%
+                        </div>
                       </div>
-                      <div className="progress-bar terminal-blocks">
-                        {generateTerminalProgressBar(step.progress || 0)}
-                      </div>
-                      <div className="progress-percent">
-                        {step.progress || 0}%
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* File Preview */}
                   {(step.type === 'file_create' || step.type === 'file_edit') && step.file && (

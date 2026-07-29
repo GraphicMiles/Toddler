@@ -8,23 +8,35 @@ export default function SocialMediaSettings() {
   const [_showResearch, setShowResearch] = useState(false);
 
   const addAccount = async () => {
-    if (!username) return;
-    await socialMediaManager.addAccount(platform, username, { token: 'demo' });
-    setAccounts(socialMediaManager.getAccounts());
-    setUsername('');
+    if (!username.trim()) return;
+    try {
+      await socialMediaManager.addAccount(platform, username.trim(), { token: 'demo' });
+      setAccounts(socialMediaManager.getAccounts());
+      setUsername('');
+    } catch (error) {
+      alert(`Could not add account: ${error.message}`);
+    }
   };
 
   const testPost = async () => {
     if (accounts.length === 0) return alert('Add an account first');
-    const acc = accounts[0];
-    const result = await socialMediaManager.post(acc.platform, acc.username, 'Test post from ForgeAI');
-    alert(JSON.stringify(result, null, 2));
+    try {
+      const acc = accounts[0];
+      const result = await socialMediaManager.post(acc.platform, acc.username, 'Test post from ForgeAI');
+      alert(JSON.stringify(result, null, 2));
+    } catch (error) {
+      alert(`Test post failed: ${error.message}`);
+    }
   };
 
   const testScrape = async () => {
-    const posts = await socialMediaManager.scrapePublicPosts('AI research', 5);
-    setShowResearch(true);
-    alert(`Scraped ${posts.length} public posts (Research Mode)`);
+    try {
+      const posts = await socialMediaManager.scrapePublicPosts('AI research', 5);
+      setShowResearch(true);
+      alert(`Scraped ${posts.length} public posts (Research Mode)`);
+    } catch (error) {
+      alert(`Research failed: ${error.message}`);
+    }
   };
 
   return (

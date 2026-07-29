@@ -14,7 +14,11 @@ export default function ExperimentalFeatures() {
   const toggle = (key) => {
     const next = { ...features, [key]: !features[key] };
     setFeatures(next);
-    localStorage.setItem(EXPERIMENTAL_KEY, JSON.stringify(next));
+    try {
+      localStorage.setItem(EXPERIMENTAL_KEY, JSON.stringify(next));
+    } catch (error) {
+      console.warn('Failed to save experimental feature settings:', error);
+    }
   };
 
   const isEnabled = (key) => features[key] === true;

@@ -9,11 +9,13 @@ import { AlertTriangle, Play, Pause, RotateCcw } from 'lucide-react';
 
 export default function AutomationSettings() {
   const [tier, setTier] = useState(automationTierManager.getTier());
+  const [pendingTier, setPendingTier] = useState(null);
   const [whitelist, setWhitelist] = useState(automationTierManager.getWhitelist());
   const [showWarning, setShowWarning] = useState(false);
 
   const handleTierChange = (newTier) => {
     if (newTier === AUTOMATION_TIERS.FULL_AUTO || newTier === AUTOMATION_TIERS.WORKFLOW) {
+      setPendingTier(newTier);
       setShowWarning(true);
     } else {
       applyTier(newTier);
@@ -23,6 +25,7 @@ export default function AutomationSettings() {
   const applyTier = (newTier) => {
     automationTierManager.setTier(newTier);
     setTier(newTier);
+    setPendingTier(null);
     setShowWarning(false);
   };
 
@@ -82,9 +85,9 @@ export default function AutomationSettings() {
             This includes file writes, terminal commands, and Git operations.
           </p>
           <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
-            <button onClick={() => setShowWarning(false)} style={{ padding: '6px 14px' }}>Cancel</button>
+            <button onClick={() => { setPendingTier(null); setShowWarning(false); }} style={{ padding: '6px 14px' }}>Cancel</button>
             <button 
-              onClick={() => applyTier(tier)} 
+              onClick={() => applyTier(pendingTier || tier)} 
               style={{ padding: '6px 14px', background: '#b45309', color: 'white' }}
             >
               I understand the risks

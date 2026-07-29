@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { Check, ChevronDown, X } from 'lucide-react';
 import './DropdownMenu.css';
 
-export default function DropdownMenu({ value, options, onChange, label = 'Select', className = '' }) {
+export default function DropdownMenu({ value, options = [], onChange, label = 'Select', className = '' }) {
   const [open, setOpen] = useState(false);
   const [focusIndex, setFocusIndex] = useState(-1);
   const root = useRef(null);

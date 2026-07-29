@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Database, Boxes, Menu, Plus, X, Pencil, Trash2, Download, MessageSquare, AlertTriangle } from 'lucide-react';
+import { Database, Boxes, Menu, Plus, X, Pencil, Trash2, Download, MessageSquare, AlertTriangle, Wifi } from 'lucide-react';
 import Message from './Message';
 import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
@@ -35,11 +35,15 @@ export default function ChatContainer({
   onQueueSuggestion,
   onRunQueuedTask,
   onRemoveQueuedTask,
+  activeModel = null,
+  availableModels = [],
+  onModelChange,
 }) {
   const scrollRef = useRef(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [prefilledText, setPrefilledText] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [menuForId, setMenuForId] = useState(null);
 
   const handleSuggestionClick = useCallback((text) => {
@@ -68,6 +72,9 @@ export default function ChatContainer({
 
   const activeConversation = conversations.find(c => c.id === activeConversationId);
   const topbarTitle = activeConversation?.title || 'ForgeAI';
+  const localModels = availableModels.filter(model => model.source !== 'cloud' && !model.cloud);
+  const cloudModels = availableModels.filter(model => model.source === 'cloud' || model.cloud);
+  const modelBadge = activeModel?.source === 'cloud' || activeModel?.cloud ? 'CLOUD' : 'OFFLINE';
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -132,6 +139,15 @@ export default function ChatContainer({
           <Menu size={20} />
         </button>
         <span className="chat-topbar-title">{topbarTitle}</span>
+        <button
+          type="button"
+          className="chat-topbar-btn"
+          onClick={() => setModelPickerOpen(true)}
+          title="Change active model"
+          aria-label="Change active model"
+        >
+          {activeModel ? `${activeModel.name} · ${modelBadge}` : 'Select model'}
+        </button>
 
         {/* Full-Auto Indicator */}
         {isFullAutoMode() && (
@@ -242,6 +258,59 @@ export default function ChatContainer({
                     </div>
                   );
                 })}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {modelPickerOpen && (
+          <>
+            <motion.div
+              className="sidebar-overlay"
+              variants={overlayVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              onClick={() => setModelPickerOpen(false)}
+            />
+            <motion.div
+              className="chat-sidebar"
+              variants={sidebarVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <div className="sidebar-header">
+                <span className="sidebar-header-title">Select Model</span>
+                <button type="button" className="sidebar-close" onClick={() => setModelPickerOpen(false)} aria-label="Close model selector">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="sidebar-list">
+                <div className="sidebar-header-title" style={{ padding: '8px 12px', fontSize: 12 }}>Local</div>
+                {localModels.length === 0 && <div className="sidebar-item-time" style={{ padding: '8px 12px' }}>No local models installed.</div>}
+                {localModels.map(model => (
+                  <button key={model.id} type="button" className={`sidebar-item-main ${activeModel?.id === model.id ? 'active' : ''}`} onClick={() => { onModelChange?.(model); setModelPickerOpen(false); }}>
+                    <Database size={14} className="sidebar-item-icon" />
+                    <div className="sidebar-item-text">
+                      <span className="sidebar-item-title">{model.name}</span>
+                      <span className="sidebar-item-time">OFFLINE · No API token quota</span>
+                    </div>
+                  </button>
+                ))}
+                <div className="sidebar-header-title" style={{ padding: '14px 12px 8px', fontSize: 12 }}>Cloud</div>
+                {cloudModels.length === 0 && <div className="sidebar-item-time" style={{ padding: '8px 12px' }}>No cloud providers connected.</div>}
+                {cloudModels.map(model => (
+                  <button key={model.id} type="button" className={`sidebar-item-main ${activeModel?.id === model.id ? 'active' : ''}`} onClick={() => { onModelChange?.(model); setModelPickerOpen(false); }}>
+                    <Wifi size={14} className="sidebar-item-icon" />
+                    <div className="sidebar-item-text">
+                      <span className="sidebar-item-title">{model.name}</span>
+                      <span className="sidebar-item-time">CLOUD · Provider token/API quota applies</span>
+                    </div>
+                  </button>
+                ))}
               </div>
             </motion.div>
           </>

@@ -42,7 +42,8 @@
     "setInterval": "readonly",
     "setTimeout": "readonly",
     "structuredClone": "readonly",
-    "window": "readonly"
+    "window": "readonly",
+    "ReadableStream": "readonly"
   },
   "rules": {
     "no-undef": "error",

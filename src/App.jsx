@@ -10,7 +10,8 @@ import Settings from './components/Settings';
 import useModelCollection from './hooks/useModelCollection';
 import useDeviceCapability from './hooks/useDeviceCapability';
 import { haptics, isNative, pickWorkspaceFolder } from './nativeBridge';
-import { createModelProvider } from './providers/modelProvider';
+import { createModelProvider, createModelProviderForModel } from './providers/modelProvider';
+import { cloudProviderToModel, cloudProvidersToModels, listCloudProviders, removeCloudProvider, saveCloudProvider } from './providers/cloudProviderStore.js';
 import { getModelProfile } from './models/catalog.js';
 import { AgentCore } from './agent/core.js';
 import { generatePatchProposal, isCodeChangeRequest, isFileCreationRequest, needsCreationFilename } from './agent/phase4Runner.js';
@@ -118,6 +119,15 @@ export default function App() {
     mountModel,
     unmountModel,
   } = useModelCollection({ endpoint });
+  const [cloudProviders, setCloudProviders] = useState(() => listCloudProviders());
+  const cloudModels = useMemo(() => cloudProvidersToModels(cloudProviders), [cloudProviders]);
+  const selectableModels = useMemo(() => [...downloadedModels, ...cloudModels], [downloadedModels, cloudModels]);
+
+  useEffect(() => {
+    if ((activeModel?.source === 'cloud' || activeModel?.cloud) && !cloudProviders.some(provider => provider.id === activeModel.connectionId)) {
+      setActiveModel(null);
+    }
+  }, [activeModel, cloudProviders, setActiveModel]);
 
   useEffect(() => {
     try { localStorage.setItem('forgeai_chat', JSON.stringify(messages)); }
@@ -308,12 +318,15 @@ export default function App() {
   }, []);
 
   const { deviceCapability, refresh: refreshDevice } = useDeviceCapability();
-  const provider = useMemo(() => {
+  const runtimeProvider = useMemo(() => {
     // Android uses direct llama.cpp JNI; the browser keeps Ollama as a development preview.
-
     if (isNative) return createModelProvider({ mode: 'on-device', endpoint });
     return createModelProvider({ mode: 'ollama', endpoint });
   }, [endpoint]);
+  const provider = useMemo(
+    () => createModelProviderForModel(activeModel, { endpoint, isNative }),
+    [activeModel, endpoint],
+  );
 
   // One registry executes tools through the same scoped provider used by the UI.
   const agentToolRegistry = useMemo(
@@ -336,7 +349,7 @@ export default function App() {
   // Check Ollama connection
   const checkConnection = useCallback(async () => {
     try {
-      const result = await provider.getStatus();
+      const result = await runtimeProvider.getStatus();
       const available = Boolean(result.connected ?? result.available);
       setRuntimeInfo(result);
       setOllamaConnected(available);
@@ -348,7 +361,7 @@ export default function App() {
     } finally {
       setIsConnecting(false);
     }
-  }, [provider]);
+  }, [runtimeProvider]);
 
   useEffect(() => {
     checkConnection();
@@ -420,7 +433,10 @@ export default function App() {
           maxFiles: 4,
         });
         if (contextItems.length > 0) {
-          const destination = isNative ? 'the on-device model' : `the configured model endpoint (${endpoint})`;
+          const isCloudModel = activeModel?.source === 'cloud' || activeModel?.cloud;
+          const destination = isCloudModel
+            ? `${activeModel.providerLabel || activeModel.provider || 'cloud provider'} (${activeModel.modelId || activeModel.name})`
+            : isNative ? 'the on-device model' : `the configured model endpoint (${endpoint})`;
           const approved = window.confirm(
             `Include these workspace files in the prompt sent to ${destination}?\n\n${contextItems.map(item => `• ${item.path}`).join('\n')}\n\nCancel to continue without workspace context.`,
           );
@@ -561,7 +577,7 @@ export default function App() {
           }
         }
       }
-      if (isNative && generationResult) {
+      if (isNative && generationResult && activeModel?.source !== 'cloud' && !activeModel?.cloud) {
         const info = await provider.getStatus().catch(() => runtimeInfo);
         setRuntimeInfo(info || runtimeInfo);
         setLastBenchmark({
@@ -715,6 +731,26 @@ export default function App() {
     addSystemMessage('Action cancelled.', 'warn');
   }, [agentCore, pendingActions, workspaceProvider]);
 
+  const handleAddCloudProvider = useCallback((config) => {
+    const saved = saveCloudProvider(config);
+    setCloudProviders(listCloudProviders());
+    addSystemMessage(`${saved.label} cloud provider added. It is now available from the chat model selector.`, 'info');
+    return saved;
+  }, []);
+
+  const handleRemoveCloudProvider = useCallback((providerId) => {
+    const removedModelId = `cloud-model-${providerId}`;
+    setCloudProviders(removeCloudProvider(providerId));
+    if (activeModel?.id === removedModelId) setActiveModel(null);
+  }, [activeModel, setActiveModel]);
+
+  const handleSelectCloudProvider = useCallback((providerConfig) => {
+    const model = cloudProviderToModel(providerConfig);
+    setActiveModel(model);
+    setModelStatus('idle');
+    setCurrentScreen(SCREENS.CHAT);
+  }, [setActiveModel]);
+
   // Handle model download
   const handleDownload = useCallback(async (model, onProgress) => {
     const result = await downloadModel(model, onProgress);
@@ -732,6 +768,10 @@ export default function App() {
   const handleSelectModel = useCallback((model) => {
     setActiveModel(model);
     setModelStatus('idle');
+    if (model?.source === 'cloud' || model?.cloud) {
+      setCurrentScreen(SCREENS.CHAT);
+      return;
+    }
     if (model.task === 'smoke-test' || /135m/i.test(`${model.name} ${model.file}`)) {
       addSystemMessage('SmolLM 135M is a runtime smoke-test model. It can prove offline inference works, but it may repeat text or produce poor code. Use Qwen2.5-Coder 1.5B for coding quality.', 'warn');
     }
@@ -805,7 +845,7 @@ export default function App() {
       ollamaConnected={ollamaConnected}
       onScreenChange={setCurrentScreen}
       currentScreen={currentScreen}
-      modelCount={downloadedModels.length}
+      modelCount={selectableModels.length}
       isConnecting={isConnecting}
     >
       {/* Screens */}
@@ -845,6 +885,9 @@ export default function App() {
               onQueueSuggestion={handleQueueSuggestion}
               onRunQueuedTask={handleRunQueuedTask}
               onRemoveQueuedTask={handleRemoveQueuedTask}
+              activeModel={activeModel}
+              availableModels={selectableModels}
+              onModelChange={handleSelectModel}
             />
 
             {/* Agent Reasoning Panel */}
@@ -929,6 +972,10 @@ export default function App() {
                   }
                 }}
                 isNative={isNative}
+                cloudProviders={cloudProviders}
+                onAddCloudProvider={handleAddCloudProvider}
+                onRemoveCloudProvider={handleRemoveCloudProvider}
+                onSelectCloudModel={handleSelectCloudProvider}
               />
           </motion.div>
         )}

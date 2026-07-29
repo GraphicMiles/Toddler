@@ -7,6 +7,7 @@ import {
   unloadOnDeviceModel,
 } from '../nativeBridge.js';
 import { customProfileManager } from '../models/customPromptProfiles.js';
+import { getCloudProvider, getCloudProviderPreset } from './cloudProviderStore.js';
 
 export class OllamaProvider {
   constructor(url = 'http://localhost:11434') { this.url = url; this.kind = 'ollama'; }
@@ -53,8 +54,152 @@ export class OnDeviceProvider {
   async unloadModel() { return unloadOnDeviceModel(); }
 }
 
+function normalizeCloudError(error, { providerConfig, model } = {}) {
+  const providerName = getCloudProviderPreset(providerConfig?.provider || model?.provider || 'custom')?.label || 'Cloud provider';
+  const raw = `${error?.message || error || ''}`;
+  const lower = raw.toLowerCase();
+  let code = error?.code || 'cloud_error';
+  let message = `${providerName} request failed: ${raw || 'unknown error'}`;
+
+  if (error?.status === 401 || error?.status === 403 || /invalid.*(?:api|key)|unauthorized|forbidden|authentication/.test(lower)) {
+    code = 'invalid_api_key';
+    message = `The API key for ${providerName} appears to be invalid, expired, or unauthorized. Update it in My Collection → Cloud Provider.`;
+  } else if (error?.status === 402 || /insufficient_quota|quota_exceeded|billing|token balance|credit|exhausted|used up|hard_limit/.test(lower)) {
+    code = 'quota_exceeded';
+    message = `Your ${providerName} quota, credits, or token balance appears to be used up. Check billing/quota, switch cloud providers, or select a local GGUF model with no API token quota.`;
+  } else if (error?.status === 429 || /rate.?limit|too many requests|temporarily overloaded/.test(lower)) {
+    code = 'rate_limited';
+    message = `${providerName} is rate limiting requests. Wait a moment, choose a different cloud model, or switch to a local GGUF model.`;
+  } else if (/failed to fetch|network|offline|internet|timeout|aborted/.test(lower)) {
+    code = lower.includes('aborted') ? 'aborted' : 'network_error';
+    message = code === 'aborted'
+      ? 'Cloud generation was cancelled.'
+      : `Cloud model unavailable because the network request failed. Check internet connectivity or switch to a local GGUF model.`;
+  } else if (error?.status === 404 || /model.*not.*found|not found/.test(lower)) {
+    code = 'model_not_found';
+    message = `${providerName} could not find model "${model?.modelId || providerConfig?.modelId || 'unknown'}". Check the model id in Cloud Provider settings.`;
+  } else if (error?.status >= 500) {
+    code = 'server_error';
+    message = `${providerName} returned a server error. Try again later or switch to another model.`;
+  }
+
+  const wrapped = new Error(message);
+  wrapped.code = code;
+  wrapped.status = error?.status;
+  return wrapped;
+}
+
+function parseOpenAIError(status, payload) {
+  const message = payload?.error?.message || payload?.message || `HTTP ${status}`;
+  const error = new Error(message);
+  error.status = status;
+  error.code = payload?.error?.code || payload?.code;
+  return error;
+}
+
+export class OpenAICompatibleProvider {
+  constructor(modelOrConfig = {}) {
+    this.kind = 'cloud-openai-compatible';
+    this.modelOrConfig = modelOrConfig;
+  }
+
+  getConfig(model = this.modelOrConfig) {
+    if (model?.connectionId) return getCloudProvider(model.connectionId);
+    if (model?.id) return getCloudProvider(model.id);
+    return model;
+  }
+
+  async getStatus() {
+    const config = this.getConfig();
+    return {
+      connected: Boolean(config?.apiKey && config?.baseUrl && config?.modelId),
+      available: Boolean(config?.apiKey && config?.baseUrl && config?.modelId),
+      kind: this.kind,
+      provider: config?.provider || 'custom',
+    };
+  }
+
+  async loadModel(model) {
+    const config = this.getConfig(model);
+    if (!config?.apiKey) throw normalizeCloudError(new Error('Missing API key'), { providerConfig: config, model });
+    if (!config?.baseUrl) throw new Error('Cloud provider base URL is required.');
+    if (!model?.modelId && !config.modelId) throw new Error('Cloud model id is required.');
+    return { loaded: true, cloud: true, provider: config.provider, modelId: model?.modelId || config.modelId };
+  }
+
+  async stream({ model, messages, signal, onToken }) {
+    const config = this.getConfig(model);
+    try {
+      await this.loadModel(model);
+      const response = await fetch(`${config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
+        method: 'POST',
+        signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.apiKey}`,
+          ...(config.provider === 'openrouter' ? { 'HTTP-Referer': 'https://forgeai.local', 'X-Title': 'ForgeAI' } : {}),
+        },
+        body: JSON.stringify({
+          model: model?.modelId || config.modelId,
+          messages: (messages || []).map(item => ({ role: item.role || 'user', content: String(item.content ?? '') })),
+          stream: true,
+        }),
+      });
+
+      if (!response.ok) {
+        let payload = null;
+        try { payload = await response.json(); } catch {}
+        throw parseOpenAIError(response.status, payload);
+      }
+      if (!response.body) throw new Error('Cloud provider did not return a stream.');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let completion = '';
+      let usage = null;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
+        for (const event of events) {
+          for (const line of event.split('\n')) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data:')) continue;
+            const data = trimmed.slice(5).trim();
+            if (!data || data === '[DONE]') continue;
+            const chunk = JSON.parse(data);
+            if (chunk.error) throw parseOpenAIError(response.status, chunk);
+            usage = chunk.usage || usage;
+            const token = chunk.choices?.[0]?.delta?.content || chunk.choices?.[0]?.text || '';
+            if (token) {
+              completion += token;
+              onToken?.(token);
+            }
+          }
+        }
+      }
+
+      return { cloud: true, provider: config.provider, modelId: model?.modelId || config.modelId, content: completion, usage };
+    } catch (error) {
+      throw normalizeCloudError(error, { providerConfig: config, model });
+    }
+  }
+
+  async stop() { return { stopped: true, cloud: true }; }
+  async unloadModel() { return { unloaded: true, cloud: true }; }
+}
+
 export function createModelProvider({ mode = 'ollama', endpoint } = {}) {
   return assertModelProvider(mode === 'on-device' ? new OnDeviceProvider() : new OllamaProvider(endpoint));
+}
+
+export function createModelProviderForModel(model, { endpoint, isNative = false } = {}) {
+  if (model?.source === 'cloud' || model?.cloud) return assertModelProvider(new OpenAICompatibleProvider(model));
+  return createModelProvider({ mode: isNative ? 'on-device' : 'ollama', endpoint });
 }
 
 export function assertModelProvider(provider) {

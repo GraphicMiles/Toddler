@@ -7,8 +7,119 @@ import {
 } from 'lucide-react';
 import CustomProfileModal from './CustomProfileModal.jsx';
 import { isRawModeEnabled, setRawMode } from '../models/customPromptProfiles.js';
+import { CLOUD_PROVIDER_PRESETS, getCloudProviderPreset } from '../providers/cloudProviderStore.js';
 import { formatModelSize, formatStorageCapacity, getModelSizeBytes } from '../utils/deviceCapacity';
 import './MyCollection.css';
+
+function CloudProviderPanel({ providers = [], onAdd, onRemove, onSelectModel }) {
+  const [provider, setProvider] = useState('openai');
+  const preset = getCloudProviderPreset(provider);
+  const [label, setLabel] = useState(preset.label);
+  const [baseUrl, setBaseUrl] = useState(preset.baseUrl);
+  const [modelId, setModelId] = useState(preset.defaultModel);
+  const [apiKey, setApiKey] = useState('');
+  const [error, setError] = useState('');
+
+  const changeProvider = (nextProvider) => {
+    const next = getCloudProviderPreset(nextProvider);
+    setProvider(nextProvider);
+    setLabel(next.label);
+    setBaseUrl(next.baseUrl);
+    setModelId(next.defaultModel);
+    setError('');
+  };
+
+  const submit = (event) => {
+    event.preventDefault();
+    setError('');
+    try {
+      onAdd?.({ provider, label, baseUrl, modelId, apiKey });
+      setApiKey('');
+    } catch (err) {
+      setError(err.message || 'Could not save cloud provider.');
+    }
+  };
+
+  return (
+    <div className="model-list">
+      <div className="active-model-banner" style={{ alignItems: 'flex-start' }}>
+        <div style={{ flex: 1 }}>
+          <span className="active-label">Cloud Provider</span>
+          <p style={{ margin: '6px 0 0', color: '#9ca3af', fontSize: 13 }}>
+            Add an OpenAI-compatible cloud endpoint. Cloud models use provider API quota; local GGUF models do not.
+          </p>
+        </div>
+      </div>
+
+      <form className="model-item-details" onSubmit={submit} style={{ height: 'auto', opacity: 1 }}>
+        <div className="details-grid">
+          <label className="detail">
+            <span className="detail-label">Provider</span>
+            <select value={provider} onChange={event => changeProvider(event.target.value)}>
+              {CLOUD_PROVIDER_PRESETS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+            </select>
+          </label>
+          <label className="detail">
+            <span className="detail-label">Display name</span>
+            <input value={label} onChange={event => setLabel(event.target.value)} placeholder="Grok" />
+          </label>
+          <label className="detail">
+            <span className="detail-label">API key</span>
+            <input type="password" value={apiKey} onChange={event => setApiKey(event.target.value)} placeholder="Provider API key" />
+          </label>
+          <label className="detail">
+            <span className="detail-label">Base URL</span>
+            <input value={baseUrl} onChange={event => setBaseUrl(event.target.value)} placeholder="https://api.example.com/v1" />
+          </label>
+          <label className="detail">
+            <span className="detail-label">Model ID</span>
+            <input value={modelId} onChange={event => setModelId(event.target.value)} placeholder="grok-4" />
+          </label>
+        </div>
+        {error && <p className="setting-help" style={{ color: '#f87171' }}>{error}</p>}
+        <div className="details-actions">
+          <button className="btn-select" type="submit"><Check size={14} /> Save Provider</button>
+        </div>
+      </form>
+
+      {providers.length === 0 ? (
+        <div className="empty-collection">
+          <div className="empty-icon"><Wifi size={32} /></div>
+          <h3>No cloud providers connected</h3>
+          <p>Add an API key above to make the cloud model available in chat.</p>
+        </div>
+      ) : providers.map(item => {
+        const providerPreset = getCloudProviderPreset(item.provider);
+        return (
+          <div className="model-item" key={item.id}>
+            <div className="model-item-main" onClick={() => onSelectModel?.(item)}>
+              <div className="model-item-left">
+                <div className="model-radio"><span className="radio-inactive" /></div>
+                <div className="model-item-info">
+                  <span className="model-item-name">{item.label}</span>
+                  <span className="model-item-size mono">{providerPreset.label} · {item.modelId}</span>
+                </div>
+              </div>
+              <div className="model-item-right">
+                <span className="running-badge">Cloud</span>
+              </div>
+            </div>
+            <div className="model-item-details" style={{ height: 'auto', opacity: 1 }}>
+              <div className="details-grid">
+                <div className="detail"><span className="detail-label">Base URL</span><span className="detail-value mono">{item.baseUrl}</span></div>
+                <div className="detail"><span className="detail-label">Quota</span><span className="detail-value">Provider token/API limits apply</span></div>
+              </div>
+              <div className="details-actions">
+                <button className="btn-select" onClick={() => onSelectModel?.(item)}><MessageSquare size={14} /> Select & Chat</button>
+                <button className="btn-delete" onClick={() => onRemove?.(item.id)}><Trash2 size={14} /> Remove</button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function MyCollection({ 
   models = [], 
@@ -27,8 +138,13 @@ export default function MyCollection({
   onRefreshDevice,
   onMountModel,
   onUnmountModel,
-  isNative = false
+  isNative = false,
+  cloudProviders = [],
+  onAddCloudProvider,
+  onRemoveCloudProvider,
+  onSelectCloudModel,
 }) {
+  const [providerTab, setProviderTab] = useState('local');
   const [expandedId, setExpandedId] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedModelForProfile, setSelectedModelForProfile] = useState(null);
@@ -99,6 +215,25 @@ export default function MyCollection({
           </div>
         </div>
       </div>
+
+      <div className="setting-row" style={{ margin: '12px 0', gap: 8 }}>
+        <button className={providerTab === 'local' ? 'btn-select' : 'collection-import'} onClick={() => setProviderTab('local')}>
+          Local Provider
+        </button>
+        <button className={providerTab === 'cloud' ? 'btn-select' : 'collection-import'} onClick={() => setProviderTab('cloud')}>
+          Cloud Provider
+        </button>
+      </div>
+
+      {providerTab === 'cloud' ? (
+        <CloudProviderPanel
+          providers={cloudProviders}
+          onAdd={onAddCloudProvider}
+          onRemove={onRemoveCloudProvider}
+          onSelectModel={onSelectCloudModel}
+        />
+      ) : (
+        <>
 
       {/* Active Model Banner */}
       {activeModel && (
@@ -377,6 +512,9 @@ export default function MyCollection({
         <span className="storage-info mono">{storageSummary}</span>
         <button type="button" className="refresh-storage" onClick={() => onRefreshDevice?.()} aria-label="Refresh device storage"><RefreshCw size={14} /> Refresh</button>
       </div>
+
+        </>
+      )}
 
       {/* Custom Profile Modal */}
       <CustomProfileModal

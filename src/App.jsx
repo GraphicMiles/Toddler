@@ -23,6 +23,7 @@ import { generateQualityResponse, readResponseQuality } from './agent/responseQu
 import { enqueueAutonomousTask, readAutonomousQueue, removeAutonomousTask, updateAutonomousTask } from './agent/autonomousQueue.js';
 import { isAutonomousToolRequest, runFullAutonomyAgent } from './agent/fullAutonomyRunner.js';
 import { ApprovalGate } from './tools/toolApproval.js';
+import { createAdvancedToolRegistry } from './tools/advancedToolRegistry.js';
 import { contextCompressor } from './memory/contextCompressor.js';
 import { episodicMemory } from './memory/episodicMemory.js';
 import { retrieveRelevantContext, formatContextForPrompt, shouldRetrieveWorkspaceContext } from './utils/rag.js';

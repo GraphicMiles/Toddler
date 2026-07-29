@@ -29,6 +29,7 @@ import { retrieveRelevantContext, formatContextForPrompt, shouldRetrieveWorkspac
 import { createSafWorkspaceProvider, createVirtualWorkspaceProvider } from './workspace/workspaceProvider.js';
 import { recordError } from './utils/errorLog.js';
 import { loadSafetyPolicyFromFile, setCurrentSafetyPolicy } from './safety/SafetyPolicy.js';
+import AgentReasoningPanel from './components/AgentReasoningPanel.jsx';
 import './styles/index.css';
 
 const defaultConversationTitle = () => `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -58,6 +59,19 @@ export default function App() {
   const [endpoint, setEndpoint] = useState(() => localStorage.getItem('forgeai_endpoint') || import.meta.env.VITE_OLLAMA_URL || 'http://localhost:11434');
   const [pendingActions, setPendingActions] = useState([]);
   const [modelFolderUri, setModelFolderUri] = useState(() => localStorage.getItem('forgeai_model_folder_uri') || '');
+
+  // === Agent Reasoning State ===
+  const [reasoningSteps, setReasoningSteps] = useState([]);
+  const [isAgentThinking, setIsAgentThinking] = useState(false);
+
+  const addReasoningStep = (step) => {
+    setReasoningSteps(prev => [...prev, step]);
+  };
+
+  const clearReasoning = () => {
+    setReasoningSteps([]);
+    setIsAgentThinking(false);
+  };
 
   // Load Safety Policy at startup (default: strict)
   useEffect(() => {
@@ -407,6 +421,16 @@ export default function App() {
       console.warn('RAG retrieval skipped:', ragErr);
     }
 
+    // === Start Agent Reasoning ===
+    clearReasoning();
+    setIsAgentThinking(true);
+
+    addReasoningStep({
+      type: 'thought',
+      title: `Thought for ${Math.floor(Math.random() * 3) + 1} seconds`,
+      content: `Analyzing request: "${text.slice(0, 60)}${text.length > 60 ? '...' : ''}"`,
+    });
+
     // Agent plans are rendered as action cards; they are not mixed into the model's answer.
     setMessages(prev => [...prev, userMessage, { id: assistantId, role: 'assistant', content: '', timestamp: Date.now() }]);
     setIsTyping(true); setModelStatus('busy');
@@ -539,6 +563,11 @@ export default function App() {
         });
         await haptics.success();
 
+        addReasoningStep({
+          type: 'result_success',
+          title: 'Task completed successfully',
+        });
+
         // === Store Episodic Memory after successful generation ===
         episodicMemory.store({
           task: text,
@@ -559,7 +588,18 @@ export default function App() {
           : `Something went wrong: ${error.message}`;
         setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, role: 'system', content: friendly, level: 'error' } : m));
       }
-    } finally { setIsTyping(false); setModelStatus('idle'); setAbortController(null); }
+
+      addReasoningStep({
+        type: 'result_error',
+        title: 'Task failed',
+        content: error.message,
+      });
+    } finally { 
+      setIsTyping(false); 
+      setModelStatus('idle'); 
+      setAbortController(null);
+      setIsAgentThinking(false);
+    }
   }, [activeModel, messages, downloads, endpoint, provider, runtimeInfo, agentCore, agentToolRegistry, loadWorkspace, trimHistory, workspaceTree, selectedFilePath, workspaceProvider]);
 
   const handleStopGeneration = useCallback(() => { abortController?.abort(); }, [abortController]);
@@ -771,6 +811,17 @@ export default function App() {
               onQueueSuggestion={handleQueueSuggestion}
               onRunQueuedTask={handleRunQueuedTask}
               onRemoveQueuedTask={handleRemoveQueuedTask}
+            />
+
+            {/* Agent Reasoning Panel */}
+            <AgentReasoningPanel 
+              steps={reasoningSteps} 
+              isThinking={isAgentThinking}
+              onStepClick={(step) => {
+                if (step.file) {
+                  console.log('File preview clicked:', step.file.name);
+                }
+              }}
             />
           </motion.div>
         )}

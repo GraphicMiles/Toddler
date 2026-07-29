@@ -20,7 +20,7 @@ import SkillValidatorSettings from './SkillValidatorSettings.jsx';
 import ResearchSettings from './ResearchSettings.jsx';
 import GitHubAutomationSettings from './GitHubAutomationSettings.jsx';
 import SocialMediaSettings from './SocialMediaSettings.jsx';
-import ExperimentalFeatures from './ExperimentalFeatures.jsx';
+import ExperimentalFeatures from './ExperimentalFeatures.js';
 import TaskTimeline from './TaskTimeline.jsx';
 import ProjectMemoryPanel from './ProjectMemoryPanel.jsx';
 import RepositoryIndexPanel from './RepositoryIndexPanel.jsx';

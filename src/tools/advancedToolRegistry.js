@@ -5,7 +5,7 @@ import { registerGitHubTools } from './githubTools.js';
 /**
  * Creates the full advanced tool registry with all enterprise features
  */
-export function createAdvancedToolRegistry(workspaceProvider) {
+export function createAdvancedToolRegistry(_workspaceProvider) {
   const registry = new ToolRegistry();
 
   // Existing workspace tools (already registered elsewhere)

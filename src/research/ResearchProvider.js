@@ -4,7 +4,7 @@
  */
 
 import { nativeResearchProvider } from './NativeResearchProvider.js';
-import { isExperimentalEnabled } from '../components/ExperimentalFeatures.jsx';
+import { isExperimentalEnabled } from '../utils/experimentalFeatures.js';
 import { isNative } from '../nativeBridge.js';
 
 export const RESEARCH_DEPTH = Object.freeze({

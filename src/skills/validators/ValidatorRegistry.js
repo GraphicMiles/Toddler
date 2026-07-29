@@ -37,14 +37,14 @@ export class ValidatorRegistry {
       for (const key of active) {
         const ValidatorClass = VALIDATORS[key];
         if (ValidatorClass) {
-          this.validators.set(key, new ValidatorClass(config.options?.[key] || {}));
+          this.validators.set(key, new ValidatorClass());
         }
       }
 
       // Load trusted sources
       const trusted = JSON.parse(localStorage.getItem(TRUSTED_SOURCES_KEY) || '[]');
       this.trustedSources = new Set(trusted);
-    } catch (_e) {
+    } catch {
       console.warn('Failed to load validator config, using defaults');
       this._loadDefaults();
     }
@@ -131,7 +131,7 @@ export class ValidatorRegistry {
     }
 
     // Run all active validators
-    for (const [name, validator] of this.validators) {
+    for (const [_name, validator] of this.validators) {
       if (!validator.isEnabled()) continue;
 
       const result = validator.validate(skill, files);

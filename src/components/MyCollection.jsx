@@ -6,7 +6,7 @@ import {
   UserPlus, Settings
 } from 'lucide-react';
 import CustomProfileModal from './CustomProfileModal.jsx';
-import { customProfileManager, isRawModeEnabled, setRawMode } from '../models/customPromptProfiles.js';
+import { isRawModeEnabled, setRawMode } from '../models/customPromptProfiles.js';
 import { formatModelSize, formatStorageCapacity, getModelSizeBytes } from '../utils/deviceCapacity';
 import './MyCollection.css';
 

@@ -19,7 +19,7 @@ export class EpisodicMemory {
       if (data) {
         this.memories = JSON.parse(data);
       }
-    } catch (e) {
+    } catch (_e) {
       console.warn('Failed to load episodic memory');
     }
   }
@@ -32,7 +32,7 @@ export class EpisodicMemory {
         this.memories = this.memories.slice(-MAX_MEMORIES);
       }
       localStorage.setItem(MEMORY_KEY, JSON.stringify(this.memories));
-    } catch (e) {
+    } catch (_e) {
       console.warn('Failed to save episodic memory');
     }
   }

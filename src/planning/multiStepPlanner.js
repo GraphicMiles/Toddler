@@ -11,7 +11,7 @@ export class MultiStepPlanner {
   /**
    * Create a simple plan
    */
-  createPlan(goal, context = {}) {
+  createPlan(goal, _context = {}) {
     const steps = [];
     const lowerGoal = goal.toLowerCase();
 

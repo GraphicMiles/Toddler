@@ -26,7 +26,7 @@ export default function useModelCollection({ endpoint = 'http://localhost:11434'
   const saveModels = useCallback((nextOrUpdater) => {
     setModels(prev => {
       const next = typeof nextOrUpdater === 'function' ? nextOrUpdater(prev) : nextOrUpdater;
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch (e) { console.warn('Unable to persist model metadata', e); }
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch (_e) { console.warn('Unable to persist model metadata'); }
       return next;
     });
   }, []);

@@ -2,7 +2,7 @@ import { buildFileIndex, searchFiles } from '../utils/fileIndex.js';
 import { applyUnifiedDiff, summarizeUnifiedDiff } from '../patch/unifiedDiff.js';
 import { ToolRegistry } from './toolRegistry.js';
 import { nativeTerminal } from '../terminal/NativeTerminal.js';
-import { isExperimentalEnabled } from '../components/ExperimentalFeatures.jsx';
+import { isExperimentalEnabled } from '../utils/experimentalFeatures.js';
 import { isNative } from '../nativeBridge.js';
 import { registerPlugin } from '@capacitor/core';
 

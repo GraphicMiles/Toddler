@@ -43,7 +43,7 @@ export class CustomPromptProfileManager {
 
       // Load raw mode preference
       this.rawMode = localStorage.getItem(RAW_MODE_KEY) === 'true';
-    } catch (e) {
+    } catch (_e) {
       console.warn('Failed to load custom prompt profiles:', e);
     }
   }
@@ -54,7 +54,7 @@ export class CustomPromptProfileManager {
     try {
       localStorage.setItem(CUSTOM_PROFILES_KEY, JSON.stringify(Array.from(this.profiles.entries())));
       localStorage.setItem(RAW_MODE_KEY, this.rawMode.toString());
-    } catch (e) {
+    } catch (_e) {
       console.warn('Failed to save custom prompt profiles:', e);
     }
   }

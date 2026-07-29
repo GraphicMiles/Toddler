@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { researchProvider, RESEARCH_DEPTH } from '../research/ResearchProvider.js';
-import { Search, Archive, Shield, Globe } from 'lucide-react';
+import { Archive, Globe } from 'lucide-react';
 
 export default function ResearchSettings() {
   const [depth, setDepth] = useState(researchProvider.depth);

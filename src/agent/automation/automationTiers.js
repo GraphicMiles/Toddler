@@ -62,7 +62,7 @@ export class AutomationTierManager {
       if (log) {
         this.workflowLog = JSON.parse(log);
       }
-    } catch (e) {
+    } catch (_e) {
       console.warn('Failed to load automation tier settings:', e);
     }
   }
@@ -73,7 +73,7 @@ export class AutomationTierManager {
       localStorage.setItem(TIER_STORAGE_KEY, this.tier);
       localStorage.setItem(WHITELIST_STORAGE_KEY, JSON.stringify([...this.whitelist]));
       localStorage.setItem(WORKFLOW_LOG_KEY, JSON.stringify(this.workflowLog.slice(-50)));
-    } catch (e) {
+    } catch (_e) {
       console.warn('Failed to save automation tier settings:', e);
     }
   }

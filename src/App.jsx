@@ -23,15 +23,12 @@ import { generateQualityResponse, readResponseQuality } from './agent/responseQu
 import { enqueueAutonomousTask, readAutonomousQueue, removeAutonomousTask, updateAutonomousTask } from './agent/autonomousQueue.js';
 import { isAutonomousToolRequest, runFullAutonomyAgent } from './agent/fullAutonomyRunner.js';
 import { ApprovalGate } from './tools/toolApproval.js';
-import { createWorkspaceToolRegistry } from './tools/workspaceTools.js';
-import { createAdvancedToolRegistry } from './tools/advancedToolRegistry.js';
 import { contextCompressor } from './memory/contextCompressor.js';
 import { episodicMemory } from './memory/episodicMemory.js';
 import { retrieveRelevantContext, formatContextForPrompt, shouldRetrieveWorkspaceContext } from './utils/rag.js';
 import { createSafWorkspaceProvider, createVirtualWorkspaceProvider } from './workspace/workspaceProvider.js';
 import { recordError } from './utils/errorLog.js';
 import { loadSafetyPolicyFromFile, setCurrentSafetyPolicy } from './safety/SafetyPolicy.js';
-import { createAdvancedToolRegistry } from './tools/advancedToolRegistry.js';
 import './styles/index.css';
 
 const defaultConversationTitle = () => `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;

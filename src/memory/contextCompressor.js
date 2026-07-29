@@ -11,7 +11,7 @@ export class ContextCompressor {
   /**
    * Compress conversation history
    */
-  compress(messages, maxTokens = this.maxTokens) {
+  compress(messages, _maxTokens = this.maxTokens) {
     if (!messages || messages.length === 0) return [];
 
     const userAssistant = messages.filter(m => 

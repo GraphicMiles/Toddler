@@ -5,7 +5,7 @@ export default function SocialMediaSettings() {
   const [accounts, setAccounts] = useState(socialMediaManager.getAccounts());
   const [platform, setPlatform] = useState('twitter');
   const [username, setUsername] = useState('');
-  const [showResearch, setShowResearch] = useState(false);
+  const [_showResearch, setShowResearch] = useState(false);
 
   const addAccount = async () => {
     if (!username) return;

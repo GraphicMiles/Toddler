@@ -64,12 +64,3 @@ export default function ExperimentalFeatures() {
     </section>
   );
 }
-
-export function isExperimentalEnabled(key) {
-  try {
-    const features = JSON.parse(localStorage.getItem('forgeai_experimental_features') || '{}');
-    return features[key] === true;
-  } catch {
-    return false;
-  }
-}

@@ -6,7 +6,6 @@
  */
 
 import { App } from '@capacitor/app';
-import { storeGithubToken } from '../nativeBridge.js'; // We can reuse for social tokens too
 
 export class NativeSocialProvider {
   constructor() {
@@ -42,7 +41,7 @@ export class NativeSocialProvider {
     }
   }
 
-  async post(platform, username, content, options = {}) {
+  async post(platform, username, content, _options = {}) {
     // If user has completed OAuth, we would use the stored token here.
     // For now, we fall back to Android share sheet as the most reliable method.
 

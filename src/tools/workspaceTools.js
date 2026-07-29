@@ -1,12 +1,8 @@
 import { buildFileIndex, searchFiles } from '../utils/fileIndex.js';
 import { applyUnifiedDiff, summarizeUnifiedDiff } from '../patch/unifiedDiff.js';
 import { ToolRegistry } from './toolRegistry.js';
-import { nativeTerminal } from '../terminal/NativeTerminal.js';
 import { isExperimentalEnabled } from '../utils/experimentalFeatures.js';
-import { isNative } from '../nativeBridge.js';
-import { registerPlugin } from '@capacitor/core';
-
-const TerminalRuntime = registerPlugin('TerminalRuntime');
+import { isNative, runTerminalCommand } from '../nativeBridge.js';
 
 export function createWorkspaceToolRegistry(workspaceProvider) {
   if (!workspaceProvider) throw new Error('A workspace provider is required.');
@@ -130,7 +126,7 @@ export function createWorkspaceToolRegistry(workspaceProvider) {
 
         // Real native terminal execution
         try {
-          const result = await TerminalRuntime.execute({ command: cmd, cwd: workspacePath });
+          const result = await runTerminalCommand({ command: cmd, cwd: workspacePath });
           return {
             command: cmd,
             output: result?.output || 'Command executed',

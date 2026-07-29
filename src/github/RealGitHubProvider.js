@@ -45,6 +45,7 @@ export class RealGitHubProvider {
           url: issue.html_url,
           user: user.login,
           experimental: true,
+          branchProtectionBypassRequested: branchProtectionBypass,
         };
       }
 
@@ -54,6 +55,7 @@ export class RealGitHubProvider {
         message: `Authenticated as ${user.login}. Issue creation requires repo access.`,
         user: user.login,
         experimental: true,
+        branchProtectionBypassRequested: branchProtectionBypass,
       };
     } catch (error) {
       return {

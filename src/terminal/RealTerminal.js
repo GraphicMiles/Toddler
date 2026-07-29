@@ -13,7 +13,7 @@ export class RealTerminal {
     this.history = [];
   }
 
-  async execute(command, workspacePath = '') {
+  async execute(command, _workspacePath = '') {
     const cmd = command.trim();
     if (!cmd) return { output: '', status: 'success' };
 

@@ -26,8 +26,8 @@ export class VirtualWorkspace {
         this.folders = new Set(data.folders || []);
         this.backups = new Map(data.backups || []);
       }
-    } catch (_e) {
-      console.warn('Failed to load virtual workspace:', e);
+    } catch (error) {
+      console.warn('Failed to load virtual workspace:', error);
     }
   }
 
@@ -40,8 +40,8 @@ export class VirtualWorkspace {
         backups: Array.from(this.backups.entries()),
       };
       localStorage.setItem(VIRTUAL_STORAGE_KEY, JSON.stringify(data));
-    } catch (_e) {
-      console.warn('Failed to save virtual workspace:', e);
+    } catch (error) {
+      console.warn('Failed to save virtual workspace:', error);
     }
   }
 
@@ -264,8 +264,8 @@ export class VirtualWorkspace {
       this.backups = new Map();
       this.saveToStorage();
       return true;
-    } catch (_e) {
-      console.error('Import failed:', e);
+    } catch (error) {
+      console.error('Import failed:', error);
       return false;
     }
   }

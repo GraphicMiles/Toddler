@@ -80,8 +80,8 @@ export default function App() {
         const policy = await loadSafetyPolicyFromFile();
         setCurrentSafetyPolicy(policy);
         console.log('[ForgeAI] SafetyPolicy initialized:', policy.getLevel());
-      } catch (err) {
-        console.warn('[ForgeAI] Failed to load safety policy, using strict default');
+      } catch (error) {
+        console.warn('[ForgeAI] Failed to load safety policy, using strict default:', error);
       }
     };
     initSafety();

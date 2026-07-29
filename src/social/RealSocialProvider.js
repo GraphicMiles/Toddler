@@ -22,7 +22,7 @@ export class RealSocialProvider {
           timestamp: Date.now(),
           note: 'Used native Web Share API',
         };
-      } catch (error) {
+      } catch {
         // User cancelled or API failed — fall back to platform URLs
       }
     }

@@ -26,7 +26,7 @@ export class NativeGitHubProvider {
         path: '/issues',
         body: JSON.stringify({
           title: `[ForgeAI] ${message}`,
-          body: JSON.stringify(changes),
+          body: JSON.stringify({ changes, branchProtectionBypass }),
         }),
       });
 

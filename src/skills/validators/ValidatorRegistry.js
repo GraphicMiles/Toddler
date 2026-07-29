@@ -110,7 +110,7 @@ export class ValidatorRegistry {
   }
 
   // === Main Validation ===
-  validate(skill, files = {}, options = {}) {
+  validate(skill, files = {}, _options = {}) {
     const results = [];
     let finalVerdict = 'pass';
 

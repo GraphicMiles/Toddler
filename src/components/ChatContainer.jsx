@@ -379,19 +379,28 @@ export default function ChatContainer({
               animate="visible"
             >
               <AnimatePresence mode="popLayout">
-                {messages.map((message, index) => (
-                  <Fragment key={message.id || index}>
-                    {/* Reasoning trace renders inside the turn it belongs to, above the response text */}
-                    {index === inflightIndex && showReasoning && (
-                      <AgentReasoningPanel steps={reasoningSteps} isThinking={isAgentThinking} />
-                    )}
-                    <Message
-                      message={message}
-                      index={index}
-                      streaming={isTyping && index === inflightIndex}
-                    />
-                  </Fragment>
-                ))}
+                {messages.map((message, index) => {
+                  const streaming = isTyping && index === inflightIndex;
+                  // While the reasoning panel is the turn's visible working state, hold back
+                  // the empty agent bubble — it appears as soon as the first token lands.
+                  // Prevents two stacked "Thinking..." indicators for one turn.
+                  const hideUntilFirstToken = streaming && showReasoning && !message.content;
+                  return (
+                    <Fragment key={message.id || index}>
+                      {/* Reasoning trace renders inside the turn it belongs to, above the response text */}
+                      {index === inflightIndex && showReasoning && (
+                        <AgentReasoningPanel steps={reasoningSteps} isThinking={isAgentThinking} />
+                      )}
+                      {!hideUntilFirstToken && (
+                        <Message
+                          message={message}
+                          index={index}
+                          streaming={streaming}
+                        />
+                      )}
+                    </Fragment>
+                  );
+                })}
               </AnimatePresence>
 
               {/* Fallbacks only when the turn has no assistant placeholder to attach to */}

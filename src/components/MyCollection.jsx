@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Check, Trash2, Pause, MessageSquare,
   ChevronDown, Wifi, WifiOff, Database, RefreshCw,
-  UserPlus, Settings, Plus
+  UserPlus, Settings, Plus, MoreVertical
 } from 'lucide-react';
 import CustomProfileModal from './CustomProfileModal.jsx';
 import { isRawModeEnabled, setRawMode } from '../models/customPromptProfiles.js';
@@ -174,6 +174,7 @@ export default function MyCollection({
 }) {
   const [providerTab, setProviderTab] = useState('local');
   const [expandedId, setExpandedId] = useState(null);
+  const [actionsOpen, setActionsOpen] = useState(false);
   // Power-user metadata (hashes, revision, license) hidden behind this toggle inside the expanded card.
   const [techDetailsOpen, setTechDetailsOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -209,12 +210,12 @@ export default function MyCollection({
   };
 
   return (
-    <div className="my-collection">
+    <div className="my-collection" onClick={() => setActionsOpen(false)}>
       <div className="collection-header">
         <div className="collection-title-main">
           <div className="collection-heading">
             <h2 className="display">My Collection</h2>
-            <span className="model-count">{models.length}</span>
+            {models.length > 0 && <span className="model-count">{models.length}</span>}
           </div>
           <div className={`ollama-status ${ollamaConnected ? 'connected' : 'disconnected'}`}>
             {ollamaConnected ? <Wifi size={14} /> : <WifiOff size={14} />}
@@ -222,28 +223,64 @@ export default function MyCollection({
           </div>
         </div>
 
+        {/* One primary action + overflow (Raw Mode / Create Profile), same pattern as the Files toolbar */}
         <div className="collection-actions" aria-label="Collection actions">
-          {isNative && <button className="collection-import primary" onClick={onImportModel}>Import GGUF</button>}
-          <button 
-            className={`raw-mode-toggle ${rawMode ? 'active' : ''}`}
-            onClick={() => {
-              const next = !rawMode;
-              setRawMode(next);
-              setRawModeState(next);
-            }}
-            title="Raw Mode: disables all system prompt injection"
-          >
-            <Settings size={16} /> {rawMode ? 'Raw' : 'Raw Mode'}
-          </button>
-          <button 
-            className="collection-import"
-            onClick={() => {
-              setSelectedModelForProfile(null);
-              setShowProfileModal(true);
-            }}
-          >
-            <UserPlus size={16} /> Create Profile
-          </button>
+          {isNative ? (
+            <button className="collection-import primary" onClick={onImportModel}>
+              <Plus size={16} /> Import GGUF
+            </button>
+          ) : (
+            <button
+              className="collection-import"
+              onClick={() => {
+                setSelectedModelForProfile(null);
+                setShowProfileModal(true);
+              }}
+            >
+              <UserPlus size={16} /> Create Profile
+            </button>
+          )}
+          <div className="collection-menu-anchor">
+            <button
+              type="button"
+              className="collection-menu-btn"
+              onClick={(event) => { event.stopPropagation(); setActionsOpen(value => !value); }}
+              aria-label="More collection actions"
+              aria-expanded={actionsOpen}
+              title="More actions"
+            >
+              <MoreVertical size={16} />
+            </button>
+            {actionsOpen && (
+              <div className="collection-menu" onClick={(event) => event.stopPropagation()}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !rawMode;
+                    setRawMode(next);
+                    setRawModeState(next);
+                    setActionsOpen(false);
+                  }}
+                  title="Raw Mode: disables all system prompt injection"
+                >
+                  <Settings size={13} /> Raw Mode
+                  <span className={`menu-state ${rawMode ? 'on' : ''}`}>{rawMode ? 'On' : 'Off'}</span>
+                </button>
+                {isNative && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedModelForProfile(null);
+                      setShowProfileModal(true);
+                      setActionsOpen(false);
+                    }}
+                  >
+                    <UserPlus size={13} /> Create Profile
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

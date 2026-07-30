@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import {
   Check, Trash2, Pause, MessageSquare,
   ChevronDown, Wifi, WifiOff, Database, RefreshCw,
-  UserPlus, Settings
+  UserPlus, Settings, Plus
 } from 'lucide-react';
 import CustomProfileModal from './CustomProfileModal.jsx';
 import { isRawModeEnabled, setRawMode } from '../models/customPromptProfiles.js';
@@ -20,6 +20,9 @@ function CloudProviderPanel({ providers = [], onAdd, onRemove, onSelectModel }) 
   const [modelId, setModelId] = useState(preset.defaultModel);
   const [apiKey, setApiKey] = useState('');
   const [error, setError] = useState('');
+  // The add-provider form only renders on demand — the empty state and the form
+  // are never on screen at the same time, and Save stays anchored inside the form card.
+  const [formOpen, setFormOpen] = useState(false);
 
   const changeProvider = (nextProvider) => {
     const next = getCloudProviderPreset(nextProvider);
@@ -36,91 +39,112 @@ function CloudProviderPanel({ providers = [], onAdd, onRemove, onSelectModel }) 
     try {
       onAdd?.({ provider, label, baseUrl, modelId, apiKey });
       setApiKey('');
+      setFormOpen(false);
     } catch (err) {
       setError(err.message || 'Could not save cloud provider.');
     }
   };
 
+  const formCard = (
+    <form className="model-item-details expanded provider-form" onSubmit={submit}>
+      <div className="cloud-provider-copy">
+        <span className="active-label">Add cloud provider</span>
+        <p>
+          Add an OpenAI-compatible cloud endpoint. Cloud models use provider API quota; local GGUF models do not.
+        </p>
+      </div>
+      <div className="details-grid">
+        <label className="detail">
+          <span className="detail-label">Provider</span>
+          <DropdownMenu
+            value={provider}
+            onChange={changeProvider}
+            label="Provider"
+            options={CLOUD_PROVIDER_PRESETS.map(item => ({ value: item.id, label: item.label }))}
+          />
+        </label>
+        <label className="detail">
+          <span className="detail-label">Display name</span>
+          <input value={label} onChange={event => setLabel(event.target.value)} placeholder="Grok" />
+        </label>
+        <label className="detail">
+          <span className="detail-label">API key</span>
+          <input type="password" value={apiKey} onChange={event => setApiKey(event.target.value)} placeholder="Provider API key" />
+        </label>
+        <label className="detail">
+          <span className="detail-label">Base URL</span>
+          <input value={baseUrl} onChange={event => setBaseUrl(event.target.value)} placeholder="https://api.example.com/v1" />
+        </label>
+        <label className="detail">
+          <span className="detail-label">Model ID</span>
+          <input value={modelId} onChange={event => setModelId(event.target.value)} placeholder="grok-4" />
+        </label>
+      </div>
+      {error && <p className="setting-help error-text">{error}</p>}
+      <div className="details-actions">
+        <button className="btn-select" type="submit"><Check size={14} /> Save Provider</button>
+        {providers.length > 0 && (
+          <div className="details-actions-secondary">
+            <button type="button" className="btn-deselect" onClick={() => { setFormOpen(false); setError(''); }}>Cancel</button>
+          </div>
+        )}
+      </div>
+    </form>
+  );
+
   return (
     <div className="model-list">
-      <div className="active-model-banner cloud-provider-intro">
-        <div className="cloud-provider-copy">
-          <span className="active-label">Cloud Provider</span>
-          <p>
-            Add an OpenAI-compatible cloud endpoint. Cloud models use provider API quota; local GGUF models do not.
-          </p>
-        </div>
-      </div>
-
-      <form className="model-item-details expanded" onSubmit={submit}>
-        <div className="details-grid">
-          <label className="detail">
-            <span className="detail-label">Provider</span>
-            <DropdownMenu
-              value={provider}
-              onChange={changeProvider}
-              label="Provider"
-              options={CLOUD_PROVIDER_PRESETS.map(item => ({ value: item.id, label: item.label }))}
-            />
-          </label>
-          <label className="detail">
-            <span className="detail-label">Display name</span>
-            <input value={label} onChange={event => setLabel(event.target.value)} placeholder="Grok" />
-          </label>
-          <label className="detail">
-            <span className="detail-label">API key</span>
-            <input type="password" value={apiKey} onChange={event => setApiKey(event.target.value)} placeholder="Provider API key" />
-          </label>
-          <label className="detail">
-            <span className="detail-label">Base URL</span>
-            <input value={baseUrl} onChange={event => setBaseUrl(event.target.value)} placeholder="https://api.example.com/v1" />
-          </label>
-          <label className="detail">
-            <span className="detail-label">Model ID</span>
-            <input value={modelId} onChange={event => setModelId(event.target.value)} placeholder="grok-4" />
-          </label>
-        </div>
-        {error && <p className="setting-help error-text">{error}</p>}
-        <div className="details-actions">
-          <button className="btn-select" type="submit"><Check size={14} /> Save Provider</button>
-        </div>
-      </form>
-
       {providers.length === 0 ? (
-        <div className="empty-collection">
-          <div className="empty-icon"><Wifi size={32} /></div>
-          <h3>No cloud providers connected</h3>
-          <p>Add an API key above to make the cloud model available in chat.</p>
-        </div>
-      ) : providers.map(item => {
-        const providerPreset = getCloudProviderPreset(item.provider);
-        return (
-          <div className="model-item" key={item.id}>
-            <div className="model-item-main" onClick={() => onSelectModel?.(item)}>
-              <div className="model-item-left">
-                <div className="model-radio"><span className="radio-inactive" /></div>
-                <div className="model-item-info">
-                  <span className="model-item-name">{item.label}</span>
-                  <span className="model-item-size mono">{providerPreset.label} · {item.modelId}</span>
+        formOpen ? formCard : (
+          <div className="empty-collection">
+            <div className="empty-icon"><Wifi size={32} /></div>
+            <h3>No cloud providers connected</h3>
+            <p>Connect an OpenAI-compatible endpoint to use cloud models alongside local GGUF models.</p>
+            <button type="button" className="btn-open-zoo" onClick={() => setFormOpen(true)}>
+              <Plus size={14} /> Add cloud provider
+            </button>
+          </div>
+        )
+      ) : (
+        <>
+          {providers.map(item => {
+            const providerPreset = getCloudProviderPreset(item.provider);
+            return (
+              <div className="model-item" key={item.id}>
+                <div className="model-item-main" onClick={() => onSelectModel?.(item)}>
+                  <div className="model-item-left">
+                    <div className="model-radio"><span className="radio-inactive" /></div>
+                    <div className="model-item-info">
+                      <span className="model-item-name">{item.label}</span>
+                      <span className="model-item-size mono">{providerPreset.label} · {item.modelId}</span>
+                    </div>
+                  </div>
+                  <div className="model-item-right">
+                    <span className="running-badge">Cloud</span>
+                  </div>
+                </div>
+                <div className="model-item-details expanded">
+                  <div className="details-grid">
+                    <div className="detail"><span className="detail-label">Base URL</span><span className="detail-value mono">{item.baseUrl}</span></div>
+                    <div className="detail"><span className="detail-label">Quota</span><span className="detail-value">Provider token/API limits apply</span></div>
+                  </div>
+                  <div className="details-actions">
+                    <button className="btn-select" onClick={() => onSelectModel?.(item)}><MessageSquare size={14} /> Select & Chat</button>
+                    <div className="details-actions-secondary">
+                      <button className="btn-delete" onClick={() => onRemove?.(item.id)}><Trash2 size={14} /> Remove</button>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="model-item-right">
-                <span className="running-badge">Cloud</span>
-              </div>
-            </div>
-            <div className="model-item-details expanded">
-              <div className="details-grid">
-                <div className="detail"><span className="detail-label">Base URL</span><span className="detail-value mono">{item.baseUrl}</span></div>
-                <div className="detail"><span className="detail-label">Quota</span><span className="detail-value">Provider token/API limits apply</span></div>
-              </div>
-              <div className="details-actions">
-                <button className="btn-select" onClick={() => onSelectModel?.(item)}><MessageSquare size={14} /> Select & Chat</button>
-                <button className="btn-delete" onClick={() => onRemove?.(item.id)}><Trash2 size={14} /> Remove</button>
-              </div>
-            </div>
-          </div>
-        );
-      })}
+            );
+          })}
+          {formOpen ? formCard : (
+            <button type="button" className="collection-import add-provider-btn" onClick={() => setFormOpen(true)}>
+              <Plus size={14} /> Add cloud provider
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -150,6 +174,8 @@ export default function MyCollection({
 }) {
   const [providerTab, setProviderTab] = useState('local');
   const [expandedId, setExpandedId] = useState(null);
+  // Power-user metadata (hashes, revision, license) hidden behind this toggle inside the expanded card.
+  const [techDetailsOpen, setTechDetailsOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedModelForProfile, setSelectedModelForProfile] = useState(null);
   const [rawMode, setRawModeState] = useState(isRawModeEnabled());
@@ -179,6 +205,7 @@ export default function MyCollection({
   const toggleExpand = (e, modelId) => {
     e.stopPropagation();
     setExpandedId(prev => prev === modelId ? null : modelId);
+    setTechDetailsOpen(false);
   };
 
   return (
@@ -220,12 +247,24 @@ export default function MyCollection({
         </div>
       </div>
 
-      <div className="setting-row collection-provider-tabs">
-        <button className={providerTab === 'local' ? 'btn-select' : 'collection-import'} onClick={() => setProviderTab('local')}>
-          Local Provider
+      <div className="collection-provider-tabs" role="tablist" aria-label="Provider source">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={providerTab === 'local'}
+          className={`provider-tab ${providerTab === 'local' ? 'active' : ''}`}
+          onClick={() => setProviderTab('local')}
+        >
+          Local
         </button>
-        <button className={providerTab === 'cloud' ? 'btn-select' : 'collection-import'} onClick={() => setProviderTab('cloud')}>
-          Cloud Provider
+        <button
+          type="button"
+          role="tab"
+          aria-selected={providerTab === 'cloud'}
+          className={`provider-tab ${providerTab === 'cloud' ? 'active' : ''}`}
+          onClick={() => setProviderTab('cloud')}
+        >
+          Cloud
         </button>
       </div>
 
@@ -402,35 +441,12 @@ export default function MyCollection({
                             <span className="detail-label">Quantization</span>
                             <span className="detail-value mono">{model.quantizations?.join(', ') || 'Unknown'}</span>
                           </div>
-                          <div className="detail">
-                            <span className="detail-label">License</span>
-                            <span className="detail-value">{model.license || 'Unknown'}</span>
-                          </div>
-                          <div className="detail">
-                            <span className="detail-label">Source</span>
-                            <span className="detail-value mono">{model.source || (model.sourceUri ? 'Device import' : 'Unknown')}</span>
-                          </div>
-                          <div className="detail">
-                            <span className="detail-label">Revision</span>
-                            <span className="detail-value mono">{model.revision?.slice(0, 12) || 'User supplied'}</span>
-                          </div>
-                          <div className="detail">
-                            <span className="detail-label">Integrity</span>
-                            <span className="detail-value">{model.integrity || (model.verified ? 'publisher-verified' : 'unverified')}</span>
-                          </div>
-                          <div className="detail">
-                            <span className="detail-label">SHA-256</span>
-                            <span className="detail-value mono" title={model.sha256 || ''}>{model.sha256 ? `${model.sha256.slice(0, 12)}…` : 'Unavailable'}</span>
-                          </div>
-                          <div className="detail">
-                            <span className="detail-label">Downloaded</span>
-                            <span className="detail-value">{formatDate(model.downloadedAt)}</span>
-                          </div>
                         </div>
 
+                        {/* Primary action on its own row; secondary actions share one equal-width row */}
                         <div className="details-actions">
                           {isActive ? (
-                            <button 
+                            <button
                               className="btn-deselect"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -440,7 +456,7 @@ export default function MyCollection({
                               Deselect
                             </button>
                           ) : (
-                            <button 
+                            <button
                               className="btn-select"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -452,55 +468,95 @@ export default function MyCollection({
                             </button>
                           )}
 
-                          {/* Load/unload direct on-device model */}
-                          {isNative && (
-                            isActive ? (
-                              <button 
-                                className="btn-unmount"
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  if (onUnmountModel) await onUnmountModel(model);
-                                }}
-                              >
-                                Unmount
-                              </button>
-                            ) : (
-                              <button 
-                                className="btn-mount"
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  if (onMountModel) await onMountModel(model);
-                                }}
-                              >
-                                Mount
-                              </button>
-                            )
-                          )}
+                          <div className="details-actions-secondary">
+                            {/* Load/unload direct on-device model */}
+                            {isNative && (
+                              isActive ? (
+                                <button
+                                  className="btn-unmount"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    if (onUnmountModel) await onUnmountModel(model);
+                                  }}
+                                >
+                                  Unmount
+                                </button>
+                              ) : (
+                                <button
+                                  className="btn-mount"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    if (onMountModel) await onMountModel(model);
+                                  }}
+                                >
+                                  Mount
+                                </button>
+                              )
+                            )}
 
-                          <button 
-                            className="btn-delete"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDelete?.(model);
-                            }}
-                          >
-                            <Trash2 size={14} />
-                            Delete
-                          </button>
+                            <button
+                              className="btn-delete"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete?.(model);
+                              }}
+                            >
+                              <Trash2 size={14} />
+                              Delete
+                            </button>
 
-                          {/* Custom Profile Button */}
-                          <button 
-                            className="btn-custom-profile"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedModelForProfile(model);
-                              setShowProfileModal(true);
-                            }}
-                            title="Create custom prompt profile for this model"
-                          >
-                            <UserPlus size={13} /> Profile
-                          </button>
+                            <button
+                              className="btn-custom-profile"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedModelForProfile(model);
+                                setShowProfileModal(true);
+                              }}
+                              title="Create custom prompt profile for this model"
+                            >
+                              <UserPlus size={13} /> Profile
+                            </button>
+                          </div>
                         </div>
+
+                        {/* Power-user metadata stays collapsed so actions are reachable without scrolling */}
+                        <button
+                          type="button"
+                          className="tech-details-toggle"
+                          onClick={(e) => { e.stopPropagation(); setTechDetailsOpen(value => !value); }}
+                          aria-expanded={techDetailsOpen}
+                        >
+                          <span>Technical details</span>
+                          <ChevronDown size={14} className={`expand-icon ${techDetailsOpen ? 'expanded' : ''}`} />
+                        </button>
+                        {techDetailsOpen && (
+                          <div className="details-grid tech-details-grid">
+                            <div className="detail">
+                              <span className="detail-label">License</span>
+                              <span className="detail-value">{model.license || 'Unknown'}</span>
+                            </div>
+                            <div className="detail">
+                              <span className="detail-label">Source</span>
+                              <span className="detail-value mono">{model.source || (model.sourceUri ? 'Device import' : 'Unknown')}</span>
+                            </div>
+                            <div className="detail">
+                              <span className="detail-label">Revision</span>
+                              <span className="detail-value mono">{model.revision?.slice(0, 12) || 'User supplied'}</span>
+                            </div>
+                            <div className="detail">
+                              <span className="detail-label">Integrity</span>
+                              <span className="detail-value">{model.integrity || (model.verified ? 'publisher-verified' : 'unverified')}</span>
+                            </div>
+                            <div className="detail">
+                              <span className="detail-label">SHA-256</span>
+                              <span className="detail-value mono" title={model.sha256 || ''}>{model.sha256 ? `${model.sha256.slice(0, 12)}…` : 'Unavailable'}</span>
+                            </div>
+                            <div className="detail">
+                              <span className="detail-label">Downloaded</span>
+                              <span className="detail-value">{formatDate(model.downloadedAt)}</span>
+                            </div>
+                          </div>
+                        )}
                       </motion.div>
                     )}
                   </AnimatePresence>

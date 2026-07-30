@@ -50,8 +50,13 @@
   display: flex;
   gap: var(--space-2);
   overflow-x: auto;
-  padding-bottom: var(--space-1);
+  /* Edge padding + scroll snap: tabs always settle fully visible, never cut mid-word */
+  padding: 0 var(--space-4) var(--space-1);
+  scroll-snap-type: x proximity;
   scrollbar-width: none;
+  /* Fade edges signal that more tabs exist off-screen */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
 }
 
 .settings-tabs::-webkit-scrollbar {
@@ -64,9 +69,9 @@
   justify-content: center;
   gap: 7px;
   flex: 0 0 auto;
-  min-width: 132px;
-  min-height: 44px;
-  padding: var(--space-2) var(--space-3);
+  min-height: 38px;
+  scroll-snap-align: start;
+  padding: var(--space-2) var(--space-4);
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--bg-elev);

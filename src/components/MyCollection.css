@@ -151,22 +151,25 @@
   background: var(--warn-dim);
 }
 
+/* Same ghost-square icon-button family used across the app (dropdown close, etc.) */
 .expand-toggle {
-  background: none;
-  border: none;
-  padding: 4px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   cursor: pointer;
-  color: var(--faint);
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  transition: color 0.15s, background 0.15s;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  transition: color 0.15s, border-color 0.15s;
 }
 
 .expand-toggle:hover {
-  color: var(--paper);
-  background: var(--bg-elev-2);
+  color: var(--accent);
+  border-color: var(--accent-strong);
 }
 
 /* Model List */
@@ -213,6 +216,10 @@
 }
 
 .btn-open-zoo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   padding: 12px 24px;
   background: var(--accent);
   border: none;
@@ -372,15 +379,35 @@
   color: var(--paper);
 }
 
+/* Primary action full-width on its own row; secondary actions in one equal-width row */
 .details-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.details-actions > .btn-select,
+.details-actions > .btn-deselect {
+  width: 100%;
+}
+
+.details-actions-secondary {
   display: flex;
   gap: 8px;
 }
 
+.details-actions-secondary > button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 40px;
+  white-space: nowrap;
+}
+
 .btn-select,
 .btn-deselect,
+.btn-mount,
+.btn-unmount,
 .btn-delete {
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -391,6 +418,19 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
+}
+
+.btn-mount,
+.btn-unmount {
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  color: var(--paper-dim);
+}
+
+.btn-mount:hover,
+.btn-unmount:hover {
+  border-color: var(--border-strong);
+  color: var(--paper);
 }
 
 .btn-select {
@@ -417,12 +457,45 @@
   background: transparent;
   border: 1px solid var(--danger);
   color: var(--danger);
-  flex: 0;
-  padding: 10px 14px;
 }
 
 .btn-delete:hover {
   background: var(--danger-dim);
+}
+
+/* Collapsed power-user metadata */
+.tech-details-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 36px;
+  margin-top: 10px;
+  padding: 6px 2px 0;
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tech-details-toggle:hover {
+  color: var(--text-primary);
+}
+
+.details-grid.tech-details-grid {
+  padding-top: 10px;
+  margin-bottom: 0;
+}
+
+/* Cloud provider add-form card */
+.provider-form .cloud-provider-copy {
+  margin-bottom: 4px;
+}
+
+.add-provider-btn {
+  width: 100%;
 }
 
 /* Footer */
@@ -468,61 +541,6 @@
 .refresh-storage { display:inline-flex; align-items:center; gap:6px; min-height:36px; padding:7px 10px; border:1px solid var(--border-strong); border-radius:var(--radius-sm); background:var(--bg-elev); color:var(--paper-dim); font-size:11px; }
 .refresh-storage:hover { color:var(--accent); border-color:var(--accent-border); }
 @media (max-width:380px) { .collection-footer { align-items:flex-start; flex-direction:column; } .refresh-storage { width:100%; justify-content:center; } }
-
-/* Raw Mode Toggle */
-.raw-mode-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  background: var(--border-default);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-default);
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.1s ease;
-}
-
-.raw-mode-toggle.active {
-  background: var(--status-warning-bg);
-  color: var(--status-warning);
-  border-color: var(--status-warning);
-}
-
-.raw-mode-toggle:hover {
-  background: var(--border-default);
-}
-
-.raw-mode-toggle.active:hover {
-  background: var(--status-warning);
-}
-
-/* Custom Profile Button */
-.btn-custom-profile {
-  background: var(--accent-subtle);
-  color: var(--text-primary);
-  border: 1px solid var(--accent);
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-  transition: all 0.1s;
-}
-
-.btn-custom-profile:hover {
-  background: var(--accent-subtle);
-  color: white;
-}
-
-.collection-provider-tabs {
-  gap: var(--space-2);
-  margin: var(--space-3) 0;
-}
 
 .cloud-provider-intro {
   align-items: flex-start;
@@ -606,8 +624,7 @@
   white-space: nowrap;
 }
 
-.collection-import.primary,
-.collection-provider-tabs .btn-select {
+.collection-import.primary {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--accent-text-on);
@@ -640,21 +657,39 @@
   color: var(--status-danger);
 }
 
+/* Segmented control: one control, two states — not two stacked buttons */
 .collection-provider-tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  padding: var(--space-1);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
   margin: var(--space-3) var(--space-4) 0;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius);
+  border-radius: 999px;
   background: var(--bg-inset);
 }
 
-.collection-provider-tabs button {
-  width: 100%;
-  min-height: 44px;
-  border-radius: var(--radius-sm);
+.provider-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 36px;
   border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.provider-tab:hover:not(.active) {
+  background: var(--bg-surface-raised);
+  color: var(--text-primary);
+}
+
+.provider-tab.active {
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 .collection-footer {

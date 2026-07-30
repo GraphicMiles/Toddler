@@ -14,6 +14,25 @@
  */
 
 const FAILOVER_CODES = new Set(['quota_exceeded', 'rate_limited', 'server_error', 'network_error']);
+
+// Rough capability ranking so failover prefers the STRONGEST available model
+// first (best → lowest), independent of the order providers were added. Higher
+// score = more capable. Based on model id substrings.
+const MODEL_TIERS = [
+  // "small" markers first so gpt-4o-mini / flash-lite / *-instant don't match a
+  // bigger tier by a substring like "gpt-4o".
+  { re: /(mini|nano|flash-lite|-lite\b|instant|\b1\.5b|\b3b\b|\b7b\b|\b8b\b|\b9b\b|small)/i, score: 40 },
+  { re: /\b(gpt-?5|o[34]|claude.*(opus|sonnet)|opus|sonnet)\b/i, score: 100 },
+  { re: /(deepseek.*(v[34]|r1)|qwen3.*(235b|480b|coder)|llama.*4|405b|grok-?4|gemini.*(2\.5|3).*pro|mistral-large|command-a|command-r-plus|nemotron.*(ultra|super))/i, score: 90 },
+  { re: /(70b|72b|gpt-oss-120b|glm-4|qwen3-32b|gemini.*(flash|2\.5)|mixtral|codestral|devstral|gpt-4o|gpt-4\.1)/i, score: 75 },
+  { re: /(30b|32b|gpt-oss-20b|gemma|command-r\b|qwen2\.5-coder)/i, score: 60 },
+];
+
+export function modelQualityScore(modelId = '') {
+  const id = String(modelId);
+  for (const tier of MODEL_TIERS) if (tier.re.test(id)) return tier.score;
+  return 50; // unknown → mid
+}
 // Cooldown after a provider fails over (ms). Quota resets are slow; rate limits fast.
 const COOLDOWN_MS = { quota_exceeded: 6 * 60 * 60 * 1000, rate_limited: 60 * 1000, server_error: 2 * 60 * 1000, network_error: 30 * 1000 };
 
@@ -54,10 +73,23 @@ export function isFailoverError(code) {
 export function orderCandidates(providers = [], activeId, now = Date.now()) {
   const withKey = providers.filter(p => p && p.apiKey && p.baseUrl && p.modelId);
   const active = withKey.find(p => p.id === activeId);
+  // Fallbacks are ordered STRONGEST MODEL FIRST (best → lowest), so when a
+  // provider is exhausted we drop to the next most capable one rather than a
+  // random/weaker model. An explicit low `priority` (pinning) still wins.
   const rest = withKey
     .filter(p => p.id !== activeId)
     .filter(p => !isOnCooldown(p.id, now))
-    .sort((a, b) => (a.priority ?? 1e9) - (b.priority ?? 1e9) || (a.createdAt ?? 0) - (b.createdAt ?? 0));
+    .sort((a, b) => {
+      const ap = a.priority, bp = b.priority;
+      const aPinned = Number.isFinite(ap) && ap < 1e6;
+      const bPinned = Number.isFinite(bp) && bp < 1e6;
+      // If the user explicitly pinned priorities differently, honor them.
+      if (aPinned && bPinned && ap !== bp) return ap - bp;
+      // Otherwise sort by model capability (desc), then creation order.
+      const q = modelQualityScore(b.modelId) - modelQualityScore(a.modelId);
+      if (q !== 0) return q;
+      return (a.createdAt ?? 0) - (b.createdAt ?? 0);
+    });
   return active ? [active, ...rest] : rest;
 }
 

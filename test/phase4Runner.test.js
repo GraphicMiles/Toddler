@@ -90,3 +90,42 @@ assert.deepEqual(created.action.paths, ['body.css']);
 assert.match(created.action.content, /color: white/);
 await assert.rejects(() => generatePatchProposal({ provider, model: { id: 'coder' }, request: 'Fix it', workspaceContext: '' }), /context is required/);
 console.log('phase 4 runner tests passed');
+
+// --- Regression: create_file must never write a JSON action-envelope as the file ---
+// The model returns the whole {"actions":[{action,path,content}]} envelope. The
+// created file must contain the INNER html content, not the JSON wrapper.
+const envelopeOutput = JSON.stringify({
+  actions: [{
+    action: 'create_file',
+    path: 'landing-page.html',
+    content: '<!DOCTYPE html><html><head><title>Landing</title></head><body><h1>Hi</h1></body></html>',
+  }],
+});
+const envProvider = {
+  async stream({ messages, onToken }) {
+    // Coder turn returns the envelope; reviewer turn passes.
+    const isReview = messages.some(m => /Return JSON only: \{"verdict"/.test(m.content || ''));
+    onToken(isReview ? '{"verdict":"pass","issues":[]}' : envelopeOutput);
+    return { tokenCount: 10 };
+  },
+};
+const envProposal = await generatePatchProposal({
+  provider: envProvider,
+  model: { id: 'coder' },
+  request: 'Create a landing page',
+  workspaceContext: '',
+  toolNames: ['create_file'],
+});
+assert.equal(envProposal.action.type, 'create_file');
+assert.equal(envProposal.action.paths[0], 'index.html');
+assert.match(envProposal.action.content, /<!DOCTYPE html>/);
+assert.match(envProposal.action.content, /<h1>Hi<\/h1>/);
+assert.ok(!/"actions"/.test(envProposal.action.content), 'file content must not be the JSON envelope');
+assert.ok(!/"action":\s*"create_file"/.test(envProposal.action.content), 'no protocol leakage into file');
+
+// Singular "path" (instead of "paths") is normalized by validateStructuredAction.
+import { validateStructuredAction } from '../src/agent/actionProtocol.js';
+const singular = validateStructuredAction({ type: 'create_file', path: 'a.js', content: 'x', rationale: 'r' });
+assert.deepEqual(singular.paths, ['a.js']);
+
+console.log('phase4 create-file corruption regression passed');

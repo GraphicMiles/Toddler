@@ -41,7 +41,9 @@ export function validateStructuredAction(input) {
   
   if (!STRUCTURED_ACTION_TYPES.includes(normalizedInput.type)) throw new Error(`Unsupported agent action: ${normalizedInput.type}`);
   
-  const paths = normalizedInput.paths == null ? [] : normalizedInput.paths;
+  const paths = normalizedInput.paths == null
+    ? (normalizedInput.path != null ? [normalizedInput.path] : [])
+    : normalizedInput.paths;
   if (!Array.isArray(paths) || paths.length > MAX_PATHS) throw new Error(`Agent action paths must contain at most ${MAX_PATHS} items.`);
   
   const normalizedPaths = paths.map(path => normalizeRelativeWorkspacePath(path));

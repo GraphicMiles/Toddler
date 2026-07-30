@@ -94,18 +94,49 @@ function patchActionFromOutput(output) {
   return validateStructuredAction({ type: 'propose_patch', paths, rationale: 'Local model returned a directly parseable unified diff.', patch });
 }
 
+// If a would-be file content is actually a JSON action envelope (the model
+// echoed the protocol instead of the file), dig out the real inner content.
+function unwrapEnvelopeContent(text) {
+  const t = String(text || '').trim();
+  if (!/^\{[\s\S]*"(?:actions|action|create_file|content)"/.test(t) && !/^\[/.test(t)) return null;
+  try {
+    let obj = JSON.parse(t);
+    if (Array.isArray(obj)) obj = obj[0];
+    if (obj && Array.isArray(obj.actions)) obj = obj.actions[0];
+    if (obj && typeof obj.content === 'string' && obj.content.trim()) {
+      return { content: obj.content, path: obj.path || (Array.isArray(obj.paths) ? obj.paths[0] : '') };
+    }
+  } catch { /* not valid JSON — treat as literal content */ }
+  return null;
+}
+
+function looksLikeActionJson(text) {
+  return /^\s*[[{][\s\S]*"(?:action|actions|create_file|propose_patch)"/.test(String(text || ''));
+}
+
 function createFileActionFromOutput(output, expectedPath) {
   try {
     const actions = parseStructuredActions(output).filter(action => action.type === 'create_file');
     if (actions.length === 1) return validateStructuredAction({ ...actions[0], paths: [expectedPath || actions[0].paths[0]] });
-  } catch {}
+  } catch { /* fall through to fenced/plain extraction */ }
+
   const fenced = output.match(/```(?:[a-z0-9_-]+)?\s*([\s\S]*?)```/i);
-  if (!fenced?.[1]?.trim()) throw new Error('The local model did not return a valid create_file action or fenced file content.');
+  let content = fenced?.[1]?.trim() || String(output || '').trim();
+  if (!content) throw new Error('The model did not return valid create_file content.');
+
+  // Guard against the classic bug: the "content" is really the JSON envelope.
+  const unwrapped = unwrapEnvelopeContent(content);
+  if (unwrapped) content = unwrapped.content.trim();
+  else if (looksLikeActionJson(content)) {
+    // It's a protocol echo we couldn't unwrap — refuse rather than write junk.
+    throw new Error('The model returned a protocol action instead of file content. Please try again.');
+  }
+
   return validateStructuredAction({
     type: 'create_file',
     paths: [expectedPath],
     rationale: `Create ${expectedPath} inside the selected workspace root.`,
-    content: fenced[1].trim() + '\n',
+    content: content + '\n',
   });
 }
 
@@ -150,7 +181,7 @@ export async function generatePatchProposal({
   const visibleToolNames = toolNames.filter(name => allowedBySkills.has(name));
   const skillInstructions = activeSkills.map(skill => `SKILL ${skill.name}: ${skill.instructions}`).join('\n');
   const operationInstruction = creatingFile
-    ? `Return exactly one create_file action. The path must be exactly "${expectedPath}" relative to the selected workspace root. Return the complete file content and no shell commands or tutorial.`
+    ? `Return exactly one create_file action with a "content" field containing the COMPLETE, PRODUCTION-QUALITY file — never a placeholder, stub, or "TODO". The path must be exactly "${expectedPath}" relative to the selected workspace root. For web pages: include real semantic HTML structure, embedded CSS styling (modern, responsive, attractive), and meaningful example content — a full page, not a bare heading. Do NOT wrap the file content in another JSON object; put the raw file text directly in "content". No shell commands or tutorial prose.`
     : 'Return exactly one propose_patch action for this request. Modify existing text files only. Preserve unrelated code. The patch must use --- a/path and +++ b/path headers and exact context lines.';
   const instruction = `${AGENT_ROLES.coder.instructions}\n${structuredActionPrompt(visibleToolNames)}\n${operationInstruction}\n${skillInstructions}`;
   const userContent = `REQUEST:\n${request}\n\n${projectMemory ? `${projectMemory}\n\n` : ''}WORKSPACE CONTEXT:\n${workspaceContext || '(Selected workspace root is available; no existing file context is required for this new file.)'}`;

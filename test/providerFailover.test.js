@@ -1,7 +1,26 @@
 import assert from 'node:assert/strict';
 import {
-  isFailoverError, orderCandidates, isOnCooldown, markCooldown, clearAllCooldowns, streamWithFailover,
+  isFailoverError, orderCandidates, isOnCooldown, markCooldown, clearAllCooldowns, streamWithFailover, modelQualityScore,
 } from '../src/providers/providerFailover.js';
+
+// model quality ranking: stronger models score higher
+assert.ok(modelQualityScore('llama-3.3-70b-versatile') > modelQualityScore('llama-3.1-8b-instant'));
+assert.ok(modelQualityScore('deepseek-r1') > modelQualityScore('gemma-2-9b'));
+assert.ok(modelQualityScore('qwen3-235b') > modelQualityScore('qwen3-32b'));
+assert.ok(modelQualityScore('gpt-4o') > modelQualityScore('gpt-4o-mini'));
+
+// fallback chain orders strongest-model-first when priorities aren't pinned
+clearAllCooldowns();
+{
+  const provs = [
+    { id: 'weak', apiKey: 'k', baseUrl: 'u', modelId: 'llama-3.1-8b-instant', priority: 1e6 + 1, createdAt: 1 },
+    { id: 'strong', apiKey: 'k', baseUrl: 'u', modelId: 'llama-3.3-70b-versatile', priority: 1e6 + 2, createdAt: 2 },
+    { id: 'mid', apiKey: 'k', baseUrl: 'u', modelId: 'qwen3-32b', priority: 1e6 + 3, createdAt: 3 },
+  ];
+  // active is 'weak'; the rest should be strong then mid (by quality, not add order)
+  const ordered = orderCandidates(provs, 'weak');
+  assert.deepEqual(ordered.map(p => p.id), ['weak', 'strong', 'mid'], 'fallbacks strongest-first');
+}
 
 // which codes fail over
 assert.equal(isFailoverError('quota_exceeded'), true);

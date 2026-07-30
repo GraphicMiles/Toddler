@@ -14,7 +14,7 @@ import { createModelProvider, createModelProviderForModel } from './providers/mo
 import { cloudProviderToModel, cloudProvidersToModels, listCloudProviders, removeCloudProvider, saveCloudProvider } from './providers/cloudProviderStore.js';
 import { getModelProfile } from './models/catalog.js';
 import { AgentCore } from './agent/core.js';
-import { generatePatchProposal, isCodeChangeRequest, isFileCreationRequest, needsCreationFilename } from './agent/phase4Runner.js';
+import { generatePatchProposal, isCodeChangeRequest, isFileCreationRequest, needsCreationFilename, recentFilenameFromMessages } from './agent/phase4Runner.js';
 import { buildRequirementsEcho, shouldEchoRequirements } from './skills/reviewSkills.js';
 import { createAgentTask, projectMemoryPrompt, readProjectMemory, updateAgentTask } from './memory/agentMemory.js';
 import { AUTONOMY_LEVELS, readAutonomyLevel, suggestNextActions } from './agent/autonomyPolicy.js';
@@ -511,6 +511,13 @@ export default function App() {
       return;
     }
     if (needsCreationFilename(text)) {
+      // Before re-asking, try to reuse a filename already discussed this turn —
+      // e.g. "Create a file called homer.jsx" then "create the file" should use
+      // homer.jsx instead of asking again.
+      const priorFilename = recentFilenameFromMessages(messages);
+      if (priorFilename) {
+        return handleSendMessage(`${text} as ${priorFilename}`);
+      }
       // Set pending intent so the next message (with the filename) is routed correctly
       setPendingIntent({
         expecting: 'filename',

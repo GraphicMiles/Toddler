@@ -1,5 +1,28 @@
 import assert from 'node:assert/strict';
-import { generatePatchProposal, isCodeChangeRequest, isFileCreationRequest, needsCreationFilename, requestedFilePath } from '../src/agent/phase4Runner.js';
+import { generatePatchProposal, isCodeChangeRequest, isFileCreationRequest, needsCreationFilename, requestedFilePath, recentFilenameFromMessages } from '../src/agent/phase4Runner.js';
+
+// recentFilenameFromMessages: recover a just-discussed filename so a bare
+// "create the file" follow-up reuses it instead of re-asking.
+assert.equal(
+  recentFilenameFromMessages([
+    { role: 'user', content: 'Create a file called homer.jsx' },
+    { role: 'assistant', content: 'Here is a simple example in a file called `homer.jsx`.' },
+  ]),
+  'homer.jsx',
+);
+// Newest mention wins.
+assert.equal(
+  recentFilenameFromMessages([
+    { role: 'user', content: 'look at styles.css' },
+    { role: 'assistant', content: 'Updated App.jsx for you.' },
+  ]),
+  'App.jsx',
+);
+// No filename anywhere → empty string.
+assert.equal(recentFilenameFromMessages([{ role: 'user', content: 'build me a nav bar' }]), '');
+assert.equal(recentFilenameFromMessages([]), '');
+// Non-array / malformed input is safe.
+assert.equal(recentFilenameFromMessages(null), '');
 
 assert.equal(isCodeChangeRequest('Fix the bug in src/App.jsx'), true);
 assert.equal(isFileCreationRequest('Create body.css in the workspace'), true);

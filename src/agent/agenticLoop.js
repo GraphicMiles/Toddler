@@ -22,6 +22,10 @@ import {
 
 const MAX_ITERATIONS = 12;
 
+// Actionable message the model can relay to the user when no workspace folder is
+// selected — instead of a bare "No workspace selected." dead-end.
+const NO_WORKSPACE_MSG = 'No workspace folder is selected. Open the Files tab and choose a workspace folder first (the app needs a folder to read from and write into), then ask again.';
+
 /**
  * Create a tool executor bound to a workspace provider and native bridge.
  */
@@ -32,13 +36,13 @@ function createToolExecutor(workspaceProvider, options = {}) {
     try {
       switch (toolName) {
         case 'read_file': {
-          if (!workspaceProvider?.readText) throw new Error('No workspace selected.');
+          if (!workspaceProvider?.readText) throw new Error(NO_WORKSPACE_MSG);
           const content = await workspaceProvider.readText(args.path);
           return { success: true, path: args.path, content, lines: content.split('\n').length };
         }
 
         case 'write_file': {
-          if (!workspaceProvider?.writeText) throw new Error('No workspace selected.');
+          if (!workspaceProvider?.writeText) throw new Error(NO_WORKSPACE_MSG);
           await workspaceProvider.writeText(args.path, args.content);
           // Verify
           const verified = await workspaceProvider.readText(args.path);
@@ -47,7 +51,7 @@ function createToolExecutor(workspaceProvider, options = {}) {
         }
 
         case 'create_file': {
-          if (!workspaceProvider?.createFile) throw new Error('No workspace selected.');
+          if (!workspaceProvider?.createFile) throw new Error(NO_WORKSPACE_MSG);
           try {
             await workspaceProvider.inspect(args.path);
             return { success: false, error: `File already exists: ${args.path}` };
@@ -58,7 +62,7 @@ function createToolExecutor(workspaceProvider, options = {}) {
         }
 
         case 'delete_file': {
-          if (!workspaceProvider?.delete) throw new Error('No workspace selected.');
+          if (!workspaceProvider?.delete) throw new Error(NO_WORKSPACE_MSG);
           await workspaceProvider.delete(args.path);
           return { success: true, path: args.path, deleted: true };
         }
@@ -76,7 +80,7 @@ function createToolExecutor(workspaceProvider, options = {}) {
         }
 
         case 'search_code': {
-          if (!workspaceProvider?.readText) throw new Error('No workspace selected.');
+          if (!workspaceProvider?.readText) throw new Error(NO_WORKSPACE_MSG);
           const query = args.query;
           const results = [];
           // Search through files (limited to first 50 for performance)

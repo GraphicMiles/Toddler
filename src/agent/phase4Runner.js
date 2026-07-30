@@ -53,6 +53,22 @@ export function needsCreationFilename(message = '') {
     && !requestedFilePath(message);
 }
 
+// Recover the most recently mentioned filename from conversation history so a
+// follow-up like "create the file" (no name) reuses the file just discussed
+// instead of re-asking. Scans newest-first across user and assistant turns.
+const FILENAME_TOKEN = /\b([A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\.(?:js|jsx|ts|tsx|json|py|java|kt|cpp|css|html|md|txt|yml|yaml|xml|sh|bat))\b/i;
+
+export function recentFilenameFromMessages(messages = [], { lookback = 6 } = {}) {
+  if (!Array.isArray(messages)) return '';
+  const recent = messages.slice(-lookback).reverse();
+  for (const message of recent) {
+    const content = typeof message?.content === 'string' ? message.content : '';
+    const match = content.match(FILENAME_TOKEN);
+    if (match) return match[1];
+  }
+  return '';
+}
+
 export function isCodeChangeRequest(message = '') {
   return isFileCreationRequest(message) || (/\b(fix|implement|change|update|modify|refactor|replace|patch|correct|optimize|remove|rename)\b/i.test(message)
     && /\b(code|file|function|class|component|bug|error|project|workspace|[\w-]+\.(?:js|jsx|ts|tsx|json|py|java|kt|cpp|css|html|md))\b/i.test(message));

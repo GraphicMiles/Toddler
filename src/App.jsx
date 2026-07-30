@@ -24,6 +24,7 @@ import { generateQualityResponse, readResponseQuality } from './agent/responseQu
 import { enqueueAutonomousTask, readAutonomousQueue, removeAutonomousTask, updateAutonomousTask } from './agent/autonomousQueue.js';
 import { isAutonomousToolRequest, isActionableToolRequest, isGitRequestWithoutRepo, containsGitHubUrl, extractGitHubUrl, runFullAutonomyAgent, executeAutonomousAction } from './agent/fullAutonomyRunner.js';
 import { tryResolvePendingIntent, setPendingIntent, resolveEntityFromContext, needsCurrentInformation } from './agent/intentRouter.js';
+import { processConversationTurn, resolveVagueReferences, getContextPrompt, checkNeedsClarification, resetContext } from './context/conversationContext.js';
 import { isToolExecutionTier } from './agent/automation/automationTiers.js';
 import { ApprovalGate } from './tools/toolApproval.js';
 import { createAdvancedToolRegistry } from './tools/advancedToolRegistry.js';
@@ -464,6 +465,33 @@ export default function App() {
       const url = extractGitHubUrl(resolvedText);
       resolvedText = `clone ${url}`;
     }
+
+    // === Conversation Context Processing ===
+    // Process this turn to extract entities, topics, and update context
+    processConversationTurn([...messages, { role: 'user', content: text }]);
+    
+    // Resolve vague references (pronouns, "that repo", "he", topic-truncated names)
+    const contextResolution = resolveVagueReferences(resolvedText);
+    if (contextResolution.entities.length > 0 && contextResolution.confidence > 0.5) {
+      // Apply the highest-confidence resolution
+      const best = contextResolution.entities.sort((a, b) => b.confidence - a.confidence)[0];
+      if (best.confidence > 0.5) {
+        const regex = new RegExp(`\\b${best.pronoun}\\b`, 'i');
+        if (regex.test(resolvedText)) {
+          resolvedText = resolvedText.replace(regex, best.resolved);
+        }
+      }
+    }
+    
+    // For very vague messages, ask for clarification instead of generating a useless response
+    const clarification = checkNeedsClarification(resolvedText);
+    if (clarification.needs && !isNative) {
+      setMessages(previous => [...previous,
+        { id: generateId(), role: 'user', content: text, timestamp: Date.now() },
+        { id: generateId(), role: 'assistant', content: clarification.suggestion, timestamp: Date.now() },
+      ]);
+      return;
+    }
     
     const exactAnswer = deterministicDeviceFact(resolvedText) || deterministicAnswer(resolvedText);
     if (exactAnswer) {
@@ -690,8 +718,13 @@ export default function App() {
         } else {
           const approvedMemory = projectMemoryPrompt(workspaceProvider.id);
           let research = null;
-          let responseMessages = approvedMemory
-            ? [{ role: 'system', content: approvedMemory }, ...messagesWithContext]
+          // Build context-aware prompt injection from conversation engine
+          const contextPrompt = getContextPrompt(intentText);
+          const contextSystemMessages = [];
+          if (approvedMemory) contextSystemMessages.push({ role: 'system', content: approvedMemory });
+          if (contextPrompt) contextSystemMessages.push({ role: 'system', content: `[Conversation Context] ${contextPrompt} Use this context to understand references, pronouns, and vague messages. If the user's message is ambiguous, prefer the contextually obvious interpretation over a literal reading.` });
+          let responseMessages = contextSystemMessages.length > 0
+            ? [...contextSystemMessages, ...messagesWithContext]
             : messagesWithContext;
           if (isNative && (isOnlineResearchRequest(intentText) || needsCurrentInformation(intentText))) {
             addReasoningStep({ type: 'tool_call', title: 'Searching the web for sources' });
@@ -968,7 +1001,7 @@ export default function App() {
     else addSystemMessage(`Could not delete ${model.name}: ${result?.error || 'unknown error'}`, 'error');
   }, [deleteModel]);
 
-  const newConversation = useCallback(() => { const id = generateId(); setConversations(prev => [...prev, { id, title: defaultConversationTitle(), messages: [] }]); setActiveConversationId(id); setMessages([]); setReasoningSteps([]); setIsAgentThinking(false); }, []);
+  const newConversation = useCallback(() => { const id = generateId(); setConversations(prev => [...prev, { id, title: defaultConversationTitle(), messages: [] }]); setActiveConversationId(id); setMessages([]); setReasoningSteps([]); setIsAgentThinking(false); resetContext(); }, []);
   const switchConversation = useCallback((id) => { const target = conversations.find(c => c.id === id); if (target) { setActiveConversationId(id); setMessages(Array.isArray(target.messages) ? target.messages : []); setReasoningSteps([]); setIsAgentThinking(false); } }, [conversations]);
   const renameConversation = useCallback((id = activeConversationId) => { const current = conversations.find(c => c.id === id); if (!current) return; const title = window.prompt('Conversation name', current.title); if (title?.trim()) setConversations(prev => prev.map(c => c.id === id ? { ...c, title: title.trim() } : c)); }, [conversations, activeConversationId]);
   const deleteConversation = useCallback((id = activeConversationId) => {

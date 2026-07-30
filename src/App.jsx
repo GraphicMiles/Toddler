@@ -631,7 +631,16 @@ export default function App() {
 
       const loadResult = await provider.loadModel(activeModel);
       let generationResult;
-      if (isCodeChangeRequest(intentText)) {
+      // Tool-capable providers (cloud) with execution enabled route code/file
+      // creation through the multi-step agentic loop (mission plan → tools →
+      // verify) instead of the single-shot approve/discard proposal path. This
+      // lets them create folders, multiple files, and overwrite existing files
+      // — "build me a website and create a folder" actually gets built. Small
+      // on-device models keep the safer single-shot proposal path.
+      const routeCodeChangeToAgent = provider.supportsToolUse
+        && (readAutonomyLevel() === AUTONOMY_LEVELS.FULL || isToolExecutionTier())
+        && isNative;
+      if (isCodeChangeRequest(intentText) && !routeCodeChangeToAgent) {
         if (activeModel.task === 'smoke-test' || /135m/i.test(`${activeModel.name} ${activeModel.file}`)) {
           throw new Error('The 135M smoke-test model is too small to produce safe code patches. Select a Qwen Coder model.');
         }
@@ -711,7 +720,7 @@ export default function App() {
             ? { ...message, content: 'Which repository should I use? Paste its GitHub URL (for example https://github.com/you/repo) and I\'ll clone it into the app\'s private storage first. After that I can pull, commit, push, and run commands in it.' }
             : message));
           addReasoningStep({ type: 'result_error', title: 'No repository known yet', content: 'Clone one by pasting a GitHub URL, then Git operations can run in it.' });
-        } else if (isNative && toolExecutionEnabled && (isAutonomousToolRequest(intentText) || (provider.supportsToolUse && isWorkspaceActionRequest(intentText)))) {
+        } else if (isNative && toolExecutionEnabled && (isAutonomousToolRequest(intentText) || (provider.supportsToolUse && (isWorkspaceActionRequest(intentText) || isCodeChangeRequest(intentText))))) {
           // === AGENTIC LOOP: Multi-step tool-use engine ===
           // This replaces the old single-pass regex routing with a proper
           // agentic loop where the model decides what tools to call.
@@ -830,7 +839,7 @@ export default function App() {
             
             // Extract file actions and attach to message
             const fileActions = agenticResult.toolCalls
-              .filter(tc => ['create_file', 'write_file', 'apply_patch', 'delete_file', 'delete'].includes(tc.tool))
+              .filter(tc => ['create_file', 'create_folder', 'write_file', 'apply_patch', 'delete_file', 'delete'].includes(tc.tool))
               .map(tc => ({
                 type: tc.tool,
                 path: tc.args?.path || '',

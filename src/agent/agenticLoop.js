@@ -53,13 +53,27 @@ function createToolExecutor(workspaceProvider, options = {}) {
 
         case 'create_file': {
           if (!workspaceProvider?.createFile) throw new Error(NO_WORKSPACE_MSG);
-          try {
-            await workspaceProvider.inspect(args.path);
-            return { success: false, error: `File already exists: ${args.path}` };
-          } catch { /* file doesn't exist, good */ }
-          await workspaceProvider.createFile(args.path);
+          await ensureParentFolders(workspaceProvider, args.path);
+          let existed = false;
+          try { await workspaceProvider.inspect(args.path); existed = true; } catch { /* doesn't exist, good */ }
+          if (existed && !args.overwrite) {
+            // Don't hard-fail: writing the content is almost always the intent.
+            // Overwrite and report it, so "create index.html" twice just updates it.
+            await workspaceProvider.writeText(args.path, args.content);
+            return { success: true, path: args.path, created: false, overwritten: true, note: 'File already existed; updated its content.', lines: args.content.split('\n').length };
+          }
+          if (!existed) await workspaceProvider.createFile(args.path);
           await workspaceProvider.writeText(args.path, args.content);
-          return { success: true, path: args.path, created: true, lines: args.content.split('\n').length };
+          return { success: true, path: args.path, created: !existed, overwritten: existed, lines: args.content.split('\n').length };
+        }
+
+        case 'create_folder': {
+          if (!workspaceProvider?.createFolder) throw new Error(NO_WORKSPACE_MSG);
+          try { await workspaceProvider.inspect(args.path); return { success: true, path: args.path, created: false, note: 'Folder already exists.' }; }
+          catch { /* doesn't exist */ }
+          await ensureParentFolders(workspaceProvider, args.path);
+          await workspaceProvider.createFolder(args.path);
+          return { success: true, path: args.path, created: true };
         }
 
         case 'delete_file': {
@@ -488,6 +502,21 @@ WORKFLOW:
     iterations: iteration,
     success: true,
   };
+}
+
+// Create any missing parent folders for a file/folder path so writes like
+// "project/index.html" don't fail because "project" doesn't exist yet. Folder
+// creation is best-effort — a failure here surfaces on the actual write.
+async function ensureParentFolders(workspaceProvider, path) {
+  if (!workspaceProvider?.createFolder || typeof path !== 'string') return;
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length <= 1) return; // no parent directory
+  let prefix = '';
+  for (let i = 0; i < parts.length - 1; i++) {
+    prefix = prefix ? `${prefix}/${parts[i]}` : parts[i];
+    try { await workspaceProvider.inspect(prefix); } // already exists
+    catch { try { await workspaceProvider.createFolder(prefix); } catch { /* best-effort */ } }
+  }
 }
 
 // Read back each written file and confirm it exists (and matches expected

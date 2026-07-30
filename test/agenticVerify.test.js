@@ -5,6 +5,7 @@ import { runAgenticLoop } from '../src/agent/agenticLoop.js';
 // verifies before declaring success.
 function makeWorkspace({ dropWrites = false } = {}) {
   const files = new Map();
+  const folders = new Set();
   return {
     async readText(path) {
       if (!files.has(path)) throw new Error('not found: ' + path);
@@ -12,8 +13,10 @@ function makeWorkspace({ dropWrites = false } = {}) {
     },
     async writeText(path, content) { if (!dropWrites) files.set(path, content); },
     async createFile(path) { if (!files.has(path)) files.set(path, ''); },
-    async inspect(path) { if (!files.has(path)) throw new Error('missing'); return { path }; },
+    async createFolder(path) { folders.add(path); },
+    async inspect(path) { if (!files.has(path) && !folders.has(path)) throw new Error('missing'); return { path }; },
     _files: files,
+    _folders: folders,
   };
 }
 
@@ -106,5 +109,37 @@ console.log('  ✓ mission plan injected into loop');
   assert.equal(sawScratchpad, true, 'scratchpad should be injected once progress exists');
 }
 console.log('  ✓ scratchpad injected into loop');
+
+// --- Case 5: create_file auto-creates parent folders (project/index.html) ---
+{
+  const ws = makeWorkspace();
+  const provider = scriptedProvider([
+    { toolCalls: [tc('create_folder', { path: 'project' })] },
+    { toolCalls: [tc('create_file', { path: 'project/index.html', content: '<!DOCTYPE html>' })] },
+    { toolCalls: [tc('respond', { message: 'Built the site in project/' })] },
+  ]);
+  const result = await runAgenticLoop({ provider, model: {}, userMessage: 'build a website and create a folder project', workspaceProvider: ws, isNative: true });
+  assert.equal(result.success, true);
+  assert.ok(ws._folders.has('project'), 'folder should be created');
+  assert.equal(ws._files.get('project/index.html'), '<!DOCTYPE html>');
+}
+console.log('  ✓ folder + nested file creation');
+
+// --- Case 6: create_file on an existing file overwrites instead of hard-failing ---
+{
+  const ws = makeWorkspace();
+  ws._files.set('index.html', 'OLD');
+  const provider = scriptedProvider([
+    { toolCalls: [tc('create_file', { path: 'index.html', content: 'NEW' })] },
+    { toolCalls: [tc('respond', { message: 'Updated index.html' })] },
+  ]);
+  const result = await runAgenticLoop({ provider, model: {}, userMessage: 'create index.html', workspaceProvider: ws, isNative: true });
+  assert.equal(result.success, true);
+  assert.equal(ws._files.get('index.html'), 'NEW', 'existing file should be overwritten, not error');
+  const createStep = result.toolCalls.find(t => t.tool === 'create_file');
+  assert.equal(createStep.result.success, true);
+  assert.equal(createStep.result.overwritten, true);
+}
+console.log('  ✓ create_file overwrites existing instead of failing');
 
 console.log('agentic verify tests passed');

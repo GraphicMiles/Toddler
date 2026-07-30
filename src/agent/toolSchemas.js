@@ -32,14 +32,26 @@ export const TOOL_SCHEMAS = Object.freeze([
   },
   {
     name: 'create_file',
-    description: 'Create a new file with the given content. Use when the user asks to create something new.',
+    description: 'Create a new file with the given content. Parent folders are created automatically. Use when the user asks to create something new.',
     parameters: {
       type: 'object',
       properties: {
-        path: { type: 'string', description: 'Relative path for the new file' },
+        path: { type: 'string', description: 'Relative path for the new file (e.g. project/index.html)' },
         content: { type: 'string', description: 'The file content to write' },
+        overwrite: { type: 'boolean', description: 'If true, overwrite the file when it already exists (default false)' },
       },
       required: ['path', 'content'],
+    },
+  },
+  {
+    name: 'create_folder',
+    description: 'Create a new folder/directory in the workspace (including any missing parent folders).',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Relative folder path to create (e.g. project or src/components)' },
+      },
+      required: ['path'],
     },
   },
   {

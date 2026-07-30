@@ -1,9 +1,7 @@
 .settings-screen {
   height: 100%;
   overflow-y: auto;
-  background:
-    radial-gradient(circle at top left, var(--accent-subtle), transparent 32%),
-    var(--bg);
+  background: var(--bg-base);
 }
 
 .settings-layout-pad {
@@ -49,9 +47,15 @@
 }
 
 .settings-tabs {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
-  gap: 8px;
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding-bottom: var(--space-1);
+  scrollbar-width: none;
+}
+
+.settings-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .settings-tabs button {
@@ -59,8 +63,10 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-height: 42px;
-  padding: 9px 12px;
+  flex: 0 0 auto;
+  min-width: 132px;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--bg-elev);
@@ -319,9 +325,6 @@
     align-items: stretch;
   }
 
-  .settings-tabs {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 .settings-card input[type="checkbox"],
@@ -344,7 +347,7 @@
 .settings-check-card {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start;
+  align-items: center;
   gap: var(--space-3);
   padding: var(--space-3);
   border: 1px solid var(--border-subtle);
@@ -461,5 +464,144 @@
   .settings-subsection-row {
     align-items: stretch;
     flex-direction: column;
+  }
+}
+
+.settings-nav-shell {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  gap: var(--space-3);
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-base) 94%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.settings-nav-title {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+.settings-section-heading.compact {
+  margin: 0 0 var(--space-4);
+}
+
+.settings-section-heading.compact h3 {
+  font-size: var(--type-screen);
+}
+
+.settings-section-heading.compact p {
+  max-width: 56ch;
+}
+
+.settings-toggle-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 64px;
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  color: var(--text-primary);
+}
+
+.settings-row-icon {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}
+
+.settings-toggle-copy {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.settings-toggle-copy strong {
+  color: var(--text-primary);
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: var(--line-heading);
+}
+
+.settings-toggle-copy small {
+  color: var(--text-tertiary);
+  font-size: var(--type-body);
+  line-height: var(--line-body);
+}
+
+.settings-card input.settings-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 48px;
+  min-width: 48px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface-raised);
+  cursor: pointer;
+}
+
+.settings-card input.settings-switch::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  transition: transform 0.16s ease, background 0.16s ease;
+}
+
+.settings-card input.settings-switch:checked {
+  border-color: var(--accent-strong);
+  background: var(--accent);
+}
+
+.settings-card input.settings-switch:checked::before {
+  transform: translateX(20px);
+  background: var(--accent-text-on);
+}
+
+.settings-chip-grid.compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.settings-check-card.compact {
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 48px;
+  padding: var(--space-2) var(--space-3);
+}
+
+.settings-card button.compact {
+  min-height: 36px;
+  padding: var(--space-1) var(--space-3);
+}
+
+@media (max-width: 420px) {
+  .settings-chip-grid.compact {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .settings-toggle-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .settings-toggle-row button.compact {
+    grid-column: 2 / -1;
+    justify-self: start;
   }
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Bot, Github } from 'lucide-react';
 import { githubAutomation, GITHUB_AUTOMATION_TIERS } from '../github/GitHubAutomation.js';
+import DropdownMenu from './DropdownMenu.jsx';
 
 export default function GitHubAutomationSettings() {
   const [tier, setTier] = useState(githubAutomation.tier);
@@ -18,22 +19,29 @@ export default function GitHubAutomationSettings() {
 
       <div className="setting-field">
         <label className="setting-label" htmlFor="github-tier">Automation tier</label>
-        <select id="github-tier" value={tier} onChange={event => updateTier(event.target.value)}>
-          <option value={GITHUB_AUTOMATION_TIERS.MANUAL}>Manual — review everything</option>
-          <option value={GITHUB_AUTOMATION_TIERS.SUGGESTED}>Suggested — propose PRs</option>
-          <option value={GITHUB_AUTOMATION_TIERS.AUTO_COMMIT}>Auto-commit — feature branches</option>
-          <option value={GITHUB_AUTOMATION_TIERS.AUTO_DEPLOY}>Auto-deploy — main and releases</option>
-        </select>
+        <DropdownMenu
+          value={tier}
+          onChange={updateTier}
+          label="Automation tier"
+          options={[
+            { value: GITHUB_AUTOMATION_TIERS.MANUAL, label: 'Manual — review everything' },
+            { value: GITHUB_AUTOMATION_TIERS.SUGGESTED, label: 'Suggested — propose PRs' },
+            { value: GITHUB_AUTOMATION_TIERS.AUTO_COMMIT, label: 'Auto-commit — feature branches' },
+            { value: GITHUB_AUTOMATION_TIERS.AUTO_DEPLOY, label: 'Auto-deploy — main and releases' },
+          ]}
+        />
       </div>
 
-      <div className="settings-chip-grid">
-        <label className={`settings-check-card ${maintenanceBot ? 'active' : ''}`}>
-          <input type="checkbox" checked={maintenanceBot} onChange={event => updateMaintenanceBot(event.target.checked)} />
-          <span><strong><Bot size={14} /> Maintenance bot</strong><small>Automate dependency, lint, and docs maintenance when enabled.</small></span>
+      <div className="settings-list">
+        <label className="settings-toggle-row">
+          <span className="settings-row-icon"><Bot size={18} /></span>
+          <span className="settings-toggle-copy"><strong>Maintenance bot</strong><small>Automate dependency, lint, and docs maintenance when enabled.</small></span>
+          <input className="settings-switch" type="checkbox" checked={maintenanceBot} onChange={event => updateMaintenanceBot(event.target.checked)} />
         </label>
-        <label className={`settings-check-card ${dryRun ? 'active' : ''}`}>
-          <input type="checkbox" checked={dryRun} onChange={event => updateDryRun(event.target.checked)} />
-          <span><strong>Dry run mode</strong><small>Simulate GitHub operations without executing remote writes.</small></span>
+        <label className="settings-toggle-row">
+          <span className="settings-row-icon"><Github size={18} /></span>
+          <span className="settings-toggle-copy"><strong>Dry run mode</strong><small>Simulate GitHub operations without executing remote writes.</small></span>
+          <input className="settings-switch" type="checkbox" checked={dryRun} onChange={event => updateDryRun(event.target.checked)} />
         </label>
       </div>
     </section>

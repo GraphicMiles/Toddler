@@ -118,6 +118,16 @@ input, textarea {
   font-family: inherit;
 }
 
+button,
+input,
+textarea,
+select,
+[role="button"],
+[role="option"],
+[tabindex] {
+  outline: none;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
@@ -137,10 +147,10 @@ input, textarea {
   background: var(--faint);
 }
 
-/* Focus */
+/* Focus: no native outlines; controls use tokenized state styling. */
+:focus,
 :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: none;
 }
 
 /* Utilities */

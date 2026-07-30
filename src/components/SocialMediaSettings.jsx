@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MessageCircle, Search, Share2 } from 'lucide-react';
 import { socialMediaManager } from '../social/SocialMediaManager.js';
+import DropdownMenu from './DropdownMenu.jsx';
 
 export default function SocialMediaSettings() {
   const [accounts, setAccounts] = useState(socialMediaManager.getAccounts());
@@ -48,11 +49,16 @@ export default function SocialMediaSettings() {
       <div className="settings-two-col">
         <div className="setting-field">
           <label className="setting-label" htmlFor="social-platform">Platform</label>
-          <select id="social-platform" value={platform} onChange={event => setPlatform(event.target.value)}>
-            <option value="twitter">Twitter/X</option>
-            <option value="linkedin">LinkedIn</option>
-            <option value="reddit">Reddit</option>
-          </select>
+          <DropdownMenu
+            value={platform}
+            onChange={setPlatform}
+            label="Platform"
+            options={[
+              { value: 'twitter', label: 'Twitter/X' },
+              { value: 'linkedin', label: 'LinkedIn' },
+              { value: 'reddit', label: 'Reddit' },
+            ]}
+          />
         </div>
         <div className="setting-field">
           <label className="setting-label" htmlFor="social-username">Username</label>

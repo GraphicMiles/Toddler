@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { researchProvider, RESEARCH_DEPTH } from '../research/ResearchProvider.js';
 import { Archive, Globe, Search, Shield } from 'lucide-react';
+import DropdownMenu from './DropdownMenu.jsx';
 
 export default function ResearchSettings() {
   const [depth, setDepth] = useState(researchProvider.depth);
@@ -26,23 +27,29 @@ export default function ResearchSettings() {
 
       <div className="setting-field">
         <label className="setting-label" htmlFor="research-depth">Research depth</label>
-        <select id="research-depth" value={depth} onChange={event => updateDepth(event.target.value)}>
-          <option value={RESEARCH_DEPTH.STANDARD}>Standard — filtered results</option>
-          <option value={RESEARCH_DEPTH.COMPREHENSIVE}>Comprehensive — broader retrieval</option>
-          <option value={RESEARCH_DEPTH.RAW}>Raw — minimal post-processing</option>
-        </select>
+        <DropdownMenu
+          value={depth}
+          onChange={updateDepth}
+          label="Research depth"
+          options={[
+            { value: RESEARCH_DEPTH.STANDARD, label: 'Standard — filtered results' },
+            { value: RESEARCH_DEPTH.COMPREHENSIVE, label: 'Comprehensive — broader retrieval' },
+            { value: RESEARCH_DEPTH.RAW, label: 'Raw — minimal post-processing' },
+          ]}
+        />
       </div>
 
       <div className="settings-chip-grid">
         {toggles.map(item => {
           const Icon = item.icon;
           return (
-            <label key={item.id} className={`settings-check-card ${item.checked ? 'active' : ''}`}>
-              <input type="checkbox" checked={item.checked} onChange={event => item.onChange(event.target.checked)} />
-              <span>
-                <strong><Icon size={14} /> {item.label}</strong>
+            <label key={item.id} className="settings-toggle-row">
+              <span className="settings-row-icon"><Icon size={18} /></span>
+              <span className="settings-toggle-copy">
+                <strong>{item.label}</strong>
                 <small>{item.description}</small>
               </span>
+              <input className="settings-switch" type="checkbox" checked={item.checked} onChange={event => item.onChange(event.target.checked)} />
             </label>
           );
         })}

@@ -124,10 +124,13 @@ export default function App() {
   const selectableModels = useMemo(() => [...downloadedModels, ...cloudModels], [downloadedModels, cloudModels]);
 
   useEffect(() => {
-    if ((activeModel?.source === 'cloud' || activeModel?.cloud) && !cloudProviders.some(provider => provider.id === activeModel.connectionId)) {
-      setActiveModel(null);
-    }
-  }, [activeModel, cloudProviders, setActiveModel]);
+    if (!activeModel) return;
+    const isCloudActive = activeModel.source === 'cloud' || activeModel.cloud;
+    const stillAvailable = isCloudActive
+      ? cloudProviders.some(provider => provider.id === activeModel.connectionId)
+      : downloadedModels.some(model => model.id === activeModel.id);
+    if (!stillAvailable) setActiveModel(null);
+  }, [activeModel, cloudProviders, downloadedModels, setActiveModel]);
 
   useEffect(() => {
     try { localStorage.setItem('forgeai_chat', JSON.stringify(messages)); }
@@ -768,6 +771,7 @@ export default function App() {
   const handleSelectModel = useCallback((model) => {
     setActiveModel(model);
     setModelStatus('idle');
+    setMessages(previous => previous.filter(message => !String(message.content || '').includes('Please select a model from My Collection first.')));
     if (model?.source === 'cloud' || model?.cloud) {
       setCurrentScreen(SCREENS.CHAT);
       return;

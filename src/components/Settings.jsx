@@ -24,6 +24,7 @@ import ExperimentalFeatures from './ExperimentalFeatures.jsx';
 import TaskTimeline from './TaskTimeline.jsx';
 import ProjectMemoryPanel from './ProjectMemoryPanel.jsx';
 import RepositoryIndexPanel from './RepositoryIndexPanel.jsx';
+import DropdownMenu from './DropdownMenu.jsx';
 import './Settings.css';
 
 const SETTINGS_SECTIONS = Object.freeze([
@@ -36,11 +37,9 @@ const SETTINGS_SECTIONS = Object.freeze([
 
 function SettingsHeader({ activeSection, onSectionChange }) {
   return (
-    <div className="settings-hero">
-      <div>
-        <span className="settings-eyebrow">ForgeAI Control Center</span>
-        <h2>User & Settings</h2>
-        <p>Manage runtime behavior, privacy, automation, integrations, and diagnostics from one organized place.</p>
+    <div className="settings-nav-shell">
+      <div className="settings-nav-title">
+        <span className="settings-eyebrow">Settings</span>
       </div>
       <div className="settings-tabs" role="tablist" aria-label="Settings sections">
         {SETTINGS_SECTIONS.map(section => {
@@ -55,7 +54,7 @@ function SettingsHeader({ activeSection, onSectionChange }) {
               onClick={() => onSectionChange(section.id)}
               title={section.description}
             >
-              <Icon size={15} />
+              <Icon size={18} />
               <span>{section.label}</span>
             </button>
           );
@@ -281,20 +280,30 @@ export default function Settings({
       <SettingCard icon={Bot} title="Agent behavior" description="Control the approval model, response quality, and how much the agent can do without asking.">
         <div className="settings-two-col">
           <SettingField label="Autonomy level" htmlFor="autonomy-level" help={nativeFullAutonomy ? 'Native full autonomy is enabled.' : 'Restricted modes never auto-apply writes or execute commands.'}>
-            <select id="autonomy-level" value={autonomy} onChange={event => { void changeAutonomy(event.target.value); }}>
-              <option value={AUTONOMY_LEVELS.OFF}>Off</option>
-              <option value={AUTONOMY_LEVELS.SUGGEST}>Suggest only</option>
-              <option value={AUTONOMY_LEVELS.READ_ONLY}>Automatic read-only context</option>
-              <option value={AUTONOMY_LEVELS.PREPARE}>Prepare patches for approval</option>
-              <option value={AUTONOMY_LEVELS.FULL}>Full Autonomous — terminal, network, Git writes</option>
-            </select>
+            <DropdownMenu
+              value={autonomy}
+              onChange={next => { void changeAutonomy(next); }}
+              label="Autonomy level"
+              options={[
+                { value: AUTONOMY_LEVELS.OFF, label: 'Off' },
+                { value: AUTONOMY_LEVELS.SUGGEST, label: 'Suggest only' },
+                { value: AUTONOMY_LEVELS.READ_ONLY, label: 'Automatic read-only context' },
+                { value: AUTONOMY_LEVELS.PREPARE, label: 'Prepare patches for approval' },
+                { value: AUTONOMY_LEVELS.FULL, label: 'Full Autonomous — terminal, network, Git writes' },
+              ]}
+            />
           </SettingField>
           <SettingField label="Response quality" htmlFor="response-quality" help="Reviewed mode uses three local generations and is slower.">
-            <select id="response-quality" value={responseQuality} onChange={event => changeResponseQuality(event.target.value)}>
-              <option value={RESPONSE_QUALITY.FAST}>Fast — one model pass</option>
-              <option value={RESPONSE_QUALITY.BALANCED}>Balanced — normal streaming</option>
-              <option value={RESPONSE_QUALITY.REVIEWED}>Reviewed — draft, critic, revision</option>
-            </select>
+            <DropdownMenu
+              value={responseQuality}
+              onChange={changeResponseQuality}
+              label="Response quality"
+              options={[
+                { value: RESPONSE_QUALITY.FAST, label: 'Fast — one model pass' },
+                { value: RESPONSE_QUALITY.BALANCED, label: 'Balanced — normal streaming' },
+                { value: RESPONSE_QUALITY.REVIEWED, label: 'Reviewed — draft, critic, revision' },
+              ]}
+            />
           </SettingField>
         </div>
         <p className="setting-help">Project memory: {memory.facts.length} approved fact(s), {memory.tasks.length} bounded task record(s). Model guesses are not persisted as facts.</p>
@@ -349,12 +358,17 @@ export default function Settings({
           {safetyPolicy.isUnrestricted() && <em>UNRESTRICTED</em>}
         </div>
         <SettingField label="Compliance level" htmlFor="safety-level">
-          <select id="safety-level" value={safetyPolicy.getLevel()} onChange={event => changeSafetyLevel(event.target.value)}>
-            <option value={POLICY_LEVELS.STRICT}>Strict (Enterprise default)</option>
-            <option value={POLICY_LEVELS.MODERATE}>Moderate</option>
-            <option value={POLICY_LEVELS.MINIMAL}>Minimal</option>
-            <option value={POLICY_LEVELS.UNRESTRICTED}>Unrestricted (Power user / Research)</option>
-          </select>
+          <DropdownMenu
+            value={safetyPolicy.getLevel()}
+            onChange={changeSafetyLevel}
+            label="Compliance level"
+            options={[
+              { value: POLICY_LEVELS.STRICT, label: 'Strict (Enterprise default)' },
+              { value: POLICY_LEVELS.MODERATE, label: 'Moderate' },
+              { value: POLICY_LEVELS.MINIMAL, label: 'Minimal' },
+              { value: POLICY_LEVELS.UNRESTRICTED, label: 'Unrestricted (Power user / Research)' },
+            ]}
+          />
         </SettingField>
         <label className="toggle-row">
           <input type="checkbox" checked={developerMode} onChange={toggleDeveloperMode} />
@@ -367,10 +381,11 @@ export default function Settings({
         {isNative && <button onClick={importSkill}>Import SKILL.md</button>}
         <div className="settings-list">
           {skills.map(skill => (
-            <label className="settings-list-item" key={skill.id}>
-              <input type="checkbox" checked={skill.enabled} onChange={event => toggleSkill(skill.id, event.target.checked)} />
-              <span><strong>{skill.name}</strong>{skill.external ? ' · External' : ''}<small>{skill.description}</small></span>
-              {skill.external && <button className="danger" type="button" onClick={() => removeSkill(skill.id)}>Remove</button>}
+            <label className="settings-toggle-row" key={skill.id}>
+              <span className="settings-row-icon"><Shield size={18} /></span>
+              <span className="settings-toggle-copy"><strong>{skill.name}{skill.external ? ' · External' : ''}</strong><small>{skill.description}</small></span>
+              {skill.external && <button className="danger compact" type="button" onClick={(event) => { event.preventDefault(); removeSkill(skill.id); }}>Remove</button>}
+              <input className="settings-switch" type="checkbox" checked={skill.enabled} onChange={event => toggleSkill(skill.id, event.target.checked)} />
             </label>
           ))}
         </div>
@@ -412,7 +427,7 @@ export default function Settings({
       <div className="screen-pad settings-layout-pad">
         <SettingsHeader activeSection={activeSection} onSectionChange={setActiveSection} />
         {notice && <div className={`settings-notice ${notice.type}`}>{notice.message}</div>}
-        <div className="settings-section-heading">
+        <div className="settings-section-heading compact">
           <h3>{activeMeta.label}</h3>
           <p>{activeMeta.description}</p>
         </div>

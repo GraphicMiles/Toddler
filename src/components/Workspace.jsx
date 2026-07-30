@@ -43,7 +43,7 @@ function FileNode({ node, depth = 0, selectedPath, onSelect, onContextMenu }) {
         {isFolder ? (
           <FolderOpen size={15} className="file-icon folder-icon" />
         ) : (
-          <span className="file-icon file-badge mono" style={{ color: fileInfo?.color || 'var(--faint)' }}>
+          <span className="file-icon file-badge mono">
             {fileInfo?.label || '?'}
           </span>
         )}
@@ -154,7 +154,7 @@ function FileViewer({ path, content, onClose, onSave, onPick, readOnly }) {
         <button className="ws-viewer-back" onClick={onClose}>
           <ArrowLeft size={16} /> Back
         </button>
-        <span className="ws-viewer-name mono" style={{ color: fileInfo?.color }}>
+        <span className="ws-viewer-name mono">
           {fileInfo?.label} {fileName}
         </span>
         <div className="ws-viewer-actions">
@@ -339,21 +339,27 @@ export default function Workspace({
               <p>{workspace.name || 'Device storage'}</p>
             </div>
             <div className="ws-header-actions">
-              <button className="ws-action-btn" onClick={() => handleNewFile('')} title="New file">
-                <FilePlus size={16} />
-              </button>
-              <button className="ws-action-btn" onClick={() => handleNewFolder('')} title="New folder">
-                <FolderPlus size={16} />
-              </button>
-              <button className="ws-action-btn" onClick={onUndo} title={undoPath ? `Undo last workspace change to ${undoPath}` : 'No workspace backup available'} disabled={!undoPath}>
-                <RotateCcw size={16} />
-              </button>
-              <button className="ws-action-btn" onClick={onRefresh} title="Refresh">
-                <Database size={16} />
-              </button>
-              <button className="ws-action-btn" onClick={onChooseWorkspace} title="Choose device folder">
-                <FolderOpen size={16} />
-              </button>
+              <div className="ws-action-group">
+                <button className="ws-action-btn" onClick={() => handleNewFile('')} title="New file" aria-label="New file">
+                  <FilePlus size={18} /><span>File</span>
+                </button>
+                <button className="ws-action-btn" onClick={() => handleNewFolder('')} title="New folder" aria-label="New folder">
+                  <FolderPlus size={18} /><span>Folder</span>
+                </button>
+              </div>
+              <div className="ws-action-group">
+                <button className="ws-action-btn" onClick={onUndo} title={undoPath ? `Undo last workspace change to ${undoPath}` : 'No workspace backup available'} disabled={!undoPath} aria-label="Undo last workspace change">
+                  <RotateCcw size={18} /><span>Undo</span>
+                </button>
+                <button className="ws-action-btn" onClick={onRefresh} title="Refresh" aria-label="Refresh files">
+                  <Database size={18} /><span>Refresh</span>
+                </button>
+              </div>
+              <div className="ws-action-group separate">
+                <button className="ws-action-btn" onClick={onChooseWorkspace} title="Choose device folder" aria-label="Choose device folder">
+                  <FolderOpen size={18} /><span>Folder</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -388,7 +394,7 @@ export default function Workspace({
               {Object.entries(extensionGroups).map(([ext, files]) => {
                 const info = getFileIconInfo(`test.${ext}`);
                 return (
-                  <span key={ext} className="index-tag" title={`${files.length} ${ext.toUpperCase()} files`} style={{ color: info.color }}>
+                  <span key={ext} className="index-tag" title={`${files.length} ${ext.toUpperCase()} files`}>
                     {info.label || ext.toUpperCase()}
                   </span>
                 );

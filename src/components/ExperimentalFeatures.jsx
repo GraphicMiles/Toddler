@@ -29,11 +29,12 @@ export default function ExperimentalFeatures() {
     <section className="settings-card">
       <h3><FlaskConical size={16} /> Experimental features</h3>
       <p className="setting-help first">Enable native implementations that may require platform permissions, credentials, or explicit trust.</p>
-      <div className="settings-chip-grid">
+      <div className="settings-list">
         {items.map(item => (
-          <label key={item.key} className={`settings-check-card ${isEnabled(item.key) ? 'active' : ''}`}>
-            <input type="checkbox" checked={isEnabled(item.key)} onChange={() => toggle(item.key)} />
-            <span><strong>{item.label}</strong><small>{item.desc}</small></span>
+          <label key={item.key} className="settings-toggle-row">
+            <span className="settings-row-icon"><FlaskConical size={18} /></span>
+            <span className="settings-toggle-copy"><strong>{item.label}</strong><small>{item.desc}</small></span>
+            <input className="settings-switch" type="checkbox" checked={isEnabled(item.key)} onChange={() => toggle(item.key)} />
           </label>
         ))}
       </div>

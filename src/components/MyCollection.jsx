@@ -9,6 +9,7 @@ import CustomProfileModal from './CustomProfileModal.jsx';
 import { isRawModeEnabled, setRawMode } from '../models/customPromptProfiles.js';
 import { CLOUD_PROVIDER_PRESETS, getCloudProviderPreset } from '../providers/cloudProviderStore.js';
 import { formatModelSize, formatStorageCapacity, getModelSizeBytes } from '../utils/deviceCapacity';
+import DropdownMenu from './DropdownMenu.jsx';
 import './MyCollection.css';
 
 function CloudProviderPanel({ providers = [], onAdd, onRemove, onSelectModel }) {
@@ -55,9 +56,12 @@ function CloudProviderPanel({ providers = [], onAdd, onRemove, onSelectModel }) 
         <div className="details-grid">
           <label className="detail">
             <span className="detail-label">Provider</span>
-            <select value={provider} onChange={event => changeProvider(event.target.value)}>
-              {CLOUD_PROVIDER_PRESETS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-            </select>
+            <DropdownMenu
+              value={provider}
+              onChange={changeProvider}
+              label="Provider"
+              options={CLOUD_PROVIDER_PRESETS.map(item => ({ value: item.id, label: item.label }))}
+            />
           </label>
           <label className="detail">
             <span className="detail-label">Display name</span>
@@ -179,14 +183,20 @@ export default function MyCollection({
 
   return (
     <div className="my-collection">
-      {/* Compact header: everything on one row */}
       <div className="collection-header">
-        <div className="collection-title">
-          <h2 className="display">My Collection</h2>
-          <span className="model-count">{models.length}</span>
-          {isNative && <button className="collection-import" onClick={onImportModel}>Import GGUF</button>}
-          
-          {/* Raw Mode Toggle */}
+        <div className="collection-title-main">
+          <div className="collection-heading">
+            <h2 className="display">My Collection</h2>
+            <span className="model-count">{models.length}</span>
+          </div>
+          <div className={`ollama-status ${ollamaConnected ? 'connected' : 'disconnected'}`}>
+            {ollamaConnected ? <Wifi size={14} /> : <WifiOff size={14} />}
+            <span>{runtimeMode || (ollamaConnected ? 'Ollama active' : 'Offline')}</span>
+          </div>
+        </div>
+
+        <div className="collection-actions" aria-label="Collection actions">
+          {isNative && <button className="collection-import primary" onClick={onImportModel}>Import GGUF</button>}
           <button 
             className={`raw-mode-toggle ${rawMode ? 'active' : ''}`}
             onClick={() => {
@@ -196,9 +206,8 @@ export default function MyCollection({
             }}
             title="Raw Mode: disables all system prompt injection"
           >
-            <Settings size={13} /> {rawMode ? 'Raw' : 'Raw Mode'}
+            <Settings size={16} /> {rawMode ? 'Raw' : 'Raw Mode'}
           </button>
-
           <button 
             className="collection-import"
             onClick={() => {
@@ -206,13 +215,8 @@ export default function MyCollection({
               setShowProfileModal(true);
             }}
           >
-            <UserPlus size={14} /> Create Profile
+            <UserPlus size={16} /> Create Profile
           </button>
-
-          <div className={`ollama-status ${ollamaConnected ? 'connected' : 'disconnected'}`}>
-            {ollamaConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
-            <span>{runtimeMode || (ollamaConnected ? 'Ollama active' : 'Offline')}</span>
-          </div>
         </div>
       </div>
 

@@ -495,3 +495,57 @@
 .model-picker-section-title.spacious {
   padding-top: var(--space-4);
 }
+
+.chat-title-block {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+}
+
+.model-selector-button {
+  max-width: min(260px, 46vw);
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.model-selector-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--type-caption);
+}
+
+.model-selector-pill {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  color: var(--text-tertiary);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.model-selector-pill.active {
+  border-color: var(--accent-strong);
+  color: var(--accent);
+}
+
+@media (max-width: 420px) {
+  .model-selector-button {
+    max-width: 42vw;
+  }
+}

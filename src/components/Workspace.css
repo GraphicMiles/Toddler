@@ -12,22 +12,41 @@
 
 .ws-header-actions {
   display: flex;
-  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
   flex-shrink: 0;
 }
 
-.ws-action-btn {
-  width: 34px;
-  height: 34px;
+.ws-action-group {
   display: flex;
   align-items: center;
+  gap: var(--space-2);
+}
+
+.ws-action-group.separate {
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--border-subtle);
+}
+
+.ws-action-btn {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   background: var(--bg-elev);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   color: var(--paper-dim);
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.ws-action-btn span {
+  font-size: var(--type-caption);
 }
 
 .ws-action-btn:hover {

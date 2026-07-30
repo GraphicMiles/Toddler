@@ -138,16 +138,19 @@ export default function ChatContainer({
         >
           <Menu size={20} />
         </button>
-        <span className="chat-topbar-title">{topbarTitle}</span>
-        <button
-          type="button"
-          className="chat-topbar-btn"
-          onClick={() => setModelPickerOpen(true)}
-          title="Change active model"
-          aria-label="Change active model"
-        >
-          {activeModel ? `${activeModel.name} · ${modelBadge}` : 'Select model'}
-        </button>
+        <div className="chat-title-block">
+          <span className="chat-topbar-title">{topbarTitle}</span>
+          <button
+            type="button"
+            className="model-selector-button"
+            onClick={() => setModelPickerOpen(true)}
+            title="Change active model"
+            aria-label="Change active model"
+          >
+            <span className="model-selector-name">{activeModel?.name || 'Select model'}</span>
+            <span className={`model-selector-pill ${activeModel ? 'active' : ''}`}>{activeModel ? modelBadge : 'None'}</span>
+          </button>
+        </div>
 
         {/* Full-Auto Indicator */}
         {isFullAutoMode() && (

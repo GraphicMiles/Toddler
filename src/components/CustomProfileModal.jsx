@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Save, AlertTriangle } from 'lucide-react';
 import { saveCustomProfile } from '../models/customPromptProfiles.js';
+import DropdownMenu from './DropdownMenu.jsx';
 import './CustomProfileModal.css';
 
 export default function CustomProfileModal({ 
@@ -100,14 +101,16 @@ export default function CustomProfileModal({
           <div className="form-row">
             <div className="form-group">
               <label>Prompt Template</label>
-              <select 
-                value={form.promptTemplate} 
-                onChange={e => handleChange('promptTemplate', e.target.value)}
-              >
-                <option value="chatml">ChatML</option>
-                <option value="llama2">Llama-2</option>
-                <option value="plain">Plain Text</option>
-              </select>
+              <DropdownMenu
+                value={form.promptTemplate}
+                onChange={value => handleChange('promptTemplate', value)}
+                label="Prompt Template"
+                options={[
+                  { value: 'chatml', label: 'ChatML' },
+                  { value: 'llama2', label: 'Llama-2' },
+                  { value: 'plain', label: 'Plain Text' },
+                ]}
+              />
             </div>
 
             <div className="form-group">

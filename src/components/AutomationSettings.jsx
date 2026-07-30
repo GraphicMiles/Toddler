@@ -6,6 +6,7 @@ import {
   isFullAutoMode,
 } from '../agent/automation/automationTiers.js';
 import { AlertTriangle, Pause, Play, RotateCcw, Settings2 } from 'lucide-react';
+import DropdownMenu from './DropdownMenu.jsx';
 
 export default function AutomationSettings() {
   const [tier, setTier] = useState(automationTierManager.getTier());
@@ -49,12 +50,17 @@ export default function AutomationSettings() {
 
       <div className="setting-field">
         <label className="setting-label" htmlFor="automation-tier">Automation level</label>
-        <select id="automation-tier" value={tier} onChange={event => handleTierChange(event.target.value)}>
-          <option value={AUTOMATION_TIERS.ASSISTED}>Assisted — manual approval required</option>
-          <option value={AUTOMATION_TIERS.SEMI_AUTONOMOUS}>Semi-autonomous — safe and whitelisted actions</option>
-          <option value={AUTOMATION_TIERS.FULL_AUTO}>Full-auto — execute without pause</option>
-          <option value={AUTOMATION_TIERS.WORKFLOW}>Workflow mode — long multi-step plans</option>
-        </select>
+        <DropdownMenu
+          value={tier}
+          onChange={handleTierChange}
+          label="Automation level"
+          options={[
+            { value: AUTOMATION_TIERS.ASSISTED, label: 'Assisted — manual approval required' },
+            { value: AUTOMATION_TIERS.SEMI_AUTONOMOUS, label: 'Semi-autonomous — safe and whitelisted actions' },
+            { value: AUTOMATION_TIERS.FULL_AUTO, label: 'Full-auto — execute without pause' },
+            { value: AUTOMATION_TIERS.WORKFLOW, label: 'Workflow mode — long multi-step plans' },
+          ]}
+        />
       </div>
 
       {showWarning && (
@@ -71,9 +77,9 @@ export default function AutomationSettings() {
       <div className="setting-field">
         <label className="setting-label">Auto-execute whitelist</label>
         <p className="setting-help">These action types can run automatically in Semi-autonomous mode.</p>
-        <div className="settings-chip-grid">
+        <div className="settings-chip-grid compact">
           {WHITELISTABLE_ACTIONS.map(action => (
-            <label key={action} className={`settings-check-card ${whitelist.includes(action) ? 'active' : ''}`}>
+            <label key={action} className={`settings-check-card compact ${whitelist.includes(action) ? 'active' : ''}`}>
               <input type="checkbox" checked={whitelist.includes(action)} onChange={() => toggleWhitelist(action)} />
               <span>{action}</span>
             </label>

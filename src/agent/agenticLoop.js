@@ -15,6 +15,8 @@
 
 import { formatToolSchemasForPrompt, parseToolCalls, extractNonToolText, streamableText, toOpenAITools, normalizeNativeToolCalls, parseLlamaFunctionSyntax } from './toolSchemas.js';
 import { Scratchpad } from './scratchpad.js';
+import { extractSkeleton, shouldUseSkeleton, extractSymbolBody } from './codeSkeleton.js';
+import { compactToolResults, selectRelevantTools } from './tokenBudget.js';
 import { performOnlineResearch } from './onlineResearch.js';
 import {
   gitClone, gitStatus, gitCommit, gitPush, gitLog,
@@ -39,7 +41,23 @@ function createToolExecutor(workspaceProvider, options = {}) {
         case 'read_file': {
           if (!workspaceProvider?.readText) throw new Error(NO_WORKSPACE_MSG);
           const content = await workspaceProvider.readText(args.path);
+          // Token saver: for large files, return an OUTLINE (imports + signatures)
+          // unless the model explicitly asked for the full body. It can then call
+          // read_symbol to fetch just the function it needs.
+          if (args.full !== true && shouldUseSkeleton(content)) {
+            const { skeleton, lines, symbols } = extractSkeleton(content);
+            return { success: true, path: args.path, outline: skeleton, lines, symbols,
+              note: 'Large file returned as an outline to save tokens. Use read_symbol {path, symbol} for a specific function, or read_file {path, full:true} for the whole file.' };
+          }
           return { success: true, path: args.path, content, lines: content.split('\n').length };
+        }
+
+        case 'read_symbol': {
+          if (!workspaceProvider?.readText) throw new Error(NO_WORKSPACE_MSG);
+          const content = await workspaceProvider.readText(args.path);
+          const body = extractSymbolBody(content, args.symbol);
+          if (body === null) return { success: false, path: args.path, symbol: args.symbol, error: `Symbol "${args.symbol}" not found in ${args.path}.` };
+          return { success: true, path: args.path, symbol: args.symbol, content: body, lines: body.split('\n').length };
         }
 
         case 'write_file': {
@@ -298,7 +316,16 @@ export async function runAgenticLoop({
   // tool parser rejects ("tool ... not in request.tools"). Each mode gets its
   // own system prompt.
   const useNativeTools = provider?.supportsToolUse === true && typeof toOpenAITools === 'function';
-  const nativeTools = useNativeTools ? toOpenAITools() : undefined;
+  // Token saver: expose only the tools plausibly needed for this request instead
+  // of re-sending all 19 schemas every iteration. Falls back to the full set for
+  // safety (e.g. multi-intent workflows). Control tools (respond/ask_user) are
+  // always retained by selectRelevantTools.
+  const allTools = toOpenAITools();
+  const allToolNames = allTools.map(t => t.function.name);
+  const relevantNames = selectRelevantTools(userMessage, allToolNames);
+  const nativeTools = useNativeTools
+    ? (relevantNames ? allTools.filter(t => relevantNames.includes(t.function.name)) : allTools)
+    : undefined;
 
   const commonGuidelines = `Current date: ${currentDate}
 
@@ -377,9 +404,13 @@ ${commonGuidelines}`;
     let streamResult;
     let lastShown = '';
     const scratchNote = scratchpad.toPrompt();
+    // Token saver: roll up OLD tool results (keep the last few verbatim) so a
+    // long multi-step task doesn't carry every full result forever. The
+    // scratchpad preserves the important outcomes, so this is safe.
+    const compactedHistory = compactToolResults(modelMessages, { keepFull: 3 });
     const turnMessages = scratchNote
-      ? [...modelMessages, { role: 'system', content: scratchNote }]
-      : modelMessages;
+      ? [...compactedHistory, { role: 'system', content: scratchNote }]
+      : compactedHistory;
     try {
       streamResult = await provider.stream({
         model,

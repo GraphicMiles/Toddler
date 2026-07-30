@@ -19,6 +19,7 @@ import { buildRequirementsEcho, shouldEchoRequirements } from './skills/reviewSk
 import { createAgentTask, projectMemoryPrompt, readProjectMemory, updateAgentTask } from './memory/agentMemory.js';
 import { AUTONOMY_LEVELS, readAutonomyLevel, suggestNextActions } from './agent/autonomyPolicy.js';
 import { deterministicAnswer, deterministicDeviceFact } from './agent/deterministicAnswers.js';
+import { deterministicFormat } from './agent/deterministicFormat.js';
 import { isOnlineResearchRequest, performOnlineResearch, fetchSourcePreviews } from './agent/onlineResearch.js';
 import { generateQualityResponse, readResponseQuality } from './agent/responseQuality.js';
 import { enqueueAutonomousTask, readAutonomousQueue, removeAutonomousTask, updateAutonomousTask } from './agent/autonomousQueue.js';
@@ -515,7 +516,10 @@ export default function App() {
       return;
     }
     
-    const exactAnswer = deterministicDeviceFact(resolvedText) || deterministicAnswer(resolvedText);
+    // Zero-token fast paths: time/date, arithmetic, and pure string formatting
+    // (JSON pretty/minify, case conversion, CSV→markdown) are handled locally so
+    // they never spend the user's model quota.
+    const exactAnswer = deterministicDeviceFact(resolvedText) || deterministicAnswer(resolvedText) || deterministicFormat(resolvedText);
     if (exactAnswer) {
       setMessages(previous => [...previous,
         { id: generateId(), role: 'user', content: text, timestamp: Date.now() },

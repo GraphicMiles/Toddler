@@ -88,6 +88,18 @@ assert.equal(toolResult.toolCalls[0].function.name, 'read_file');
 assert.equal(toolResult.toolCalls[0].function.arguments, '{"path":"a.js"}');
 assert.equal(toolResult.toolCalls[0].id, 'call_9');
 
+// maxTokens is forwarded as max_tokens when provided.
+globalThis.fetch = async (_url, options) => {
+  sentBody = JSON.parse(options.body);
+  const encoder = new TextEncoder();
+  return new Response(new ReadableStream({ start(c) { c.enqueue(encoder.encode('data: [DONE]\n\n')); c.close(); } }), { status: 200 });
+};
+await cloudProvider.stream({ model: cloudModel, messages: [{ role: 'user', content: 'hi' }], maxTokens: 128 });
+assert.equal(sentBody.max_tokens, 128, 'maxTokens forwarded as max_tokens');
+// omitted when not provided
+await cloudProvider.stream({ model: cloudModel, messages: [{ role: 'user', content: 'hi' }] });
+assert.ok(!('max_tokens' in sentBody), 'max_tokens omitted when not set');
+
 // A tool-result message (role:'tool') is serialised with its tool_call_id.
 globalThis.fetch = async (_url, options) => {
   sentBody = JSON.parse(options.body);

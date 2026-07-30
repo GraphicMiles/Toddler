@@ -142,4 +142,69 @@ console.log('  ✓ folder + nested file creation');
 }
 console.log('  ✓ create_file overwrites existing instead of failing');
 
+// --- Case 7: large file read returns an outline (skeleton), not full body ---
+{
+  const big = 'import x from "y";\n' + Array.from({ length: 120 }, (_, i) => `export function fn${i}(a,b){ return a+b+${i}; }`).join('\n');
+  const ws = makeWorkspace();
+  ws._files.set('big.js', big);
+  let turn = 0;
+  const provider = {
+    supportsToolUse: true,
+    async loadModel() { return {}; },
+    async stream() {
+      turn++;
+      if (turn === 1) return { toolCalls: [tc('read_file', { path: 'big.js' })] };
+      return { toolCalls: [tc('respond', { message: 'done' })] };
+    },
+  };
+  const r = await runAgenticLoop({ provider, model: {}, userMessage: 'read big.js and summarize it', workspaceProvider: ws, isNative: true });
+  const readStep = r.toolCalls.find(t => t.tool === 'read_file');
+  assert.ok(readStep.result.outline, 'large file should return an outline');
+  assert.ok(!readStep.result.content, 'outline mode should not return full content');
+  assert.ok(readStep.result.symbols.includes('fn0'), 'outline lists symbols');
+}
+console.log('  ✓ large file read returns skeleton outline');
+
+// --- Case 8: read_symbol returns just one function body ---
+{
+  const src = 'export function alpha(){ return 1; }\nexport function beta(){ const z = 2; return z; }\n';
+  const ws = makeWorkspace();
+  ws._files.set('mod.js', src);
+  let turn = 0;
+  const provider = {
+    supportsToolUse: true,
+    async loadModel() { return {}; },
+    async stream() {
+      turn++;
+      if (turn === 1) return { toolCalls: [tc('read_symbol', { path: 'mod.js', symbol: 'beta' })] };
+      return { toolCalls: [tc('respond', { message: 'done' })] };
+    },
+  };
+  const r = await runAgenticLoop({ provider, model: {}, userMessage: 'show me the beta function in mod.js', workspaceProvider: ws, isNative: true });
+  const step = r.toolCalls.find(t => t.tool === 'read_symbol');
+  assert.equal(step.result.success, true);
+  assert.match(step.result.content, /const z = 2/);
+  assert.ok(!/alpha/.test(step.result.content), 'read_symbol should isolate one function');
+}
+console.log('  ✓ read_symbol isolates one function');
+
+// --- Case 9: only relevant tools are sent to the provider (subsetting) ---
+{
+  const ws = makeWorkspace();
+  let toolsSeen = null;
+  const provider = {
+    supportsToolUse: true,
+    async loadModel() { return {}; },
+    async stream({ tools }) {
+      toolsSeen = (tools || []).map(t => t.function.name);
+      return { toolCalls: [tc('respond', { message: 'hi' })] };
+    },
+  };
+  await runAgenticLoop({ provider, model: {}, userMessage: 'show me package.json', workspaceProvider: ws, isNative: true });
+  assert.ok(toolsSeen.includes('read_file'), 'read request exposes read_file');
+  assert.ok(toolsSeen.includes('respond'), 'control tools always present');
+  assert.ok(!toolsSeen.includes('git_push'), 'irrelevant git tools filtered out');
+}
+console.log('  ✓ dynamic tool subsetting');
+
 console.log('agentic verify tests passed');

@@ -152,14 +152,14 @@ export class OpenAICompatibleProvider {
     return { loaded: true, cloud: true, provider: config.provider, modelId: model?.modelId || config.modelId };
   }
 
-  async stream({ model, messages, signal, onToken, tools, toolChoice, maxRetries = 2, backoffMs = 800 }) {
+  async stream({ model, messages, signal, onToken, tools, toolChoice, maxTokens, maxRetries = 2, backoffMs = 800 }) {
     const config = this.getConfig(model);
     let lastError;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       let streamedAny = false;
       const guardedOnToken = (token) => { streamedAny = true; onToken?.(token); };
       try {
-        return await this._streamOnce({ model, messages, signal, onToken: guardedOnToken, config, tools, toolChoice });
+        return await this._streamOnce({ model, messages, signal, onToken: guardedOnToken, config, tools, toolChoice, maxTokens });
       } catch (error) {
         lastError = error;
         const normalized = normalizeCloudError(error, { providerConfig: config, model });
@@ -178,7 +178,7 @@ export class OpenAICompatibleProvider {
     throw normalizeCloudError(lastError, { providerConfig: config, model });
   }
 
-  async _streamOnce({ model, messages, signal, onToken, config, tools, toolChoice }) {
+  async _streamOnce({ model, messages, signal, onToken, config, tools, toolChoice, maxTokens }) {
     await this.loadModel(model);
     const body = {
       model: model?.modelId || config.modelId,
@@ -187,6 +187,7 @@ export class OpenAICompatibleProvider {
       messages: (messages || []).map(mapMessageForApi),
       stream: true,
     };
+    if (Number.isFinite(maxTokens) && maxTokens > 0) body.max_tokens = Math.floor(maxTokens);
     if (Array.isArray(tools) && tools.length > 0) {
       body.tools = tools;
       body.tool_choice = toolChoice || 'auto';

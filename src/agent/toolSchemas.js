@@ -9,13 +9,26 @@
 export const TOOL_SCHEMAS = Object.freeze([
   {
     name: 'read_file',
-    description: 'Read the contents of a file in the workspace. Use this to understand existing code before making changes.',
+    description: 'Read a file. Large files return an outline (imports + signatures) to save tokens; pass full:true for the whole file.',
     parameters: {
       type: 'object',
       properties: {
         path: { type: 'string', description: 'Relative path to the file (e.g., "src/App.jsx")' },
+        full: { type: 'boolean', description: 'Return the entire file instead of an outline (default false for large files)' },
       },
       required: ['path'],
+    },
+  },
+  {
+    name: 'read_symbol',
+    description: 'Read the body of a single function/class/symbol from a file, instead of the whole file. Cheaper than read_file for targeted work.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Relative path to the file' },
+        symbol: { type: 'string', description: 'Name of the function/class/const to extract' },
+      },
+      required: ['path', 'symbol'],
     },
   },
   {

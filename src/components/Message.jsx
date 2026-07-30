@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Globe, ArrowUpRight } from 'lucide-react';
+import { App } from '@capacitor/app';
+import { isNative } from '../nativeBridge.js';
 import TypingIndicator from './TypingIndicator';
 import './Message.css';
+
+function sourceHost(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
+}
 
 const messageVariants = {
   hidden: { 
@@ -33,6 +39,8 @@ export default function Message({ message = {}, streaming = false }) {
   const { role, content, timestamp, files = [] } = message;
   const safeContent = typeof content === 'string' ? content : String(content ?? '');
   const safeFiles = Array.isArray(files) ? files : [];
+  const safeSources = (Array.isArray(message.sources) ? message.sources : [])
+    .filter(source => source && source.url && source.title);
   const isUser = role === 'user';
   const isSystem = role === 'system';
   // While the agent is streaming, the (possibly still empty) placeholder shows an inline
@@ -52,6 +60,15 @@ export default function Message({ message = {}, streaming = false }) {
     }).catch(() => {
       setCopied(false);
     });
+  }, []);
+
+  const openSource = useCallback((url) => {
+    if (!url) return;
+    if (isNative) {
+      App.openUrl({ url }).catch(() => {});
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
   }, []);
 
   const formatTime = (ts) => {
@@ -179,6 +196,35 @@ export default function Message({ message = {}, streaming = false }) {
         <div className="message-content">
           {showInlineTyping ? <TypingIndicator inline /> : renderWithCode(safeContent)}
         </div>
+
+        {!isUser && safeSources.length > 0 && (
+          <div className="source-strip" role="list" aria-label="Sources">
+            {safeSources.map((source) => (
+              <button
+                key={source.id || source.url}
+                type="button"
+                className="source-card"
+                role="listitem"
+                onClick={() => openSource(source.url)}
+                aria-label={`Open source ${source.id}: ${source.title}`}
+              >
+                <span className="source-card-top">
+                  <span className="source-card-index mono">{source.id}</span>
+                  <span className="source-card-meta">
+                    <Globe size={11} aria-hidden="true" />
+                    {source.publisher || sourceHost(source.url)}
+                  </span>
+                  <ArrowUpRight size={12} className="source-card-open" aria-hidden="true" />
+                </span>
+                <span className="source-card-title">{source.title}</span>
+                {source.snippet && (
+                  <span className="source-card-snippet">{source.snippet}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
         {!streaming && safeContent && (
           <button
             className="message-copy"

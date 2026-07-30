@@ -10,6 +10,20 @@ export function isAutonomousToolRequest(message = '') {
   return /\b(terminal|shell|command|github|repository|repo|clone|fetch|pull|push|commit|rebase|checkout|branch|workflow|actions)\b/i.test(message);
 }
 
+// A request that can only be satisfied by executing a Git/terminal/GitHub tool —
+// phrased as a command, not a question. Used to gate such requests honestly instead
+// of letting the small chat model hallucinate a refusal.
+const TOOL_COMMAND_VERBS = /\b(clone|pull|push|fetch|commit|rebase|checkout|merge)\b/i;
+const TOOL_COMMAND_TARGETS = /\b(repo|repository|branch|remote|origin|commit|github|gitlab|main|master|pull request|issue)\b/i;
+const SHELL_COMMAND_REQUEST = /\b(run|execute)\b[\s\S]{0,32}\b(command|terminal|shell|script)\b/i;
+const QUESTION_PHRASING = /^(what|whats|what's|how|why|explain|describe|define|tell me|difference|can i|should i)\b/i;
+
+export function isActionableToolRequest(message = '') {
+  const text = String(message).trim();
+  if (!text || QUESTION_PHRASING.test(text)) return false;
+  return (TOOL_COMMAND_VERBS.test(text) && TOOL_COMMAND_TARGETS.test(text)) || SHELL_COMMAND_REQUEST.test(text);
+}
+
 async function capture(provider, model, messages, signal) {
   let text = '';
   const result = await provider.stream({ model, messages, signal, onToken: token => { text += token; } });

@@ -8,18 +8,54 @@ function stripMarkup(value) {
   return String(value || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 1000);
 }
 
+// Google News RSS titles arrive as "Headline - Publisher". Split the publisher off
+// so cards can show a clean title and a source name instead of a raw URL.
+const TITLE_PUBLISHER_SEPARATOR = /\s[-–—]\s([^-–—]{2,60})$/;
+
+function splitPublisher(rawTitle) {
+  const match = rawTitle.match(TITLE_PUBLISHER_SEPARATOR);
+  if (!match) return { title: rawTitle, publisher: '' };
+  const title = rawTitle.slice(0, match.index).trim();
+  if (!title) return { title: rawTitle, publisher: '' };
+  return { title, publisher: match[1].trim() };
+}
+
+// Deterministic relevance rank: count distinct query terms (4+ chars) present in the
+// title/snippet. Keeps the most useful evidence first so the small on-device model
+// anchors on the right sources instead of the first RSS entries.
+function relevanceScore(query, item) {
+  const terms = new Set(
+    String(query).toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(word => word.length >= 4),
+  );
+  if (!terms.size) return 0;
+  const haystack = `${item.title} ${item.snippet}`.toLowerCase();
+  let score = 0;
+  for (const term of terms) {
+    if (haystack.includes(term)) score += 1;
+  }
+  return score;
+}
+
 export async function performOnlineResearch(query) {
   const googleApiKey = localStorage.getItem('forgeai_google_api_key') || '';
   const googleCx = localStorage.getItem('forgeai_google_cx') || '';
   const result = await searchOnline({ query, googleApiKey, googleCx });
-  const items = Array.from(result.items || []).slice(0, 10).map((item, index) => ({
-    id: index + 1,
-    title: stripMarkup(item.title),
-    url: String(item.url || ''),
-    snippet: stripMarkup(item.snippet),
-    source: String(item.source || result.provider || 'web'),
-  })).filter(item => item.url.startsWith('https://'));
-  if (!items.length) throw new Error('No public research sources were returned. Configure Google Programmable Search for broader results.');
-  const evidence = items.map(item => `[${item.id}] ${item.title}\nSource: ${item.source}\nURL: ${item.url}\nEvidence: ${item.snippet}`).join('\n\n');
+  const parsed = Array.from(result.items || []).map((item) => {
+    const { title, publisher } = splitPublisher(stripMarkup(item.title));
+    return {
+      title,
+      publisher,
+      url: String(item.url || ''),
+      snippet: stripMarkup(item.snippet),
+      source: String(item.source || result.provider || 'web'),
+    };
+  }).filter(item => item.url.startsWith('https://') && item.title);
+  if (!parsed.length) throw new Error('No public research sources were returned. Configure Google Programmable Search for broader results.');
+  const items = parsed
+    .map((item, index) => ({ item, index, score: relevanceScore(query, item) }))
+    .sort((a, b) => (b.score - a.score) || (a.index - b.index))
+    .slice(0, 8)
+    .map(({ item }, index) => ({ ...item, id: index + 1 }));
+  const evidence = items.map(item => `[${item.id}] ${item.title}\nSource: ${item.publisher || item.source}\nURL: ${item.url}\nEvidence: ${item.snippet}`).join('\n\n');
   return { query, provider: result.provider, searchedAt: result.searchedAt, items, evidence };
 }

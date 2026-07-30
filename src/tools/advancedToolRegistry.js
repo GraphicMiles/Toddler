@@ -37,24 +37,9 @@ export function createAdvancedToolRegistry(workspaceProvider) {
     },
   });
 
-  // Social Media (read-only research mode)
-  registry.register({
-    name: 'social:research',
-    description: 'Research public posts (Research Mode - no login required)',
-    permission: 'read',
-    execute: async ({ query, limit = 5 }) => {
-      // This would call the social manager in a real implementation
-      return {
-        type: 'social_research',
-        query,
-        results: Array.from({ length: limit }, (_, i) => ({
-          platform: 'twitter',
-          text: `Public post about ${query} #${i}`,
-          author: `user${i}`,
-        })),
-      };
-    },
-  });
+  // NOTE: no social:research tool is registered here. The previous stub returned
+  // fabricated posts (user0..n placeholders); a tool that invents data is worse
+  // than no tool. Real social providers live in src/social/*.
 
   return registry;
 }

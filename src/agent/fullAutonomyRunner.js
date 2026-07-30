@@ -64,7 +64,7 @@ async function executeAction(action) {
   return null;
 }
 
-export async function runFullAutonomyAgent({ provider, model, request, signal, onToken }) {
+export async function runFullAutonomyAgent({ provider, model, request, signal, onToken, onPendingActions }) {
   const activeRepository = localStorage.getItem('forgeai_last_git_repo') || '(none)';
   const prompt = `${structuredActionPrompt(['terminal', 'web_search', 'github_api', 'git_clone', 'git'])}\nFull Autonomous Android mode is enabled. Return up to 6 actions. You may use app-sandbox terminal and app-private JGit clones. Active app-private clone: ${activeRepository}. GitHub writes use the encrypted token vault. Never ask for or print credentials. Android usually has no node, npm, python, or system git binary; use JGit actions for Git. Use final only when no tool is needed.`;
   const planned = await capture(provider, model, [{ role: 'system', content: prompt }, { role: 'user', content: request }], signal);
@@ -74,6 +74,7 @@ export async function runFullAutonomyAgent({ provider, model, request, signal, o
   if (!actions.length) throw new Error('The local model did not produce a valid terminal, research, or Git action. Use a direct command such as “run command: ls” or include a GitHub repository URL.');
 
   const results = [];
+  const pendingApproval = [];
   const isWorkflow = automationTierManager.isWorkflowMode();
   const checkpointId = isWorkflow ? automationTierManager.createRevertCheckpoint(actions, `Workflow: ${request.slice(0, 60)}`) : null;
 
@@ -87,8 +88,10 @@ export async function runFullAutonomyAgent({ provider, model, request, signal, o
     const autoApproved = shouldAutoApproveAction(action);
     
     if (!autoApproved && !automationTierManager.isFullAuto()) {
-      // In assisted/semi mode we still require approval gate from App.jsx
+      // In assisted/semi mode the action is surfaced as an approval card in chat
+      // (via onPendingActions) instead of being silently skipped.
       results.push({ action: action.type, input: action, status: 'pending-approval', skipped: true });
+      pendingApproval.push(action);
       continue;
     }
 
@@ -111,6 +114,11 @@ export async function runFullAutonomyAgent({ provider, model, request, signal, o
     }
   }
 
+  if (pendingApproval.length) {
+    try { onPendingActions?.(pendingApproval); }
+    catch (error) { console.warn('Failed to surface pending actions:', error); }
+  }
+
   const final = await provider.stream({
     model,
     signal,
@@ -121,4 +129,12 @@ export async function runFullAutonomyAgent({ provider, model, request, signal, o
     ],
   });
   return final;
+}
+
+// Executes a single runner action after explicit user approval (chat approval card).
+export async function executeAutonomousAction(action) {
+  if (!action || !action.type) throw new Error('A tool action is required.');
+  const output = await executeAction(action);
+  if (output === null || output === undefined) throw new Error(`Unsupported action type: ${action.type}`);
+  return output;
 }

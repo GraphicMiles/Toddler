@@ -35,6 +35,7 @@ const messageVariants = {
 
 export default function Message({ message = {}, streaming = false }) {
   const [copied, setCopied] = useState(false);
+  const [brokenImages, setBrokenImages] = useState(() => new Set());
   const copyResetTimer = useRef(null);
   const { role, content, timestamp, files = [] } = message;
   const safeContent = typeof content === 'string' ? content : String(content ?? '');
@@ -77,12 +78,14 @@ export default function Message({ message = {}, streaming = false }) {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Render content with file references highlighted
+  // Render content with file references highlighted and [n] research citations
+  // rendered as tappable chips that open the matching source.
   const renderContent = (text) => {
     if (!text) return null;
-    
+
+    const withCitations = !isUser && safeSources.length > 0;
     const parts = text.split(/(@[\w./-]+)/g);
-    
+
     return parts.map((part, i) => {
       if (part.startsWith('@')) {
         return (
@@ -91,7 +94,24 @@ export default function Message({ message = {}, streaming = false }) {
           </span>
         );
       }
-      return part;
+      if (!withCitations) return part;
+      return part.split(/(\[\d{1,2}\])/g).map((segment, j) => {
+        const citation = segment.match(/^\[(\d{1,2})\]$/);
+        if (!citation) return segment;
+        const source = safeSources.find((s) => s.id === Number(citation[1]));
+        if (!source) return segment;
+        return (
+          <button
+            key={`${i}-${j}`}
+            type="button"
+            className="cite-chip mono"
+            onClick={() => openSource(source.url)}
+            aria-label={`Open source ${citation[1]}: ${source.title}`}
+          >
+            {citation[1]}
+          </button>
+        );
+      });
     });
   };
 
@@ -208,6 +228,17 @@ export default function Message({ message = {}, streaming = false }) {
                 onClick={() => openSource(source.url)}
                 aria-label={`Open source ${source.id}: ${source.title}`}
               >
+                {source.imageUrl && !brokenImages.has(source.url) && (
+                  <span className="source-card-thumb">
+                    <img
+                      src={source.imageUrl}
+                      alt=""
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      onError={() => setBrokenImages(prev => new Set(prev).add(source.url))}
+                    />
+                  </span>
+                )}
                 <span className="source-card-top">
                   <span className="source-card-index mono">{source.id}</span>
                   <span className="source-card-meta">

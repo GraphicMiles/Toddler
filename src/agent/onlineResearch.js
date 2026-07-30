@@ -1,4 +1,4 @@
-import { searchOnline } from '../nativeBridge.js';
+import { searchOnline, fetchPublicUrl, isNative } from '../nativeBridge.js';
 
 export function isOnlineResearchRequest(message = '') {
   return /\b(search online|research|latest|current|today|news|who won|score|result|how old|age of|github repo|pull request|workflow run|fact.?check)\b/i.test(message);
@@ -58,4 +58,36 @@ export async function performOnlineResearch(query) {
     .map(({ item }, index) => ({ ...item, id: index + 1 }));
   const evidence = items.map(item => `[${item.id}] ${item.title}\nSource: ${item.publisher || item.source}\nURL: ${item.url}\nEvidence: ${item.snippet}`).join('\n\n');
   return { query, provider: result.provider, searchedAt: result.searchedAt, items, evidence };
+}
+
+// Best-effort og:image / twitter:image extraction for source preview cards.
+// Native-only: the browser cannot fetch arbitrary cross-origin pages. Any failure
+// simply leaves that source without a thumbnail.
+const OG_IMAGE_PATTERNS = [
+  /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
+  /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i,
+  /<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["']/i,
+  /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["']/i,
+];
+
+export async function fetchSourcePreviews(items, { limit = 4 } = {}) {
+  const previews = new Map();
+  if (!isNative || !Array.isArray(items)) return previews;
+  await Promise.all(items.slice(0, limit).map(async (item) => {
+    if (!item?.url) return;
+    try {
+      const page = await fetchPublicUrl(item.url);
+      const html = String(page?.content || '').slice(0, 250000);
+      for (const pattern of OG_IMAGE_PATTERNS) {
+        const candidate = html.match(pattern)?.[1]?.replace(/&amp;/g, '&').trim();
+        if (candidate && /^https:\/\//i.test(candidate)) {
+          previews.set(item.url, candidate);
+          break;
+        }
+      }
+    } catch {
+      // No preview for this source — the card falls back to the globe icon.
+    }
+  }));
+  return previews;
 }

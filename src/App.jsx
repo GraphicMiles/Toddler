@@ -19,10 +19,10 @@ import { buildRequirementsEcho, shouldEchoRequirements } from './skills/reviewSk
 import { createAgentTask, projectMemoryPrompt, readProjectMemory, updateAgentTask } from './memory/agentMemory.js';
 import { AUTONOMY_LEVELS, readAutonomyLevel, suggestNextActions } from './agent/autonomyPolicy.js';
 import { deterministicAnswer, deterministicDeviceFact } from './agent/deterministicAnswers.js';
-import { isOnlineResearchRequest, performOnlineResearch } from './agent/onlineResearch.js';
+import { isOnlineResearchRequest, performOnlineResearch, fetchSourcePreviews } from './agent/onlineResearch.js';
 import { generateQualityResponse, readResponseQuality } from './agent/responseQuality.js';
 import { enqueueAutonomousTask, readAutonomousQueue, removeAutonomousTask, updateAutonomousTask } from './agent/autonomousQueue.js';
-import { isAutonomousToolRequest, isActionableToolRequest, runFullAutonomyAgent } from './agent/fullAutonomyRunner.js';
+import { isAutonomousToolRequest, isActionableToolRequest, runFullAutonomyAgent, executeAutonomousAction } from './agent/fullAutonomyRunner.js';
 import { ApprovalGate } from './tools/toolApproval.js';
 import { createAdvancedToolRegistry } from './tools/advancedToolRegistry.js';
 import { contextCompressor } from './memory/contextCompressor.js';
@@ -570,7 +570,37 @@ export default function App() {
             : message));
           addReasoningStep({ type: 'result_error', title: 'Blocked: tool actions need Full Autonomous mode', content: 'The autonomy policy never executes Git, terminal, or GitHub actions outside Full Autonomous mode.' });
         } else if (isNative && fullAutonomy && isAutonomousToolRequest(text)) {
-          generationResult = await runFullAutonomyAgent({ provider, model: activeModel, request: text, signal: controller.signal, onToken: streamToMessage });
+          generationResult = await runFullAutonomyAgent({
+            provider,
+            model: activeModel,
+            request: text,
+            signal: controller.signal,
+            onToken: streamToMessage,
+            // Actions the tier policy will not auto-approve become chat approval
+            // cards instead of being silently skipped.
+            onPendingActions: (actions) => {
+              setPendingActions(previous => [...previous, ...actions.map((action) => {
+                const content = action.type === 'terminal'
+                  ? (action.command || '')
+                  : action.type === 'github_api'
+                    ? `${action.method || 'GET'} ${action.apiPath || ''}`
+                    : action.type === 'git_clone'
+                      ? (action.repository || '')
+                      : action.type === 'git'
+                        ? `${action.operation || 'status'} ${action.branch || ''}`.trim()
+                        : (action.query || '');
+                return {
+                  id: `runner-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                  type: action.type,
+                  path: action.repository || action.repositoryPath || action.cwd || action.apiPath || '',
+                  content,
+                  description: action.rationale || 'Requested during Full Autonomous planning.',
+                  permission: 'execute',
+                  runnerAction: action,
+                };
+              })]);
+            },
+          });
         } else {
           const approvedMemory = projectMemoryPrompt(workspaceProvider.id);
           let research = null;
@@ -598,6 +628,14 @@ export default function App() {
             // Sources are attached as structured data and rendered as compact cards
             // below the answer (see Message.jsx) — never as a raw wall of URLs in text.
             setMessages(prev => prev.map(message => message.id === assistantId ? { ...message, sources: research.items } : message));
+            // Enrich the top cards with og:image previews in the background (native
+            // fetch; any failure just leaves the card without a thumbnail).
+            fetchSourcePreviews(research.items).then((previews) => {
+              if (!previews.size) return;
+              setMessages(prev => prev.map(message => (message.id === assistantId && Array.isArray(message.sources))
+                ? { ...message, sources: message.sources.map(source => (previews.has(source.url) ? { ...source, imageUrl: previews.get(source.url) } : source)) }
+                : message));
+            }).catch(() => {});
           }
         }
       }
@@ -692,6 +730,26 @@ export default function App() {
     // Informational / plan actions have no gate entry - just acknowledge them
     if (action.type === 'agent_review' || !action.type) {
       addSystemMessage('Plan acknowledged.', 'info');
+      if (isNative) await haptics.success();
+      return;
+    }
+
+    // Runner actions (Git/terminal/GitHub/web planned in Full Autonomous mode) are
+    // not in the workspace approval gate — the card's Approve click is the consent.
+    if (action.runnerAction) {
+      try {
+        const output = await executeAutonomousAction(action.runnerAction);
+        let detail;
+        if (action.runnerAction.type === 'web_search' && Array.isArray(output?.items) && output.items.length) {
+          detail = output.items.map(item => `[${item.id}] ${item.title}${item.publisher ? ` — ${item.publisher}` : ''}`).join('\n');
+        } else {
+          detail = typeof output === 'string' ? output : JSON.stringify(output, null, 2);
+        }
+        addMessage('assistant', `${action.type} — completed.\n\n\`\`\`\n${String(detail).slice(0, 1500)}\n\`\`\``);
+      } catch (runnerError) {
+        recordError(runnerError, 'runner-action');
+        addSystemMessage(`Action failed: ${runnerError.message}`, 'error');
+      }
       if (isNative) await haptics.success();
       return;
     }

@@ -268,6 +268,50 @@
   border-radius: var(--radius-xs);
 }
 
+/* Inline citation chips: [1] in answer text opens the matching source card */
+.cite-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 16px;
+  margin: 0 1px;
+  padding: 0 3px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  vertical-align: text-top;
+  cursor: pointer;
+  color: var(--accent-ink);
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-xs);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.cite-chip:hover,
+.cite-chip:active {
+  border-color: var(--accent-strong);
+  background: var(--accent-dim);
+}
+
+.source-card-thumb {
+  display: block;
+  margin: -10px -12px 2px;
+  height: 76px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  border-radius: calc(var(--radius-sm) - 1px) calc(var(--radius-sm) - 1px) 0 0;
+  background: var(--bg-elev-2);
+}
+
+.source-card-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .source-card-meta {
   display: inline-flex;
   align-items: center;

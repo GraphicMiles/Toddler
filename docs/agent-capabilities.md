@@ -20,7 +20,7 @@ Grounded in code (paths + line refs). Status legend: ✅ works · ⚠️ works-b
 ## 3. Web research
 | # | Capability | Entry point | Status |
 |---|-----------|-------------|--------|
-| 8 | Auto-research on news/fact queries → evidence injected into prompt | `src/agent/onlineResearch.js` + `App.jsx` | ⚠️ **Fixed round 7**: publisher extraction, relevance-ranked evidence (was first-N RSS order), source cards in UI (was raw URL wall). Remaining: no images in results (Google News RSS has none — needs Google CSE key or og:image fetch) |
+| 8 | Auto-research on news/fact queries → evidence injected into prompt | `src/agent/onlineResearch.js` + `App.jsx` | ✅ publisher extraction, relevance-ranked evidence, source cards in UI, **og:image thumbnails** (`fetchSourcePreviews`, top 4, native best-effort), clickable `[n]` citation chips |
 | 9 | `research:query` / `research:scrape` registry tools | `src/tools/researchTools.js` | 🔒 registered but never invoked by the chat flow |
 | 10 | URL fetch (Archive Mode) | `App.jsx` → ResearchRuntime.fetchUrl | 🔒 only via research:scrape (unwired) |
 
@@ -36,7 +36,7 @@ Grounded in code (paths + line refs). Status legend: ✅ works · ⚠️ works-b
 | # | Capability | Entry point | Status |
 |---|-----------|-------------|--------|
 | 15 | git clone/status/log/fetch/pull/checkout/commit/push/rebase (JGit) | `src/agent/fullAutonomyRunner.js` → native GitRuntime | 🔒 **needs Full Autonomous** (Settings → Agent → Autonomy level). **Fixed round 7**: tool commands now get an honest gate message instead of a hallucinated refusal |
-| 16 | GitHub API actions (encrypted token vault) | fullAutonomyRunner → GithubRuntime | 🔒 same gate; **⚠️ in non-"full-auto" tier, actions are silently skipped as `pending-approval` — no approval card is ever shown (next debug item)** |
+| 16 | GitHub API actions (encrypted token vault) | fullAutonomyRunner → GithubRuntime | 🔒 same gate; **fixed**: non-auto-approved runner actions now surface as chat approval cards (`onPendingActions` → ActionCard → `executeAutonomousAction`) |
 | 17 | Repo archive import → workspace | `RepositoryIndexPanel` / GithubRuntime.importArchive | ✅ (via Settings → Agent panel) |
 | 18 | App-sandbox terminal | workspaceTools `terminal` / fullAutonomyRunner | 🔒 simulated unless Experimental → Real Terminal is ON |
 | 19 | `github:propose`, `github:run_maintenance` tools | `src/tools/githubTools.js` | ❌ registered, never surfaced to the model — dead |
@@ -44,7 +44,7 @@ Grounded in code (paths + line refs). Status legend: ✅ works · ⚠️ works-b
 ## 6. Social / misc
 | # | Capability | Entry point | Status |
 |---|-----------|-------------|--------|
-| 20 | `social:research` tool | `src/tools/advancedToolRegistry.js` | ❌ returns fabricated posts (`user0..n` placeholders) — never ship as-is |
+| 20 | `social:research` tool | `src/tools/advancedToolRegistry.js` | ✅ **removed** — the stub returned fabricated posts; a tool that invents data is worse than no tool |
 | 21 | `fs:analyze` tool | same | ⚠️ trivial counts only, unwired |
 | 22 | Social login/posting panels | `src/social/*`, `SocialMediaSettings` | ⚠️ real providers scaffolded; verify per provider |
 | 23 | Autonomous task queue + proactive suggestions | `src/agent/autonomousQueue.js`, `autonomyPolicy.suggestNextActions` | ✅ runs only when user presses Run |
@@ -54,8 +54,9 @@ Grounded in code (paths + line refs). Status legend: ✅ works · ⚠️ works-b
 - Without a Google CSE key + CX, research = Google News RSS + Wikipedia only, and news links are `news.google.com` redirect URLs with no thumbnails.
 
 ## Debug backlog (next rounds, in priority order)
-1. **Research images** — fetch og:image per top source (native fetch exists) or require Google CSE key; render thumbnails in source cards.
-2. **GitHub approvals UX** — surface `pending-approval` actions as chat approval cards instead of silently skipping.
-3. **Citation links in answer text** — make `[1]` in the answer jump to source card.
-4. Kill or wire the dead planner (#13) and dead tools (#19, #20).
-5. Evaluate 1.5B+ model default for agent tasks.
+1. ~~Research images~~ ✅ og:image per top-4 source via native fetch; thumbnails in source cards.
+2. ~~GitHub approvals UX~~ ✅ runner `pending-approval` actions → real chat approval cards.
+3. ~~Citation links~~ ✅ `[n]` in answer text = tappable chip opening the source.
+4. ~~Dead tools~~ ✅ fake `social:research` removed. (The `agent/core.js` keyword planner is kept — exercised by tests, harmless metadata for patch prompts.)
+5. Evaluate 1.5B+ model default for agent tasks (product decision — download size).
+6. Optional: Google CSE key support is already in Settings → Integrations for richer search results.

@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { FileEdit, Terminal, GitBranch, AlertTriangle, Check, X } from 'lucide-react';
+import { FileEdit, Terminal, GitBranch, Github, Globe, AlertTriangle, Check, X } from 'lucide-react';
 import './ActionCard.css';
 
 const ACTION_ICONS = {
@@ -8,6 +8,9 @@ const ACTION_ICONS = {
   create_file: FileEdit,
   terminal: Terminal,
   git: GitBranch,
+  git_clone: GitBranch,
+  github_api: Github,
+  web_search: Globe,
   default: AlertTriangle,
 };
 
@@ -17,6 +20,9 @@ const ACTION_LABELS = {
   create_file: 'Proposed new file',
   terminal: 'Terminal command',
   git: 'Git operation',
+  git_clone: 'Clone repository',
+  github_api: 'GitHub API request',
+  web_search: 'Web research',
   default: 'Action required',
 };
 

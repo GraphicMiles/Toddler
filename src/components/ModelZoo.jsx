@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download, X, WifiOff, HardDrive, Cpu, MessageSquare,
-  Smartphone, Pause, Play, Ban
+  Smartphone, Pause, Play, Ban, FolderOpen, ChevronRight, CheckCircle2, Circle
 } from 'lucide-react';
 import {
   assessModelCompatibility, formatMemoryCapacity, formatModelSize, formatStorageCapacity,
@@ -262,7 +262,17 @@ export default function ModelZoo({
       {/* Compact header: title left, close right - subtitle removed */}
       <div className="zoo-header">
         <h2 className="display">Model Zoo</h2>
-        {isNative && <button className="zoo-folder-button" onClick={onChooseModelFolder}>{modelFolderSelected ? 'Model folder selected' : 'Choose model folder'}</button>}
+        {isNative && (
+          <button
+            type="button"
+            className={`zoo-folder-button ${modelFolderSelected ? 'selected' : ''}`}
+            onClick={onChooseModelFolder}
+          >
+            <FolderOpen size={14} />
+            <span>{modelFolderSelected ? 'Model folder selected' : 'Choose model folder'}</span>
+            <ChevronRight size={14} className="zoo-folder-chevron" aria-hidden="true" />
+          </button>
+        )}
         {onClose && (
           <button className="zoo-close" onClick={onClose} aria-label="Close">
             <X size={18} />
@@ -295,14 +305,19 @@ export default function ModelZoo({
             <span className="zoo-chip">{filteredModels.length} models</span>
           </div>
           <div className="zoo-toolbar-right">
-            <label className="compatible-toggle">
-              <input
-                type="checkbox"
-                checked={showOnlyCompatible}
-                onChange={(e) => setShowOnlyCompatible(e.target.checked)}
-              />
+            {/* Compatibility is a distinct filter type from the task pills — styled as a
+                toggle chip with a divider, not a bare native checkbox mixed into the row */}
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={showOnlyCompatible}
+              className={`compatible-chip ${showOnlyCompatible ? 'active' : ''}`}
+              onClick={() => setShowOnlyCompatible(value => !value)}
+            >
+              {showOnlyCompatible ? <CheckCircle2 size={12} /> : <Circle size={12} />}
               <span>Compatible</span>
-            </label>
+            </button>
+            <div className="zoo-filter-divider" aria-hidden="true" />
             <div className="zoo-filters">
               {['all', 'chat', 'coding', 'smoke-test'].map((f) => (
                 <button

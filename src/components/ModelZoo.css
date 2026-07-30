@@ -185,23 +185,83 @@
 }
 
 /* ── Controls (inside toolbar) ── */
-.compatible-toggle {
+/* Compatibility toggle chip — distinct from task pills (dashed when off, solid when on) */
+.compatible-chip {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  min-height: 30px;
+  padding: 4px 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 999px;
+  background: transparent;
   color: var(--paper-dim);
   font-size: 11px;
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
 
-.compatible-toggle input {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  accent-color: var(--accent);
-  cursor: pointer;
+.compatible-chip:hover {
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+.compatible-chip.active {
+  border-style: solid;
+  border-color: var(--accent-border);
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+/* Divider separating the compatibility toggle from the task-filter pills */
+.zoo-filter-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-subtle);
   flex-shrink: 0;
+}
+
+/* Folder picker button (previously had no styles at all and rendered as a
+   flat browser-default text box) */
+.zoo-folder-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  max-width: 100%;
+  padding: 6px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.zoo-folder-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zoo-folder-chevron {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.zoo-folder-button:hover {
+  color: var(--accent);
+  border-color: var(--accent-border);
+  background: var(--bg-surface-raised);
+}
+
+.zoo-folder-button.selected {
+  border-color: var(--accent-border);
+  background: var(--accent-subtle);
+  color: var(--accent);
 }
 
 .zoo-filters {
@@ -209,6 +269,9 @@
   gap: 4px;
   overflow-x: auto;
   scrollbar-width: none;
+  /* Fade edge signals more filter pills exist off-screen */
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 20px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 20px), transparent);
 }
 
 .zoo-filters::-webkit-scrollbar {

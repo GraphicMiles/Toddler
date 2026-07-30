@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { getFileIconInfo, buildFileIndex, searchFiles } from '../utils/fileIndex';
 import { canFormatPath, formatSource } from '../editor/codeFormatting.js';
+import { showToast } from '../utils/toast.js';
 import './Workspace.css';
 
 const CodeEditor = lazy(() => import('../editor/CodeEditor.jsx'));
@@ -155,7 +156,7 @@ function FileViewer({ path, content, onClose, onSave, onPick, readOnly }) {
       if (flashTimer.current) clearTimeout(flashTimer.current);
       flashTimer.current = setTimeout(() => setSavedFlash(false), 1600);
     } catch (err) {
-      alert('Save failed: ' + err.message);
+      showToast('Save failed: ' + err.message, 'error');
     } finally {
       setSaving(false);
     }
@@ -168,7 +169,7 @@ function FileViewer({ path, content, onClose, onSave, onPick, readOnly }) {
       setEditContent(formatted);
       setDirty(formatted !== content);
     } catch (error) {
-      alert('Format failed: ' + error.message);
+      showToast('Format failed: ' + error.message, 'error');
     } finally {
       setFormatting(false);
     }
@@ -304,7 +305,7 @@ export default function Workspace({
     try {
       await onFileCreate?.(joinWorkspacePath(parentPath, name.trim()));
     } catch (err) {
-      alert('Failed to create file: ' + err.message);
+      showToast('Failed to create file: ' + err.message, 'error');
     }
   }, [onFileCreate]);
 
@@ -314,7 +315,7 @@ export default function Workspace({
     try {
       await onFolderCreate?.(joinWorkspacePath(parentPath, name.trim()));
     } catch (err) {
-      alert('Failed to create folder: ' + err.message);
+      showToast('Failed to create folder: ' + err.message, 'error');
     }
   }, [onFolderCreate]);
 
@@ -327,7 +328,7 @@ export default function Workspace({
     try {
       await onFileRename?.(node.path, newPath);
     } catch (err) {
-      alert('Failed to rename: ' + err.message);
+      showToast('Failed to rename: ' + err.message, 'error');
     }
   }, [onFileRename]);
 
@@ -336,7 +337,7 @@ export default function Workspace({
     try {
       await onFileDelete?.(node.path, node.type);
     } catch (err) {
-      alert('Failed to delete: ' + err.message);
+      showToast('Failed to delete: ' + err.message, 'error');
     }
   }, [onFileDelete]);
 

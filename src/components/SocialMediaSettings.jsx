@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { MessageCircle, Search, Share2 } from 'lucide-react';
 import { socialMediaManager } from '../social/SocialMediaManager.js';
 import DropdownMenu from './DropdownMenu.jsx';
+import { showToast } from '../utils/toast.js';
 
 export default function SocialMediaSettings() {
   const [accounts, setAccounts] = useState(socialMediaManager.getAccounts());
@@ -16,18 +17,18 @@ export default function SocialMediaSettings() {
       setAccounts(socialMediaManager.getAccounts());
       setUsername('');
     } catch (error) {
-      alert(`Could not add account: ${error.message}`);
+      showToast(`Could not add account: ${error.message}`, 'error');
     }
   };
 
   const testPost = async () => {
-    if (accounts.length === 0) return alert('Add an account first');
+    if (accounts.length === 0) return showToast('Add an account first', 'error');
     try {
       const acc = accounts[0];
-      const result = await socialMediaManager.post(acc.platform, acc.username, 'Test post from ForgeAI');
-      alert(JSON.stringify(result, null, 2));
+      await socialMediaManager.post(acc.platform, acc.username, 'Test post from ForgeAI');
+      showToast('Test post sent.', 'success');
     } catch (error) {
-      alert(`Test post failed: ${error.message}`);
+      showToast(`Test post failed: ${error.message}`, 'error');
     }
   };
 
@@ -35,9 +36,9 @@ export default function SocialMediaSettings() {
     try {
       const posts = await socialMediaManager.scrapePublicPosts('AI research', 5);
       setShowResearch(true);
-      alert(`Scraped ${posts.length} public posts (Research Mode)`);
+      showToast(`Scraped ${posts.length} public posts (Research Mode)`, 'success');
     } catch (error) {
-      alert(`Research failed: ${error.message}`);
+      showToast(`Research failed: ${error.message}`, 'error');
     }
   };
 

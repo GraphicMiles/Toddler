@@ -147,10 +147,68 @@ select,
   background: var(--faint);
 }
 
-/* Focus: no native outlines; controls use tokenized state styling. */
+/* Focus: native outline removed, but an explicit tokenized replacement ring is
+   required for keyboard/assistive navigation (a11y requirement, not aesthetic). */
 :focus,
 :focus-visible {
   outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Shared subtle open motion for all anchored menus/dropdowns */
+@keyframes menu-pop {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-menu,
+.collection-menu,
+.ws-context-menu {
+  animation: menu-pop 0.12s ease-out;
+}
+
+/* App-wide toast (replaces native alert() dialogs) */
+.forge-toast-host {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 88px);
+  transform: translateX(-50%);
+  z-index: 2000;
+  pointer-events: none;
+  width: min(92vw, 420px);
+}
+
+.forge-toast {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.forge-toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.forge-toast.error {
+  border-color: var(--status-danger);
+  color: var(--status-danger);
+}
+
+.forge-toast.success {
+  border-color: var(--accent-border);
+  color: var(--accent);
 }
 
 /* Utilities */

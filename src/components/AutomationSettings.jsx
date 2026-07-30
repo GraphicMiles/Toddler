@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { showToast } from '../utils/toast.js';
 import {
   automationTierManager,
   AUTOMATION_TIERS,
@@ -38,7 +39,7 @@ export default function AutomationSettings() {
 
   const clearLog = () => {
     automationTierManager.clearWorkflowLog();
-    alert('Workflow log cleared.');
+    showToast('Workflow log cleared.', 'success');
   };
 
   const isFullAuto = isFullAutoMode();

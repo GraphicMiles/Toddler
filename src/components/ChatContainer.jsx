@@ -307,7 +307,7 @@ export default function ChatContainer({
                     <Database size={14} className="sidebar-item-icon" />
                     <div className="sidebar-item-text">
                       <span className="sidebar-item-title">{model.name}</span>
-                      <span className="sidebar-item-time">OFFLINE · No API token quota</span>
+                      <span className="sidebar-item-time">On-device · no API quota</span>
                     </div>
                   </button>
                 ))}
@@ -318,7 +318,7 @@ export default function ChatContainer({
                     <Wifi size={14} className="sidebar-item-icon" />
                     <div className="sidebar-item-text">
                       <span className="sidebar-item-title">{model.name}</span>
-                      <span className="sidebar-item-time">CLOUD · Provider token/API quota applies</span>
+                      <span className="sidebar-item-time">Cloud · provider API quota applies</span>
                     </div>
                   </button>
                 ))}

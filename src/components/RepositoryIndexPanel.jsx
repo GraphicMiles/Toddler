@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Database, RefreshCw } from 'lucide-react';
 import { buildRepositoryIndex, readRepositoryIndex } from '../context/repositoryIndex.js';
+import { showToast } from '../utils/toast.js';
 
 export default function RepositoryIndexPanel({ workspaceId, workspaceProvider, workspaceTree }) {
   const [index, setIndex] = useState(() => readRepositoryIndex(workspaceId));
@@ -12,7 +13,9 @@ export default function RepositoryIndexPanel({ workspaceId, workspaceProvider, w
     try {
       const result = await buildRepositoryIndex({ workspaceId, workspaceProvider, workspaceTree, onProgress: setProgress });
       setIndex(result);
-    } catch (error) { alert(`Index failed: ${error.message}`); }
+    } catch (error) {
+        showToast(`Index failed: ${error.message}`, 'error');
+      }
     finally { setBuilding(false); setProgress(null); }
   };
 

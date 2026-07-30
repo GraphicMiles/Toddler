@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Brain, Plus, Save, Trash2 } from 'lucide-react';
 import { readProjectMemory, rememberProjectFact, removeProjectFact, updateProjectFact } from '../memory/agentMemory.js';
+import { showToast } from '../utils/toast.js';
 import './ProjectMemoryPanel.css';
 
 export default function ProjectMemoryPanel({ workspaceId }) {
@@ -15,7 +16,9 @@ export default function ProjectMemoryPanel({ workspaceId }) {
       rememberProjectFact(workspaceId, { text: draft, provenance: 'user', approved: true });
       setDraft('');
       setRevision(value => value + 1);
-    } catch (error) { alert(error.message); }
+    } catch (error) {
+        showToast(error.message, 'error');
+      }
   };
 
   return (
@@ -35,7 +38,9 @@ export default function ProjectMemoryPanel({ workspaceId }) {
               updateProjectFact(workspaceId, fact.id, editing[fact.id] ?? fact.text);
               setEditing(current => { const next = { ...current }; delete next[fact.id]; return next; });
               setRevision(value => value + 1);
-            } catch (error) { alert(error.message); }
+            } catch (error) {
+        showToast(error.message, 'error');
+      }
           }}><Save size={13} /></button>
           <button className="danger" title="Remove fact" onClick={() => { removeProjectFact(workspaceId, fact.id); setRevision(value => value + 1); }}><Trash2 size={13} /></button>
         </div>

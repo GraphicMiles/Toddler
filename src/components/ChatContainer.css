@@ -412,6 +412,9 @@
   background: var(--bg);
   flex-shrink: 0;
   scrollbar-width: none;
+  /* Fade edge signals more cards exist off-screen */
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
 }
 
 .proactive-suggestions::-webkit-scrollbar,

@@ -22,9 +22,12 @@ import { deterministicAnswer, deterministicDeviceFact } from './agent/determinis
 import { isOnlineResearchRequest, performOnlineResearch, fetchSourcePreviews } from './agent/onlineResearch.js';
 import { generateQualityResponse, readResponseQuality } from './agent/responseQuality.js';
 import { enqueueAutonomousTask, readAutonomousQueue, removeAutonomousTask, updateAutonomousTask } from './agent/autonomousQueue.js';
-import { isAutonomousToolRequest, isActionableToolRequest, isGitRequestWithoutRepo, containsGitHubUrl, extractGitHubUrl, runFullAutonomyAgent, executeAutonomousAction } from './agent/fullAutonomyRunner.js';
+import { isAutonomousToolRequest, isActionableToolRequest, isGitRequestWithoutRepo, containsGitHubUrl, extractGitHubUrl, executeAutonomousAction } from './agent/fullAutonomyRunner.js';
 import { tryResolvePendingIntent, setPendingIntent, resolveEntityFromContext, needsCurrentInformation } from './agent/intentRouter.js';
 import { processConversationTurn, resolveVagueReferences, getContextPrompt, checkNeedsClarification, resetContext } from './context/conversationContext.js';
+import { runAgenticLoop } from './agent/agenticLoop.js';
+import { persistentMemory } from './agent/persistentMemory.js';
+import { projectIndexer } from './agent/projectIndexer.js';
 import { isToolExecutionTier } from './agent/automation/automationTiers.js';
 import { ApprovalGate } from './tools/toolApproval.js';
 import { createAdvancedToolRegistry } from './tools/advancedToolRegistry.js';
@@ -684,44 +687,80 @@ export default function App() {
             : message));
           addReasoningStep({ type: 'result_error', title: 'No repository known yet', content: 'Clone one by pasting a GitHub URL, then Git operations can run in it.' });
         } else if (isNative && toolExecutionEnabled && isAutonomousToolRequest(intentText)) {
-          generationResult = await runFullAutonomyAgent({
+          // === AGENTIC LOOP: Multi-step tool-use engine ===
+          // This replaces the old single-pass regex routing with a proper
+          // agentic loop where the model decides what tools to call.
+          const _memoryPrompt = persistentMemory.getMemoryPrompt(intentText);
+          const _projectSummary = projectIndexer.lastIndexed ? projectIndexer.formatForPrompt() : '';
+          
+          // Build workspace file list for the agent
+          let workspaceFileList = [];
+          try {
+            const listing = await workspaceProvider?.list?.('');
+            if (listing?.items) {
+              workspaceFileList = (function flatten(items, prefix = '') {
+                const result = [];
+                for (const item of items) {
+                  const p = prefix ? `${prefix}/${item.name}` : item.name;
+                  if (item.type === 'file') result.push(p);
+                  else if (item.children) result.push(...flatten(item.children, p));
+                }
+                return result;
+              })(listing.items);
+            }
+          } catch {}
+
+          const agenticResult = await runAgenticLoop({
             provider,
             model: activeModel,
-            request: intentText,
+            userMessage: intentText,
+            history: messagesWithContext,
+            workspaceProvider,
+            isNative,
             signal: controller.signal,
-            onToken: streamToMessage,
-            // Actions the tier policy will not auto-approve become chat approval
-            // cards instead of being silently skipped.
-            onPendingActions: (actions) => {
-              setPendingActions(previous => [...previous, ...actions.map((action) => {
-                const content = action.type === 'terminal'
-                  ? (action.command || '')
-                  : action.type === 'github_api'
-                    ? `${action.method || 'GET'} ${action.apiPath || ''}`
-                    : action.type === 'git_clone'
-                      ? (action.repository || '')
-                      : action.type === 'git'
-                        ? `${action.operation || 'status'} ${action.branch || ''}`.trim()
-                        : (action.query || '');
-                return {
-                  id: `runner-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                  type: action.type,
-                  path: action.repository || action.repositoryPath || action.cwd || action.apiPath || '',
-                  content,
-                  description: action.rationale || 'Requested during Full Autonomous planning.',
-                  permission: 'execute',
-                  runnerAction: action,
-                };
-              })]);
+            workspaceFiles: workspaceFileList,
+            onToken: (token) => {
+              setMessages(prev => prev.map(message => message.id === assistantId ? { ...message, content: token } : message));
+            },
+            onToolCall: ({ tool, args, iteration }) => {
+              addReasoningStep({
+                type: 'tool_call',
+                title: `${tool} (step ${iteration})`,
+                content: typeof args === 'object' ? JSON.stringify(args).slice(0, 200) : String(args).slice(0, 200),
+              });
+            },
+            onIteration: ({ iteration, maxIterations, toolCalls }) => {
+              if (iteration > 1) {
+                addReasoningStep({
+                  type: 'thought',
+                  title: `Agentic loop: step ${iteration}/${maxIterations}`,
+                  content: `${toolCalls} tool call(s) completed so far.`,
+                });
+              }
             },
           });
+
+          // Store successful solutions in persistent memory
+          if (agenticResult.success && agenticResult.toolCalls.length > 0) {
+            persistentMemory.storeSolution({
+              problem: intentText,
+              solution: agenticResult.response?.slice(0, 500) || '',
+              tools: agenticResult.toolCalls.map(tc => tc.tool),
+              files: agenticResult.toolCalls.filter(tc => tc.args?.path).map(tc => tc.args.path),
+            });
+          }
+
+          generationResult = null; // Agentic loop handles its own streaming
         } else {
           const approvedMemory = projectMemoryPrompt(workspaceProvider.id);
           let research = null;
           // Build context-aware prompt injection from conversation engine
           const contextPrompt = getContextPrompt(intentText);
+          // Persistent cross-session memory
+          const persistentMemoryPrompt = persistentMemory.getMemoryPrompt(intentText);
           const contextSystemMessages = [];
           if (approvedMemory) contextSystemMessages.push({ role: 'system', content: approvedMemory });
+          if (persistentMemoryPrompt) contextSystemMessages.push({ role: 'system', content: persistentMemoryPrompt });
           if (contextPrompt) contextSystemMessages.push({ role: 'system', content: `[Conversation Context] ${contextPrompt} Use this context to understand references, pronouns, and vague messages. If the user's message is ambiguous, prefer the contextually obvious interpretation over a literal reading.` });
           let responseMessages = contextSystemMessages.length > 0
             ? [...contextSystemMessages, ...messagesWithContext]

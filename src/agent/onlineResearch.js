@@ -12,6 +12,9 @@ export function isOnlineResearchRequest(message = '') {
   if (/\b(which club|which team|which company)\b.*\b(currently|now|play|work)\b/i.test(text)) return true;
   // World Cup, Olympics, major events with year
   if (/\b(world cup|olympics|super bowl|champions league|premier league|nba|nfl|mlb)\b.*\b(2024|2025|2026|next|last|this)\b/i.test(text)) return true;
+  // "Best/top/most" queries — these are inherently time-sensitive
+  if (/\b(best|top|most popular|most used|leading|number one|#1|greatest)\b.*\b(ai|model|language|framework|library|tool|platform|company|app|game|movie|song|player|team)\b/i.test(text)) return true;
+  if (/\b(who is|what is)\b.*\b(best|top|most|leading|greatest)\b/i.test(text)) return true;
   return false;
 }
 

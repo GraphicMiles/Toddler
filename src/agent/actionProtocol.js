@@ -31,31 +31,39 @@ export function validateStructuredAction(input) {
   const policy = getCurrentSafetyPolicy();
 
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Agent action must be an object.');
-  if (!STRUCTURED_ACTION_TYPES.includes(input.type)) throw new Error(`Unsupported agent action: ${input.type}`);
   
-  const paths = input.paths == null ? [] : input.paths;
+  // Normalize: models sometimes return "action" instead of "type"
+  const normalizedInput = { ...input };
+  if (!normalizedInput.type && normalizedInput.action) {
+    normalizedInput.type = normalizedInput.action;
+    delete normalizedInput.action;
+  }
+  
+  if (!STRUCTURED_ACTION_TYPES.includes(normalizedInput.type)) throw new Error(`Unsupported agent action: ${normalizedInput.type}`);
+  
+  const paths = normalizedInput.paths == null ? [] : normalizedInput.paths;
   if (!Array.isArray(paths) || paths.length > MAX_PATHS) throw new Error(`Agent action paths must contain at most ${MAX_PATHS} items.`);
   
   const normalizedPaths = paths.map(path => normalizeRelativeWorkspacePath(path));
-  const rationale = requireString(input.rationale, 'Agent action rationale', MAX_RATIONALE);
-  const action = { type: input.type, paths: normalizedPaths, rationale };
+  const rationale = requireString(normalizedInput.rationale || normalizedInput.description || 'Agent action', 'Agent action rationale', MAX_RATIONALE);
+  const action = { type: normalizedInput.type, paths: normalizedPaths, rationale };
 
-  if (input.type === 'read_file' && normalizedPaths.length !== 1) throw new Error('read_file requires exactly one path.');
+  if (normalizedInput.type === 'read_file' && normalizedPaths.length !== 1) throw new Error('read_file requires exactly one path.');
   
-  if (input.type === 'create_file') {
+  if (normalizedInput.type === 'create_file') {
     if (normalizedPaths.length !== 1) throw new Error('create_file requires exactly one path.');
-    action.content = requireString(input.content, 'New file content', MAX_FILE_CONTENT);
+    action.content = requireString(normalizedInput.content, 'New file content', MAX_FILE_CONTENT);
   }
   
-  if (input.type === 'search_files' || input.type === 'web_search') {
-    action.query = requireString(input.query || input.rationale, 'Search query', 500);
+  if (normalizedInput.type === 'search_files' || normalizedInput.type === 'web_search') {
+    action.query = requireString(normalizedInput.query || normalizedInput.rationale, 'Search query', 500);
   }
   
-  if (input.type === 'terminal') {
-    action.command = requireString(input.command, 'Terminal command', 4000);
-    action.cwd = typeof input.cwd === 'string' ? input.cwd.slice(0, 1000) : '';
+  if (normalizedInput.type === 'terminal') {
+    action.command = requireString(normalizedInput.command, 'Terminal command', 4000);
+    action.cwd = typeof normalizedInput.cwd === 'string' ? normalizedInput.cwd.slice(0, 1000) : '';
     
-    const requestedTimeout = Number(input.timeoutSeconds) || 120;
+    const requestedTimeout = Number(normalizedInput.timeoutSeconds) || 120;
     const maxTimeout = policy.getTerminalMaxTimeout();
     action.timeoutSeconds = Math.min(Math.max(requestedTimeout, 1), maxTimeout);
 
@@ -67,27 +75,27 @@ export function validateStructuredAction(input) {
     }
   }
   
-  if (input.type === 'github_api') {
-    action.method = String(input.method || 'GET').toUpperCase();
-    action.apiPath = requireString(input.apiPath, 'GitHub API path', 1000);
-    action.body = typeof input.body === 'string' ? input.body.slice(0, 200000) : JSON.stringify(input.body || '');
+  if (normalizedInput.type === 'github_api') {
+    action.method = String(normalizedInput.method || 'GET').toUpperCase();
+    action.apiPath = requireString(normalizedInput.apiPath, 'GitHub API path', 1000);
+    action.body = typeof normalizedInput.body === 'string' ? normalizedInput.body.slice(0, 200000) : JSON.stringify(normalizedInput.body || '');
   }
   
-  if (input.type === 'git_clone') {
-    action.repository = requireString(input.repository, 'GitHub repository', 500);
-    action.branch = typeof input.branch === 'string' ? input.branch.slice(0, 300) : '';
+  if (normalizedInput.type === 'git_clone') {
+    action.repository = requireString(normalizedInput.repository, 'GitHub repository', 500);
+    action.branch = typeof normalizedInput.branch === 'string' ? normalizedInput.branch.slice(0, 300) : '';
   }
   
-  if (input.type === 'git') {
-    action.operation = requireString(input.operation, 'Git operation', 30);
+  if (normalizedInput.type === 'git') {
+    action.operation = requireString(normalizedInput.operation, 'Git operation', 30);
     if (!['status', 'log', 'fetch', 'pull', 'checkout', 'commit', 'push', 'rebase'].includes(action.operation)) {
       throw new Error(`Unsupported Git operation: ${action.operation}`);
     }
-    action.repositoryPath = typeof input.repositoryPath === 'string' ? input.repositoryPath.slice(0, 1000) : '';
-    action.branch = typeof input.branch === 'string' ? input.branch.slice(0, 300) : '';
-    action.message = typeof input.message === 'string' ? input.message.slice(0, 2000) : '';
-    action.upstream = typeof input.upstream === 'string' ? input.upstream.slice(0, 300) : '';
-    action.force = input.force === true;
+    action.repositoryPath = typeof normalizedInput.repositoryPath === 'string' ? normalizedInput.repositoryPath.slice(0, 1000) : '';
+    action.branch = typeof normalizedInput.branch === 'string' ? normalizedInput.branch.slice(0, 300) : '';
+    action.message = typeof normalizedInput.message === 'string' ? normalizedInput.message.slice(0, 2000) : '';
+    action.upstream = typeof normalizedInput.upstream === 'string' ? normalizedInput.upstream.slice(0, 300) : '';
+    action.force = normalizedInput.force === true;
   }
   
   if (input.type === 'final') {
@@ -106,8 +114,8 @@ export function validateStructuredAction(input) {
     throw new Error(`${input.type} must not include a patch.`);
   }
   
-  if (input.type !== 'create_file' && input.content != null) {
-    throw new Error(`${input.type} must not include file content.`);
+  if (normalizedInput.type !== 'create_file' && normalizedInput.content != null) {
+    throw new Error(`${normalizedInput.type} must not include file content.`);
   }
   
   return Object.freeze(action);

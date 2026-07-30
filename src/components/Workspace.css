@@ -12,47 +12,70 @@
 
 .ws-header-actions {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
-  gap: var(--space-3);
+  gap: 8px;
   flex-shrink: 0;
 }
 
-.ws-action-group {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.ws-action-group.separate {
-  padding-left: var(--space-3);
-  border-left: 1px solid var(--border-subtle);
-}
-
-.ws-action-btn {
-  min-width: 44px;
-  min-height: 44px;
+/* Primary action */
+.ws-primary-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 12px;
+  background: var(--accent);
+  border: none;
   border-radius: var(--radius-sm);
-  color: var(--paper-dim);
+  color: var(--accent-ink);
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  transition: filter 0.15s;
 }
 
-.ws-action-btn span {
-  font-size: var(--type-caption);
+.ws-primary-btn:hover {
+  filter: brightness(1.08);
 }
 
-.ws-action-btn:hover {
+/* Overflow menu trigger — same ghost-square family as other icon buttons */
+.ws-menu-anchor {
+  position: relative;
+}
+
+.ws-menu-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.ws-menu-btn:hover {
   color: var(--accent);
-  border-color: var(--accent-border);
-  background: var(--bg-elev-2);
+  border-color: var(--accent-strong);
+}
+
+/* Overflow dropdown, anchored under the trigger */
+.ws-tools-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 190px;
+}
+
+.ws-context-menu button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 /* Search */
@@ -152,6 +175,29 @@
   font-size: 13.5px;
 }
 
+/* Section dividers: Project files / Model files */
+.ws-section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 4px;
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ws-section-label::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.ws-section-label:first-child {
+  margin-top: 0;
+}
+
 .file-node {
   user-select: none;
 }
@@ -204,15 +250,6 @@
 
 .folder-icon {
   color: var(--accent);
-}
-
-.file-badge {
-  font-size: 9px;
-  font-weight: 600;
-  background: var(--bg-elev-2);
-  padding: 2px 6px;
-  border-radius: 5px;
-  border: 1px solid var(--border);
 }
 
 .file-name {
@@ -305,13 +342,41 @@
   border-color: var(--border-strong);
 }
 
-.ws-viewer-name {
+.ws-viewer-title {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* Filename row: name + unsaved-changes dot on one truncating line */
+.ws-viewer-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
-  color: var(--paper-dim);
+  color: var(--paper);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Breadcrumb path under the filename (small, muted) */
+.ws-viewer-crumb {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dirty-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 .ws-viewer-actions {
@@ -338,23 +403,30 @@
   background: var(--accent-dim);
 }
 
+/* Ghost/outline by default — solid accent only as a brief post-save confirmation flash */
 .ws-viewer-save {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: var(--accent);
-  border: none;
+  background: transparent;
+  border: 1px solid var(--accent-border);
   border-radius: 7px;
-  color: var(--accent-ink);
+  color: var(--accent);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: filter 0.15s, opacity 0.15s;
+  transition: background 0.25s, color 0.25s, border-color 0.25s, opacity 0.15s;
 }
 
 .ws-viewer-save:hover:not(:disabled) {
-  filter: brightness(1.08);
+  background: var(--accent-dim);
+}
+
+.ws-viewer-save.saved {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
 }
 
 .ws-viewer-save:disabled {
@@ -403,23 +475,33 @@
 /* Responsive */
 @media (max-width: 640px) {
   .ws-header-actions {
-    gap: 4px;
+    gap: 6px;
   }
 
-  .ws-action-btn {
-    width: 30px;
-    height: 30px;
+  .ws-primary-btn span {
+    display: none;
+  }
+
+  .ws-primary-btn {
+    width: 36px;
+    padding: 6px;
   }
 
   .ws-viewer-header {
-    gap: 5px;
+    gap: 6px;
     padding: 8px;
   }
 
-  .ws-viewer-actions button,
-  .ws-viewer-back {
+  /* Secondary header buttons go icon-only on small screens (all keep
+     aria-labels); Save keeps its label since it carries state. */
+  .ws-viewer-back .ws-viewer-btn-label,
+  .ws-viewer-pick .ws-viewer-btn-label {
+    display: none;
+  }
+
+  .ws-viewer-back,
+  .ws-viewer-pick {
     padding: 8px;
     gap: 0;
-    font-size: 0;
   }
 }

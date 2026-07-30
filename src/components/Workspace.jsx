@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, FolderOpen, ChevronRight, X, FileText, Database,
   Pencil, Trash2, FilePlus, FolderPlus, Save, ArrowLeft, RotateCcw, AlignLeft,
+  Plus, MoreVertical, RefreshCw, Check, File, FileCode, FileJson, FileImage, FileArchive, Brain,
 } from 'lucide-react';
 import { getFileIconInfo, buildFileIndex, searchFiles } from '../utils/fileIndex';
 import { canFormatPath, formatSource } from '../editor/codeFormatting.js';
@@ -11,13 +12,32 @@ import './Workspace.css';
 const CodeEditor = lazy(() => import('../editor/CodeEditor.jsx'));
 const joinWorkspacePath = (parent, name) => parent ? `${parent}/${name}` : name;
 
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico']);
+const ARCHIVE_EXTENSIONS = new Set(['apk', 'aab', 'jar', 'aar', 'zip', 'gz', 'tar']);
+const DATA_EXTENSIONS = new Set(['json', 'yaml', 'yml', 'toml', 'ini', 'conf']);
+const DOC_EXTENSIONS = new Set(['md', 'txt', 'text', 'log']);
+
+const isModelFileNode = (node) => node?.type === 'file' && (node.name || '').toLowerCase().endsWith('.gguf');
+
+/* Real file-type icons (VS Code convention), tinted with the catalog color for the type */
+function FileTypeIcon({ name }) {
+  const info = getFileIconInfo(name);
+  const ext = (name || '').split('.').pop()?.toLowerCase();
+  let Icon = File;
+  if (ext === 'gguf') Icon = Brain;
+  else if (IMAGE_EXTENSIONS.has(ext)) Icon = FileImage;
+  else if (ARCHIVE_EXTENSIONS.has(ext)) Icon = FileArchive;
+  else if (DATA_EXTENSIONS.has(ext)) Icon = FileJson;
+  else if (DOC_EXTENSIONS.has(ext)) Icon = FileText;
+  else if (info.label !== '?') Icon = FileCode;
+  return <Icon size={15} className="file-icon" style={{ color: info.color }} />;
+}
+
 /* ── File tree node ── */
 function FileNode({ node, depth = 0, selectedPath, onSelect, onContextMenu }) {
   const [isOpen, setIsOpen] = useState(node.open || depth === 0);
   const isFolder = node.type === 'folder';
-  const isFile = node.type === 'file';
   const isSelected = selectedPath === node.path;
-  const fileInfo = isFile ? getFileIconInfo(node.name) : null;
 
   const handleClick = () => {
     if (isFolder) setIsOpen(!isOpen);
@@ -43,9 +63,7 @@ function FileNode({ node, depth = 0, selectedPath, onSelect, onContextMenu }) {
         {isFolder ? (
           <FolderOpen size={15} className="file-icon folder-icon" />
         ) : (
-          <span className="file-icon file-badge mono">
-            {fileInfo?.label || '?'}
-          </span>
+          <FileTypeIcon name={node.name} />
         )}
 
         <span className="file-name">{node.name}</span>
@@ -111,19 +129,31 @@ function FileViewer({ path, content, onClose, onSave, onPick, readOnly }) {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formatting, setFormatting] = useState(false);
+  // Brief green confirmation flash after a successful save (Save is ghost/outline by default)
+  const [savedFlash, setSavedFlash] = useState(false);
+  const flashTimer = useRef(null);
 
   useEffect(() => {
     setEditContent(content);
     setDirty(false);
     setSaving(false);
     setFormatting(false);
+    setSavedFlash(false);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
   }, [path, content]);
+
+  useEffect(() => () => {
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+  }, []);
 
   const handleSave = async () => {
     setSaving(true);
     try {
       await onSave(path, editContent);
       setDirty(false);
+      setSavedFlash(true);
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+      flashTimer.current = setTimeout(() => setSavedFlash(false), 1600);
     } catch (err) {
       alert('Save failed: ' + err.message);
     } finally {
@@ -151,26 +181,31 @@ function FileViewer({ path, content, onClose, onSave, onPick, readOnly }) {
   return (
     <div className="ws-viewer">
       <div className="ws-viewer-header">
-        <button className="ws-viewer-back" onClick={onClose}>
-          <ArrowLeft size={16} /> Back
+        <button className="ws-viewer-back" onClick={onClose} aria-label="Back to files" title="Back to files">
+          <ArrowLeft size={16} /> <span className="ws-viewer-btn-label">Back</span>
         </button>
-        <span className="ws-viewer-name mono">
-          {fileInfo?.label} {fileName}
-        </span>
+        <div className="ws-viewer-title">
+          <span className="ws-viewer-name mono">
+            {fileName}
+            {dirty && <span className="dirty-dot" title="Unsaved changes" aria-label="Unsaved changes" />}
+          </span>
+          <span className="ws-viewer-crumb mono">{path}</span>
+        </div>
         <div className="ws-viewer-actions">
           {onPick && (
-            <button className="ws-viewer-pick" onClick={() => onPick(path)}>
-              <FileText size={14} /> Select
+            <button className="ws-viewer-pick" onClick={() => onPick(path)} title="Use this file as agent context">
+              <FileText size={14} /> <span className="ws-viewer-btn-label">Select</span>
             </button>
           )}
           {!readOnly && canFormatPath(path) && (
             <button className="ws-viewer-pick" onClick={handleFormat} disabled={formatting} title="Format document">
-              <AlignLeft size={14} /> {formatting ? 'Formatting...' : 'Format'}
+              <AlignLeft size={14} /> <span className="ws-viewer-btn-label">{formatting ? 'Formatting...' : 'Format'}</span>
             </button>
           )}
           {!readOnly && (
-            <button className="ws-viewer-save" onClick={handleSave} disabled={!dirty || saving}>
-              <Save size={14} /> {saving ? 'Saving...' : 'Save'}
+            <button className={`ws-viewer-save ${savedFlash ? 'saved' : ''}`} onClick={handleSave} disabled={!dirty || saving}>
+              {savedFlash ? <Check size={14} /> : <Save size={14} />}
+              <span className="ws-viewer-btn-label">{savedFlash ? 'Saved' : saving ? 'Saving...' : 'Save'}</span>
             </button>
           )}
         </div>
@@ -214,6 +249,7 @@ export default function Workspace({
   const [selectedPath, setSelectedPath] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
   const [viewerFile, setViewerFile] = useState(null); // { path, content }
+  const [toolsOpen, setToolsOpen] = useState(false);
   const readRequestId = useRef(0);
 
   const fileIndex = useMemo(() => buildFileIndex(workspace.tree || []), [workspace.tree]);
@@ -232,6 +268,9 @@ export default function Workspace({
     }).filter(Boolean);
     return rebuild(workspace.tree || []);
   }, [workspace.tree, searchQuery]);
+
+  const projectNodes = useMemo(() => filteredTree.filter(node => !isModelFileNode(node)), [filteredTree]);
+  const modelNodes = useMemo(() => filteredTree.filter(isModelFileNode), [filteredTree]);
 
   const handleSelect = useCallback(async (path, node) => {
     setSelectedPath(path);
@@ -330,7 +369,7 @@ export default function Workspace({
   }
 
   return (
-    <div className="screen-scroll workspace" onClick={() => setContextMenu(null)}>
+    <div className="screen-scroll workspace" onClick={() => { setContextMenu(null); setToolsOpen(false); }}>
       <div className="screen-pad">
         <div className="section-head">
           <div className="ws-header-row">
@@ -338,27 +377,38 @@ export default function Workspace({
               <h2>Files</h2>
               <p>{workspace.name || 'Device storage'}</p>
             </div>
+            {/* One primary action + overflow menu (replaces the old 5-button, 3-group toolbar
+                which had two identically-labeled "Folder" buttons doing different things) */}
             <div className="ws-header-actions">
-              <div className="ws-action-group">
-                <button className="ws-action-btn" onClick={() => handleNewFile('')} title="New file" aria-label="New file">
-                  <FilePlus size={18} /><span>File</span>
+              <button className="ws-primary-btn" onClick={() => handleNewFile('')} title="New file" aria-label="New file">
+                <Plus size={16} /><span>New file</span>
+              </button>
+              <div className="ws-menu-anchor">
+                <button
+                  className="ws-menu-btn"
+                  onClick={(e) => { e.stopPropagation(); setToolsOpen(value => !value); }}
+                  title="More file actions"
+                  aria-label="More file actions"
+                  aria-expanded={toolsOpen}
+                >
+                  <MoreVertical size={16} />
                 </button>
-                <button className="ws-action-btn" onClick={() => handleNewFolder('')} title="New folder" aria-label="New folder">
-                  <FolderPlus size={18} /><span>Folder</span>
-                </button>
-              </div>
-              <div className="ws-action-group">
-                <button className="ws-action-btn" onClick={onUndo} title={undoPath ? `Undo last workspace change to ${undoPath}` : 'No workspace backup available'} disabled={!undoPath} aria-label="Undo last workspace change">
-                  <RotateCcw size={18} /><span>Undo</span>
-                </button>
-                <button className="ws-action-btn" onClick={onRefresh} title="Refresh" aria-label="Refresh files">
-                  <Database size={18} /><span>Refresh</span>
-                </button>
-              </div>
-              <div className="ws-action-group separate">
-                <button className="ws-action-btn" onClick={onChooseWorkspace} title="Choose device folder" aria-label="Choose device folder">
-                  <FolderOpen size={18} /><span>Folder</span>
-                </button>
+                {toolsOpen && (
+                  <div className="ws-context-menu ws-tools-menu" onClick={(e) => e.stopPropagation()}>
+                    <button type="button" onClick={() => { setToolsOpen(false); handleNewFolder(''); }}>
+                      <FolderPlus size={13} /> New folder
+                    </button>
+                    <button type="button" onClick={() => { setToolsOpen(false); onUndo?.(); }} disabled={!undoPath} title={undoPath ? `Undo last workspace change to ${undoPath}` : 'No workspace backup available'}>
+                      <RotateCcw size={13} /> Undo last change
+                    </button>
+                    <button type="button" onClick={() => { setToolsOpen(false); onRefresh?.(); }}>
+                      <RefreshCw size={13} /> Refresh
+                    </button>
+                    <button type="button" onClick={() => { setToolsOpen(false); onChooseWorkspace?.(); }}>
+                      <FolderOpen size={13} /> Choose device folder
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -408,20 +458,43 @@ export default function Workspace({
           <div className="ws-empty">Loading files...</div>
         )}
 
-        {/* File tree */}
+        {/* File tree, split into Project files vs Model files (GGUF weights are a
+            different asset type than source files and used to mix into the same flat list) */}
         {!workspaceLoading && (
           <div className="ws-tree">
             {filteredTree.length > 0 ? (
-              filteredTree.map((node, i) => (
-                <FileNode
-                  key={node.path || node.name + i}
-                  node={node}
-                  depth={0}
-                  selectedPath={selectedPath}
-                  onSelect={handleSelect}
-                  onContextMenu={handleContextMenu}
-                />
-              ))
+              <>
+                {projectNodes.length > 0 && (
+                  <>
+                    <div className="ws-section-label">Project files</div>
+                    {projectNodes.map((node, i) => (
+                      <FileNode
+                        key={node.path || node.name + i}
+                        node={node}
+                        depth={0}
+                        selectedPath={selectedPath}
+                        onSelect={handleSelect}
+                        onContextMenu={handleContextMenu}
+                      />
+                    ))}
+                  </>
+                )}
+                {modelNodes.length > 0 && (
+                  <>
+                    <div className="ws-section-label">Model files</div>
+                    {modelNodes.map((node, i) => (
+                      <FileNode
+                        key={node.path || node.name + i}
+                        node={node}
+                        depth={0}
+                        selectedPath={selectedPath}
+                        onSelect={handleSelect}
+                        onContextMenu={handleContextMenu}
+                      />
+                    ))}
+                  </>
+                )}
+              </>
             ) : (
               <div className="ws-empty">
                 {searchQuery ? 'No files match.' : 'No files found. Tap + to create a file or folder.'}

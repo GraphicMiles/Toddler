@@ -15,7 +15,6 @@ export default function Layout({
   model = 'No model',
   status = 'idle',
   ollamaConnected = false,
-  modelCount = 0,
   currentScreen = SCREENS.CHAT,
   onScreenChange,
   isConnecting = false,
@@ -50,7 +49,6 @@ export default function Layout({
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const active = currentScreen === tab.id;
-          const badge = tab.id === SCREENS.COLLECTION ? modelCount : 0;
           return (
             <button
               key={tab.id}
@@ -63,7 +61,6 @@ export default function Layout({
             >
               <Icon size={20} strokeWidth={active ? 2.2 : 1.8} />
               <span className="tab-label">{tab.label}</span>
-              {badge > 0 && <span className="tab-badge">{badge}</span>}
             </button>
           );
         })}

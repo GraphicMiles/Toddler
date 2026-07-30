@@ -859,7 +859,6 @@ export default function App() {
       ollamaConnected={ollamaConnected}
       onScreenChange={setCurrentScreen}
       currentScreen={currentScreen}
-      modelCount={selectableModels.length}
       isConnecting={isConnecting}
     >
       {/* Screens */}

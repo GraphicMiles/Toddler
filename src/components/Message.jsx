@@ -4,6 +4,8 @@ import { Copy, Check, Globe, ArrowUpRight, FilePlus } from 'lucide-react';
 import { App } from '@capacitor/app';
 import { isNative } from '../nativeBridge.js';
 import TypingIndicator from './TypingIndicator';
+import FileActionResult from './FileActionResult.jsx';
+import AgentActivityLog from './AgentActivityLog.jsx';
 import './Message.css';
 
 function sourceHost(url) {
@@ -109,11 +111,11 @@ const messageVariants = {
   }
 };
 
-export default function Message({ message = {}, streaming = false, onFileCreate }) {
+export default function Message({ message = {}, streaming = false, onFileCreate, onFileOpen }) {
   const [copied, setCopied] = useState(false);
   const [brokenImages, setBrokenImages] = useState(() => new Set());
   const copyResetTimer = useRef(null);
-  const { role, content, timestamp, files = [] } = message;
+  const { role, content, timestamp, files = [], fileActions, actionDuration, activitySteps } = message;
   const safeContent = typeof content === 'string' ? content : String(content ?? '');
   const safeFiles = Array.isArray(files) ? files : [];
   const safeSources = (Array.isArray(message.sources) ? message.sources : [])
@@ -295,6 +297,25 @@ export default function Message({ message = {}, streaming = false, onFileCreate 
         <div className="message-content">
           {showInlineTyping ? <TypingIndicator inline /> : renderWithCode(safeContent)}
         </div>
+
+        {/* File action results — clickable file previews */}
+        {!isUser && fileActions && fileActions.length > 0 && (
+          <FileActionResult
+            actions={fileActions}
+            totalTime={actionDuration}
+            onFileOpen={onFileOpen}
+          />
+        )}
+
+        {/* Agent activity log — step-by-step process */}
+        {!isUser && activitySteps && activitySteps.length > 0 && (
+          <AgentActivityLog
+            steps={activitySteps}
+            totalTime={actionDuration}
+            onFileOpen={onFileOpen}
+            defaultCollapsed={!fileActions || fileActions.length === 0}
+          />
+        )}
 
         {!isUser && safeSources.length > 0 && (
           <div className="source-strip" role="list" aria-label="Sources">

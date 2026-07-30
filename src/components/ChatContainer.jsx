@@ -42,6 +42,7 @@ export default function ChatContainer({
   availableModels = [],
   onModelChange,
   onFileCreate,
+  onFileOpen,
 }) {
   const scrollRef = useRef(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -398,6 +399,7 @@ export default function ChatContainer({
                           index={index}
                           streaming={streaming}
                           onFileCreate={onFileCreate}
+                          onFileOpen={onFileOpen}
                         />
                       )}
                     </Fragment>

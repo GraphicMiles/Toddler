@@ -295,6 +295,12 @@ export default function App() {
     }
   }, [loadWorkspace, workspaceProvider]);
 
+  const handleFileOpenFromChat = useCallback(async (path, _content) => {
+    // Switch to workspace screen and select the file
+    setSelectedFilePath(path);
+    setCurrentScreen(SCREENS.WORKSPACE);
+  }, []);
+
   const handleFolderCreate = useCallback(async (path) => {
     try {
       await workspaceProvider.createFolder(path);
@@ -649,7 +655,17 @@ export default function App() {
           else if (applied?.receipts?.length) setLastWorkspaceBackup({ ids: applied.receipts.filter(receipt => receipt.backupId).map(receipt => receipt.backupId), path: applied.files.map(file => file.path).join(', '), operation: 'patch', createdAt: Date.now() });
           if (phase4Task) updateAgentTask(workspaceProvider.id, phase4Task.id, { status: 'verified', files: proposal.action.paths, event: { type: 'autonomous-apply-verified' } });
           setMessages(previous => previous.map(message => message.id === assistantId
-            ? { ...message, content: `Full Autonomous mode applied and verified ${proposal.action.paths.join(', ')}. The transaction remains available through Files Undo.` }
+            ? {
+                ...message,
+                content: `Full Autonomous mode applied and verified ${proposal.action.paths.join(', ')}. The transaction remains available through Files Undo.`,
+                fileActions: [{
+                  type: proposal.action.type,
+                  path: proposal.action.paths[0],
+                  content: proposal.action.content || '',
+                  success: true,
+                }],
+                actionDuration: `${((Date.now() - message.timestamp) / 1000).toFixed(1)}s`,
+              }
             : message));
         } else {
           setPendingActions(previous => [...previous, ...actions]);
@@ -748,6 +764,35 @@ export default function App() {
               tools: agenticResult.toolCalls.map(tc => tc.tool),
               files: agenticResult.toolCalls.filter(tc => tc.args?.path).map(tc => tc.args.path),
             });
+            
+            // Extract file actions and attach to message
+            const fileActions = agenticResult.toolCalls
+              .filter(tc => ['create_file', 'write_file', 'apply_patch', 'delete_file', 'delete'].includes(tc.tool))
+              .map(tc => ({
+                type: tc.tool,
+                path: tc.args?.path || '',
+                content: tc.args?.content || tc.result?.content || '',
+                success: tc.result?.success !== false,
+              }));
+            
+            // All tool calls as activity steps for the log
+            const activitySteps = agenticResult.toolCalls.map(tc => ({
+              tool: tc.tool,
+              args: tc.args || {},
+              result: tc.result || {},
+              iteration: tc.iteration,
+            }));
+            
+            if (fileActions.length > 0 || activitySteps.length > 0) {
+              setMessages(prev => prev.map(message => message.id === assistantId
+                ? {
+                    ...message,
+                    fileActions: fileActions.length > 0 ? fileActions : undefined,
+                    activitySteps: activitySteps.length > 0 ? activitySteps : undefined,
+                    actionDuration: `${((Date.now() - message.timestamp) / 1000).toFixed(1)}s`,
+                  }
+                : message));
+            }
           }
 
           generationResult = null; // Agentic loop handles its own streaming
@@ -1143,6 +1188,7 @@ export default function App() {
               availableModels={selectableModels}
               onModelChange={handleSelectModel}
               onFileCreate={handleFileCreateFromChat}
+              onFileOpen={handleFileOpenFromChat}
             />
           </motion.div>
         )}

@@ -803,3 +803,33 @@
   border: 1px solid var(--warn-border);
   border-radius: var(--radius-sm);
 }
+
+/* Cloud provider "how to get a key" help panel */
+.provider-howto {
+  margin: 8px 0 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.provider-howto .setting-help { margin: 2px 0; }
+.provider-howto-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 6px !important;
+}
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+}
+.link-button:hover { text-decoration: underline; }
+.provider-card-note { font-size: 12px; color: var(--text-tertiary); }

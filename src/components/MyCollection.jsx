@@ -3,11 +3,19 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Check, Trash2, Pause, MessageSquare,
   ChevronDown, Wifi, WifiOff, Database, RefreshCw,
-  UserPlus, Settings, Plus, MoreVertical
+  UserPlus, Settings, Plus, MoreVertical, ArrowUpRight
 } from 'lucide-react';
+import { App as CapacitorApp } from '@capacitor/app';
 import CustomProfileModal from './CustomProfileModal.jsx';
+import { isNative } from '../nativeBridge.js';
 import { isRawModeEnabled, setRawMode } from '../models/customPromptProfiles.js';
-import { CLOUD_PROVIDER_PRESETS, getCloudProviderPreset } from '../providers/cloudProviderStore.js';
+
+function openExternal(url) {
+  if (!url) return;
+  if (isNative) { CapacitorApp.openUrl({ url }).catch(() => {}); return; }
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+import { CLOUD_PROVIDER_PRESETS, getCloudProviderPreset, KNOWN_KEY_PREFIXES } from '../providers/cloudProviderStore.js';
 import { formatModelSize, formatStorageCapacity, getModelSizeBytes } from '../utils/deviceCapacity';
 import DropdownMenu from './DropdownMenu.jsx';
 import './MyCollection.css';
@@ -33,15 +41,12 @@ function CloudProviderPanel({ providers = [], onAdd, onRemove, onSelectModel }) 
     setError('');
   };
 
-  // Well-known key prefixes — a soft, non-blocking hint when the pasted key
-  // clearly belongs to a different provider (e.g. a Groq gsk_ key in the xAI preset).
-  const KNOWN_KEY_PREFIXES = [
-    { prefix: 'gsk_', provider: 'groq', label: 'Groq' },
-    { prefix: 'xai-', provider: 'xai', label: 'xAI / Grok' },
-    { prefix: 'sk-or-', provider: 'openrouter', label: 'OpenRouter' },
-    { prefix: 'sk-', provider: 'openai', label: 'OpenAI' },
-  ];
-  const keyOwner = KNOWN_KEY_PREFIXES.find(item => apiKey.trim().startsWith(item.prefix));
+  // Well-known key prefixes (from the catalog) — a soft, non-blocking hint when
+  // the pasted key clearly belongs to a different provider. Longest prefix first
+  // so "sk-or-" (OpenRouter) wins over "sk-" (OpenAI).
+  const keyOwner = [...KNOWN_KEY_PREFIXES]
+    .sort((a, b) => b.prefix.length - a.prefix.length)
+    .find(item => apiKey.trim().startsWith(item.prefix));
   const keyMismatch = keyOwner && keyOwner.provider !== provider ? keyOwner : null;
 
   const submit = (event) => {
@@ -91,6 +96,25 @@ function CloudProviderPanel({ providers = [], onAdd, onRemove, onSelectModel }) 
           <input value={modelId} onChange={event => setModelId(event.target.value)} placeholder="grok-4" />
         </label>
       </div>
+      {preset.id !== 'custom' && (
+        <div className="provider-howto">
+          {preset.freeTier && <p className="setting-help"><strong>Free tier:</strong> {preset.freeTier}</p>}
+          {preset.howTo && <p className="setting-help"><strong>How to get a key:</strong> {preset.howTo}</p>}
+          <p className="setting-help provider-howto-links">
+            {preset.keyUrl && (
+              <button type="button" className="link-button" onClick={() => openExternal(preset.keyUrl)}>
+                <ArrowUpRight size={12} /> Get API key
+              </button>
+            )}
+            {preset.docs && (
+              <button type="button" className="link-button" onClick={() => openExternal(preset.docs)}>
+                <ArrowUpRight size={12} /> Docs
+              </button>
+            )}
+            {preset.card && <span className="provider-card-note">💳 Card may be required</span>}
+          </p>
+        </div>
+      )}
       {keyMismatch && (
         <p className="setting-help provider-key-warning">
           This looks like a {keyMismatch.label} key, but the selected preset is {preset.label}. Switch the provider preset or check the key.

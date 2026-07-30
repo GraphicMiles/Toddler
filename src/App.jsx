@@ -10,7 +10,9 @@ import Settings from './components/Settings';
 import useModelCollection from './hooks/useModelCollection';
 import useDeviceCapability from './hooks/useDeviceCapability';
 import { haptics, isNative, pickWorkspaceFolder } from './nativeBridge';
-import { createModelProvider, createModelProviderForModel } from './providers/modelProvider';
+import { createModelProvider, createModelProviderForModel, createFailoverCloudProvider } from './providers/modelProvider';
+import { streamWithFailover } from './providers/providerFailover';
+import { isFailoverEnabled } from './providers/cloudProviderStore.js';
 import { cloudProviderToModel, cloudProvidersToModels, listCloudProviders, removeCloudProvider, saveCloudProvider } from './providers/cloudProviderStore.js';
 import { getModelProfile } from './models/catalog.js';
 import { AgentCore } from './agent/core.js';
@@ -77,6 +79,8 @@ export default function App() {
   // Rolling memory of conversation topics, so follow-up suggestions can bridge
   // topics across turns (e.g. AI discussed earlier + frontend now).
   const conversationTopicsRef = useRef([]);
+  // Set below (after addSystemMessage exists); called when a provider fails over.
+  const failoverNoticeRef = useRef(null);
   const [modelFolderUri, setModelFolderUri] = useState(() => localStorage.getItem('forgeai_model_folder_uri') || '');
 
   // === Agent Reasoning State ===
@@ -376,7 +380,21 @@ export default function App() {
     return createModelProvider({ mode: 'ollama', endpoint });
   }, [endpoint]);
   const provider = useMemo(
-    () => createModelProviderForModel(activeModel, { endpoint, isNative }),
+    () => {
+      const isCloud = activeModel?.source === 'cloud' || activeModel?.cloud;
+      if (isCloud) {
+        // Cloud models get automatic failover to the next configured provider
+        // when one hits its quota / rate limit, so tasks aren't interrupted.
+        return createFailoverCloudProvider({
+          activeModel,
+          listProviders: () => listCloudProviders(),
+          isFailoverEnabled,
+          streamWithFailover,
+          onFailover: (info) => { failoverNoticeRef.current?.(info); },
+        });
+      }
+      return createModelProviderForModel(activeModel, { endpoint, isNative });
+    },
     [activeModel, endpoint],
   );
 
@@ -435,6 +453,11 @@ export default function App() {
   };
 
   const addSystemMessage = (content, level = 'info', extra = {}) => addMessage('system', content, { level, ...extra });
+  // Wire the failover notice now that addSystemMessage exists.
+  failoverNoticeRef.current = ({ from, to, code }) => {
+    const reason = code === 'quota_exceeded' ? 'ran out of quota' : code === 'rate_limited' ? 'was rate-limited' : code === 'server_error' ? 'had a server error' : 'was unavailable';
+    addSystemMessage(`${from?.label || 'Provider'} ${reason} — switched to ${to?.label || 'the next provider'} to continue.`, 'info', { ephemeral: true });
+  };
 
   // Send a real streaming request to Ollama. The assistant placeholder is updated per token.
   // Agent core processes the message first (full agent mode), proposes actions through manual approval,

@@ -73,7 +73,7 @@ function normalizeCloudError(error, { providerConfig, model } = {}) {
   } else if (error?.status === 429 || /rate.?limit|too many requests|temporarily overloaded/.test(lower)) {
     code = 'rate_limited';
     message = `${providerName} is rate limiting requests. Wait a moment, choose a different cloud model, or switch to a local GGUF model.`;
-  } else if (/failed to fetch|network|offline|internet|timeout|aborted/.test(lower)) {
+  } else if (/failed to fetch|fetch failed|network|offline|internet|timeout|timed out|econn|enotfound|dns|socket|aborted/.test(lower)) {
     code = lower.includes('aborted') ? 'aborted' : 'network_error';
     message = code === 'aborted'
       ? 'Cloud generation was cancelled.'
@@ -129,8 +129,12 @@ export class OpenAICompatibleProvider {
   }
 
   getConfig(model = this.modelOrConfig) {
-    if (model?.connectionId) return getCloudProvider(model.connectionId);
-    if (model?.id) return getCloudProvider(model.id);
+    // A fully-specified connection object (has its own key + baseUrl) is used
+    // directly — avoids a localStorage round-trip and works in failover where
+    // the connection is passed in explicitly.
+    if (model?.apiKey && model?.baseUrl && model?.modelId) return model;
+    if (model?.connectionId) return getCloudProvider(model.connectionId) || model;
+    if (model?.id) return getCloudProvider(model.id) || model;
     return model;
   }
 
@@ -301,6 +305,47 @@ export function createModelProvider({ mode = 'ollama', endpoint } = {}) {
 export function createModelProviderForModel(model, { endpoint, isNative = false } = {}) {
   if (model?.source === 'cloud' || model?.cloud) return assertModelProvider(new OpenAICompatibleProvider(model));
   return createModelProvider({ mode: isNative ? 'on-device' : 'ollama', endpoint });
+}
+
+/**
+ * A cloud provider that automatically fails over to the next configured cloud
+ * connection when the active one exhausts its quota / rate-limits / errors.
+ * Drop-in: exposes the same stream() interface, so existing call sites (chat
+ * path and agentic loop) get failover for free.
+ *
+ * @param {object} deps
+ * @param {object} deps.activeModel  the selected cloud model object
+ * @param {Function} deps.listProviders  () => cloud connection list
+ * @param {Function} deps.isFailoverEnabled  () => boolean
+ * @param {Function} deps.streamWithFailover  the failover runner
+ * @param {Function} [deps.onFailover]  ({from,to,code}) => void  UI notice
+ */
+export function createFailoverCloudProvider({ activeModel, listProviders, isFailoverEnabled, streamWithFailover, onFailover }) {
+  const single = new OpenAICompatibleProvider(activeModel);
+  return assertModelProvider({
+    kind: 'cloud-failover',
+    supportsToolUse: true,
+    getStatus: () => single.getStatus(),
+    loadModel: (m) => single.loadModel(m || activeModel),
+    stop: () => single.stop(),
+    unloadModel: () => single.unloadModel(),
+    async stream(args) {
+      const providers = listProviders();
+      // If only one provider is configured, this is just a normal stream.
+      return streamWithFailover({
+        providers,
+        activeId: activeModel.connectionId,
+        enabled: isFailoverEnabled(),
+        // Construct the provider directly from the full connection object (which
+        // carries apiKey/baseUrl/modelId) and pass that same object as the model,
+        // so getConfig resolves it without needing a localStorage round-trip.
+        makeProvider: conn => new OpenAICompatibleProvider(conn),
+        buildModel: conn => conn,
+        streamArgs: args,
+        onFailover,
+      });
+    },
+  });
 }
 
 export function assertModelProvider(provider) {

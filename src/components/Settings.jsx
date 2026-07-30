@@ -16,6 +16,7 @@ import {
   POLICY_LEVELS,
   getLevelConfig,
 } from '../safety/SafetyPolicy.js';
+import { isFailoverEnabled, setFailoverEnabled } from '../providers/cloudProviderStore.js';
 import AutomationSettings from './AutomationSettings.jsx';
 import SkillValidatorSettings from './SkillValidatorSettings.jsx';
 import ResearchSettings from './ResearchSettings.jsx';
@@ -107,6 +108,7 @@ export default function Settings({
   const [githubPat, setGithubPat] = useState('');
   const [githubStored, setGithubStored] = useState(false);
   const [nativeFullAutonomy, setNativeFullAutonomy] = useState(false);
+  const [failover, setFailover] = useState(() => isFailoverEnabled());
   const [safetyPolicy, setSafetyPolicy] = useState(() => getCurrentSafetyPolicy());
   const [developerMode, setDeveloperMode] = useState(() => getCurrentSafetyPolicy().getLevel() === POLICY_LEVELS.UNRESTRICTED);
 
@@ -319,6 +321,17 @@ export default function Settings({
 
   const renderIntegrations = () => (
     <div className="settings-section-grid">
+      <SettingCard icon={Plug} title="Cloud provider failover" description="If your active cloud model runs out of quota or gets rate-limited mid-task, automatically continue on the next configured provider (ordered by priority) instead of stopping.">
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            checked={failover}
+            onChange={event => { setFailover(event.target.checked); setFailoverEnabled(event.target.checked); }}
+          />
+          <span>Auto-failover between cloud providers {failover ? '(on)' : '(off)'}</span>
+        </label>
+        <p className="setting-help">Add multiple providers in My Collection → Cloud (Groq, Cerebras, Gemini, OpenRouter, etc.). Bad API keys and missing models are never failed over — only quota/rate-limit/server/network errors.</p>
+      </SettingCard>
       {isNative && (
         <SettingCard icon={Plug} title="Native research and GitHub credentials" description="Google search credentials are optional. GitHub PATs are stored in the native credential vault.">
           <div className="settings-two-col">

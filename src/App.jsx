@@ -25,6 +25,7 @@ import { enqueueAutonomousTask, readAutonomousQueue, removeAutonomousTask, updat
 import { isAutonomousToolRequest, isActionableToolRequest, isGitRequestWithoutRepo, isWorkspaceActionRequest, containsGitHubUrl, extractGitHubUrl, executeAutonomousAction } from './agent/fullAutonomyRunner.js';
 import { tryResolvePendingIntent, setPendingIntent, resolveEntityFromContext, needsCurrentInformation } from './agent/intentRouter.js';
 import { processConversationTurn, resolveVagueReferences, getContextPrompt, checkNeedsClarification, resetContext } from './context/conversationContext.js';
+import { understand as understandIntent } from './agent/intentUnderstanding.js';
 import { runAgenticLoop } from './agent/agenticLoop.js';
 import { planMission, shouldPlanMission, formatPlanForPrompt } from './agent/missionPlanner.js';
 import { assessConfidence, decideOnConfidence } from './agent/confidenceEngine.js';
@@ -494,6 +495,16 @@ export default function App() {
       }
     }
     
+    // === Intent Understanding Layer ===
+    // Normalize typos/shorthand and, if the message is vague but the recent
+    // conversation has a concrete anchor (a filename / URL / repo), resolve the
+    // reference so downstream routing understands what the user means.
+    const understanding = understandIntent(resolvedText, { history: messages });
+    if (understanding.vague && understanding.resolvedTarget && !new RegExp(understanding.resolvedTarget.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'), 'i').test(resolvedText)) {
+      resolvedText = `${resolvedText} (${understanding.resolvedTarget})`;
+      addReasoningStep?.({ type: 'thought', title: 'Understanding your request', content: `Interpreted "${text}" as referring to ${understanding.resolvedTarget}.` });
+    }
+
     // For very vague messages, ask for clarification instead of generating a useless response
     const clarification = checkNeedsClarification(resolvedText);
     if (clarification.needs && !isNative) {

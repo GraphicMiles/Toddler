@@ -287,14 +287,20 @@ export async function runAgenticLoop({
   missionPlan = '',
 }) {
   const executeTool = createToolExecutor(workspaceProvider, { isNative, onToolCall, signal, workspaceFiles });
-  const toolPrompt = formatToolSchemasForPrompt();
   const currentDate = new Date().toISOString().split('T')[0];
 
-  const systemPrompt = `You are ForgeAI, an advanced AI coding assistant with full access to the user's workspace, terminal, git, and web search.
+  // Capable providers (cloud/Ollama) get real function-calling: structured tool
+  // schemas in the request body and structured tool_calls back. Small on-device
+  // models fall back to the prompt-embedded ```tool_call convention.
+  //
+  // CRITICAL: when using native tools we must NOT also inject the prompt-based
+  // convention — doing both makes the model emit a hybrid that the provider's
+  // tool parser rejects ("tool ... not in request.tools"). Each mode gets its
+  // own system prompt.
+  const useNativeTools = provider?.supportsToolUse === true && typeof toOpenAITools === 'function';
+  const nativeTools = useNativeTools ? toOpenAITools() : undefined;
 
-${toolPrompt}
-
-Current date: ${currentDate}
+  const commonGuidelines = `Current date: ${currentDate}
 
 BEHAVIOR GUIDELINES:
 - ALWAYS read files before modifying them to understand the full context.
@@ -314,6 +320,18 @@ WORKFLOW:
 4. Execute changes (create/write files, run commands)
 5. Verify your changes work
 6. Respond to the user with what you did`;
+
+  const systemPrompt = useNativeTools
+    ? `You are ForgeAI, an advanced AI coding assistant with full access to the user's workspace, terminal, git, and web search.
+
+Use the provided function tools to take actions. Call one tool at a time and wait for its result before the next. Do not describe tool calls in text or wrap them in code fences — invoke them via the tool-calling interface only.
+
+${commonGuidelines}`
+    : `You are ForgeAI, an advanced AI coding assistant with full access to the user's workspace, terminal, git, and web search.
+
+${formatToolSchemasForPrompt()}
+
+${commonGuidelines}`;
 
   // Build the conversation messages for the model
   const modelMessages = [
@@ -346,12 +364,6 @@ WORKFLOW:
   // Bounded scratchpad: hidden working memory injected each turn so the model
   // tracks long-horizon progress without re-deriving state.
   const scratchpad = new Scratchpad(userMessage);
-
-  // Capable providers (cloud/Ollama) get real function-calling: structured tool
-  // schemas in the request and structured tool_calls back. Small on-device
-  // models fall back to the prompt-embedded ```tool_call convention.
-  const useNativeTools = provider?.supportsToolUse === true && typeof toOpenAITools === 'function';
-  const nativeTools = useNativeTools ? toOpenAITools() : undefined;
 
   while (iteration < MAX_ITERATIONS) {
     iteration++;

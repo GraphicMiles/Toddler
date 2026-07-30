@@ -13,7 +13,7 @@
  * Supports: read → plan → edit → verify → fix → respond cycles.
  */
 
-import { formatToolSchemasForPrompt, parseToolCalls, extractNonToolText, streamableText, toOpenAITools, normalizeNativeToolCalls } from './toolSchemas.js';
+import { formatToolSchemasForPrompt, parseToolCalls, extractNonToolText, streamableText, toOpenAITools, normalizeNativeToolCalls, parseLlamaFunctionSyntax } from './toolSchemas.js';
 import { Scratchpad } from './scratchpad.js';
 import { performOnlineResearch } from './onlineResearch.js';
 import {
@@ -407,7 +407,11 @@ ${commonGuidelines}`;
     const nativeCalls = Array.isArray(streamResult?.toolCalls)
       ? normalizeNativeToolCalls(streamResult.toolCalls)
       : [];
-    const toolCalls = nativeCalls.length > 0 ? nativeCalls : parseToolCalls(output);
+    // Prefer native tool_calls; fall back to the ```tool_call parser, then to
+    // Llama's <function=...> syntax (which some models emit in plain content).
+    const toolCalls = nativeCalls.length > 0
+      ? nativeCalls
+      : (parseToolCalls(output).length > 0 ? parseToolCalls(output) : parseLlamaFunctionSyntax(output));
     const nonToolText = extractNonToolText(output);
 
     if (toolCalls.length === 0) {

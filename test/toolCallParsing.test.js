@@ -102,3 +102,27 @@ assert.equal(streamableText('Reading now\n```tool_call\n{"tool":"read_file"'), '
 assert.equal(streamableText('```json\n{"tool":"x"}'), '');
 
 console.log('native tool-calling helper tests passed');
+
+// --- Llama/Groq <function=...> fallback recovery ---
+import { parseLlamaFunctionSyntax } from '../src/agent/toolSchemas.js';
+let lf = parseLlamaFunctionSyntax('<function=read_file {"path": "config.json"} </function>');
+assert.equal(lf.length, 1);
+assert.equal(lf[0].tool, 'read_file');
+assert.equal(lf[0].args.path, 'config.json');
+
+lf = parseLlamaFunctionSyntax('<function=create_folder{"path": "site"}</function>');
+assert.equal(lf[0].tool, 'create_folder');
+assert.equal(lf[0].args.path, 'site');
+
+// no-arg function
+lf = parseLlamaFunctionSyntax('<function=git_status></function>');
+assert.equal(lf[0].tool, 'git_status');
+assert.deepEqual(lf[0].args, {});
+
+// unknown tool ignored
+assert.equal(parseLlamaFunctionSyntax('<function=launch_missiles {}></function>').length, 0);
+
+// plain text → nothing
+assert.equal(parseLlamaFunctionSyntax('just a normal answer').length, 0);
+
+console.log('llama function-syntax recovery tests passed');

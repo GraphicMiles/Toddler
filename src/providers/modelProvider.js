@@ -8,6 +8,7 @@ import {
 } from '../nativeBridge.js';
 import { customProfileManager } from '../models/customPromptProfiles.js';
 import { getCloudProvider, getCloudProviderPreset } from './cloudProviderStore.js';
+import { parseLlamaFunctionSyntax } from '../agent/toolSchemas.js';
 
 export class OllamaProvider {
   constructor(url = 'http://localhost:11434') { this.url = url; this.kind = 'ollama'; this.supportsToolUse = true; }
@@ -204,6 +205,22 @@ export class OpenAICompatibleProvider {
     if (!response.ok) {
       let payload = null;
       try { payload = await response.json(); } catch {}
+      // Recovery: Groq/Llama sometimes emits a tool call in its own
+      // `<function=NAME {json}>` syntax and then rejects its OWN output with
+      // tool_use_failed. Salvage the intended tool call so the agent proceeds
+      // instead of dead-ending (this is the "not in request.tools" error).
+      const failedGen = payload?.error?.failed_generation;
+      if (response.status === 400 && (payload?.error?.code === 'tool_use_failed' || /tool call/i.test(payload?.error?.message || '')) && failedGen) {
+        const recovered = parseLlamaFunctionSyntax(failedGen);
+        if (recovered.length > 0) {
+          const toolCalls = recovered.map((c, i) => ({
+            id: `recovered_${Date.now()}_${i}`,
+            type: 'function',
+            function: { name: c.tool, arguments: JSON.stringify(c.args) },
+          }));
+          return { cloud: true, provider: config.provider, modelId: model?.modelId || config.modelId, content: '', toolCalls, recovered: true };
+        }
+      }
       throw parseOpenAIError(response.status, payload);
     }
     if (!response.body) throw new Error('Cloud provider did not return a stream.');

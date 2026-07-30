@@ -342,6 +342,32 @@ export function parseToolCalls(output) {
 }
 
 /**
+ * Parse Llama/Groq "failed_generation" function syntax into tool calls.
+ *
+ * Groq's Llama models sometimes emit tool calls as `<function=NAME {json}>` (or
+ * `<function=NAME>{json}</function>`) instead of proper OpenAI tool_calls. Groq
+ * then rejects its OWN output with `tool_use_failed` / "not in request.tools".
+ * Recovering the call from that text turns a hard failure into a working action.
+ */
+export function parseLlamaFunctionSyntax(text) {
+  const calls = [];
+  const str = String(text || '');
+  const re = /<function=([a-zA-Z_][\w-]*)\s*/g;
+  let m;
+  while ((m = re.exec(str)) !== null) {
+    const name = m[1];
+    if (!VALID_TOOL_NAMES.has(name)) continue;
+    // Extract the balanced JSON object that follows the name (if any).
+    const rest = str.slice(re.lastIndex);
+    const obj = extractBalancedObject(rest);
+    let args = {};
+    if (obj) { try { args = JSON.parse(obj.json); } catch { args = {}; } }
+    calls.push({ tool: name, args: args && typeof args === 'object' ? args : {}, raw: m[0] });
+  }
+  return calls;
+}
+
+/**
  * Get the text output from the model that is NOT tool calls.
  * This is the model's "thinking" or partial response.
  */

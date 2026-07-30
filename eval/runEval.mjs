@@ -50,7 +50,7 @@ function groqProvider() {
           body: JSON.stringify(body),
         });
         if (res.status !== 429) break;
-        await sleep(9000);
+        await sleep(15000);
       }
       if (!res.ok) {
         let payload = null; const raw = await res.text();
@@ -108,7 +108,8 @@ function runUnderstand() {
     if (e.needsEmpty && u.needs.length !== 0) ok = false;
     if (e.needsIncludes && !u.needs.some(n => n.includes(e.needsIncludes))) ok = false;
     if (e.resolvedTargetIncludes && !(u.resolvedTarget || '').includes(e.resolvedTargetIncludes)) ok = false;
-    if (ok) pass++; else fails.push({ id: c.id, text: c.text, got: { category: u.category, vague: u.vague, needs: u.needs, resolvedTarget: u.resolvedTarget }, want: e });
+    if (e.workflow !== undefined && u.workflow !== e.workflow) ok = false;
+    if (ok) pass++; else fails.push({ id: c.id, text: c.text, got: { category: u.category, vague: u.vague, needs: u.needs, resolvedTarget: u.resolvedTarget, workflow: u.workflow }, want: e });
   }
   return { total: UNDERSTAND_CASES.length, pass, fails };
 }
@@ -117,7 +118,11 @@ function runUnderstand() {
 // 2) Agentic reliability (live model)
 async function runAgentic() {
   const results = [];
-  for (const c of AGENTIC_CASES) {
+  // Optional slicing so free-tier TPM limits don't cascade: EVAL_START/EVAL_LIMIT.
+  const start = parseInt(process.env.EVAL_START || '0', 10);
+  const limit = parseInt(process.env.EVAL_LIMIT || String(AGENTIC_CASES.length), 10);
+  const cases = AGENTIC_CASES.slice(start, start + limit);
+  for (const c of cases) {
     const ws = mockWorkspace(c.files || {});
     const usedTools = [];
     let outcome = { id: c.id, family: c.family, pass: false, detail: '' };

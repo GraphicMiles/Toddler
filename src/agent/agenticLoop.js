@@ -403,6 +403,16 @@ ${commonGuidelines}`;
       throw error;
     }
 
+    // The model tried to call a tool that doesn't exist (invented a name).
+    // Feed back the valid tool list and let it retry, instead of dead-ending.
+    if (streamResult?.toolError && !Array.isArray(streamResult.toolCalls)) {
+      const valid = toOpenAITools().map(t => t.function.name).join(', ');
+      modelMessages.push({ role: 'assistant', content: String(streamResult.failedGeneration || '').slice(0, 500) || '(invalid tool call)' });
+      modelMessages.push({ role: 'user', content: `That tool call was invalid: ${streamResult.toolError}. Only use these tools: ${valid}. Retry using one of them, or use respond to answer directly.` });
+      scratchpad.addObservation(`invalid tool call rejected: ${streamResult.toolError}`);
+      continue;
+    }
+
     // Prefer native tool_calls; fall back to parsing the text output.
     const nativeCalls = Array.isArray(streamResult?.toolCalls)
       ? normalizeNativeToolCalls(streamResult.toolCalls)

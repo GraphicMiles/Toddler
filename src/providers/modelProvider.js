@@ -210,8 +210,8 @@ export class OpenAICompatibleProvider {
       // tool_use_failed. Salvage the intended tool call so the agent proceeds
       // instead of dead-ending (this is the "not in request.tools" error).
       const failedGen = payload?.error?.failed_generation;
-      if (response.status === 400 && (payload?.error?.code === 'tool_use_failed' || /tool call/i.test(payload?.error?.message || '')) && failedGen) {
-        const recovered = parseLlamaFunctionSyntax(failedGen);
+      if (response.status === 400 && (payload?.error?.code === 'tool_use_failed' || /tool call/i.test(payload?.error?.message || ''))) {
+        const recovered = failedGen ? parseLlamaFunctionSyntax(failedGen) : [];
         if (recovered.length > 0) {
           const toolCalls = recovered.map((c, i) => ({
             id: `recovered_${Date.now()}_${i}`,
@@ -220,6 +220,13 @@ export class OpenAICompatibleProvider {
           }));
           return { cloud: true, provider: config.provider, modelId: model?.modelId || config.modelId, content: '', toolCalls, recovered: true };
         }
+        // The model tried to call a tool that doesn't exist (e.g. invented a
+        // name). Surface a soft, recoverable signal so the loop can correct it
+        // rather than dead-ending the whole request.
+        return {
+          cloud: true, provider: config.provider, modelId: model?.modelId || config.modelId,
+          content: '', toolError: (payload?.error?.message || 'invalid tool call'), failedGeneration: failedGen || '',
+        };
       }
       throw parseOpenAIError(response.status, payload);
     }

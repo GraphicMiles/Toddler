@@ -72,30 +72,51 @@ const FAMILIES = [
   {
     category: 'git',
     action: 'git_operation',
-    test: t => /\b(clone|pull|push|fetch|commit|rebase|checkout|merge|stage|stash)\b/i.test(t)
+    // Git verbs, but NOT when clearly attached to a code target ("add error
+    // handling") — code_edit handles those. Require a git-ish object nearby.
+    test: t => /\b(clone|git pull|git push|rebase|checkout|stash|merge)\b/i.test(t)
+      || (/\b(pull|push|fetch|commit|stage)\b/i.test(t) && /\b(repo|repository|branch|origin|upstream|remote|main|master|changes|code|github|gitlab|everything|all|message)\b/i.test(t))
       || /\b(my|the)\s+(repo|repository)\b/i.test(t)
-      || /https?:\/\/(github|gitlab|bitbucket)\.com\//i.test(t),
-    needs: t => (/https?:\/\/|[\w.-]+\/[\w.-]+/.test(t) ? [] : ['repository URL']),
+      || /\b(grab|get)\b.{0,20}\b(latest|code|repo|repository)\b.{0,20}\b(origin|upstream|github|gitlab|remote)\b/i.test(t)
+      || /(?:https?:\/\/)?(?:www\.)?(github|gitlab|bitbucket)\.com\/[\w.-]+\/[\w.-]+/i.test(t),
+    needs: t => (/(?:https?:\/\/)?(?:github|gitlab|bitbucket)\.com\/|https?:\/\/|[\w.-]+\/[\w.-]+/.test(t) ? [] : ['repository URL']),
   },
   {
     category: 'terminal',
     action: 'run_terminal',
-    test: t => /\b(run|execute)\b.{0,20}\b(command|script|terminal|shell|npm|node|tests?|build|lint)\b/i.test(t)
-      || /\bnpm (install|run|tests?|start|build)\b/i.test(t),
+    test: t => /\b(run|execute)\b.{0,20}\b(command|script|terminal|shell|npm|node|tests?|build|lint|server|dev)\b/i.test(t)
+      || /\bnpm (install|run|tests?|start|build)\b/i.test(t)
+      || /\b(start|launch|spin up)\b.{0,15}\b(dev server|server|app|build)\b/i.test(t),
+    needs: () => [],
+  },
+  {
+    category: 'text_format',
+    action: 'format',
+    test: t => (/\b(format|reformat|convert|transform|prettify|beautify|minify|uglify|indent|escape|unescape|encode|decode|tabulate|align|normali[sz]e|capitali[sz]e|uppercase|lowercase|title case)\b/i.test(t)
+        && /\b(json|csv|tsv|yaml|xml|html|markdown|md|table|text|string|data|list|date|time|timestamp|number|currency|case|column|paragraph|this)\b/i.test(t))
+      || /\bto (camel\s?case|snake\s?case|kebab\s?case|title case|upper\s?case|lower\s?case|a? ?markdown table|a? ?table|json|csv|yaml)\b/i.test(t)
+      || /\bturn (this|it|that|the following)\b.{0,30}\b(into|to)\b.{0,20}\b(table|json|csv|list|markdown|columns?)\b/i.test(t),
+    needs: () => [],
+  },
+  {
+    category: 'code_generate',
+    action: 'generate_code',
+    test: t => /\b(write|implement|generate|create|code|give me|build me|make me|need)\b/i.test(t)
+      && /\b(function|method|algorithm|regex|regular expression|sql|query|class|snippet|parser|validator|sort(?:ing)?|binary search|fibonacci|factorial|palindrome|debounce|throttle|hook|middleware|endpoint|route|logic|helper|utility|one[- ]?liner|recursion|recursive|closure|promise|async function|generator|decorator|data structure|linked list|stack|queue|tree|graph|hash ?map)\b/i.test(t),
     needs: () => [],
   },
   {
     category: 'file_create',
     action: 'create',
     test: t => /\b(create|make|add|new|generate|scaffold|build)\b/i.test(t)
-      && /\b(file|folder|directory|component|page|website|landing page|app|script|stylesheet|readme|config|project|module|class|test)\b/i.test(t),
+      && /\b(file|folder|directory|component|page|website|landing page|app|script|stylesheet|readme|config|project|module|class|test|server|dashboard|endpoint|api)\b/i.test(t),
     needs: () => [],
   },
   {
     category: 'code_edit',
     action: 'edit',
-    test: t => /\b(fix|change|update|modify|refactor|replace|patch|correct|optimi[sz]e|remove|rename|improve|clean up|rewrite|implement|add)\b/i.test(t)
-      && /\b(code|file|function|method|class|component|bug|error|feature|logic|import|export|variable|style|css|html|test)\b/i.test(t),
+    test: t => /\b(fix|change|update|modify|refactor|replace|patch|correct|optimi[sz]e|remove|rename|improve|clean\s?up|rewrite|add)\b/i.test(t)
+      && /\b(code|file|function|method|class|component|bug|error|feature|logic|handling|imports?|exports?|variable|var|const|style|css|html|loop|leak|header)\b/i.test(t),
     needs: t => (/\.[a-z0-9]{1,5}\b/i.test(t) ? [] : ['which file or function']),
   },
   {
@@ -108,7 +129,9 @@ const FAMILIES = [
   {
     category: 'research',
     action: 'web_search',
-    test: t => /\b(who is|what is|when is|where is|latest|current|news|today|price of|how old|search online|look up|google)\b/i.test(t),
+    test: t => /\b(who is|who won|what is|when is|where is|latest|current|news|today|price of|how old|search online|look up|google)\b/i.test(t)
+      || /\b(this year|last year|this season|2025|2026)\b/i.test(t)
+      || /\b(champions league|world cup|premier league|super bowl|olympics|election)\b/i.test(t),
     needs: () => [],
   },
   {
@@ -161,6 +184,11 @@ export function understand(message = '', ctx = {}) {
   const action = matched?.action || 'answer';
   const needs = matched ? matched.needs(normalized) : (vague ? ['a concrete goal or target'] : []);
 
+  // Multi-step workflow detection: a request that chains several actions
+  // ("clone X then run tests and fix failures", "create A and B and wire them").
+  const workflow = detectWorkflow(normalized);
+  if (workflow.isWorkflow) reasons.push(`multi-step workflow (~${workflow.steps} steps)`);
+
   // Confidence: strong when a family matched and nothing is missing; weak when
   // vague with no resolvable target.
   let confidence = 0.5;
@@ -177,8 +205,27 @@ export function understand(message = '', ctx = {}) {
     resolvedTarget: resolvedTarget || undefined,
     needs,
     vague,
+    workflow: workflow.isWorkflow,
+    estimatedSteps: workflow.steps,
     reasons,
   };
+}
+
+// Detect a chained, multi-step request and roughly estimate the step count.
+// Splitting on sequencing words ("then", "after that", "and then", "and", ";")
+// and counting distinct action verbs gives a cheap, robust estimate.
+const ACTION_VERB = /\b(clone|pull|push|commit|create|make|build|add|write|implement|generate|read|open|list|search|find|run|execute|test|fix|change|update|modify|refactor|delete|remove|install|deploy|format|convert|verify|check|review|rename|move)\b/gi;
+export function detectWorkflow(message = '') {
+  const text = String(message);
+  const connectors = (text.match(/\b(then|after that|afterwards|next|followed by|and then|finally)\b/gi) || []).length
+    + (text.match(/[;,]/g) || []).length;
+  const verbs = new Set((text.match(ACTION_VERB) || []).map(v => v.toLowerCase()));
+  // A workflow is: an explicit sequence word/comma joining actions, OR two or
+  // more distinct action verbs chained by "and"/"then".
+  const chained = /\b(and|then|,|;)\b/i.test(text) && verbs.size >= 2;
+  const isWorkflow = connectors >= 1 && verbs.size >= 2 || verbs.size >= 3 || chained;
+  const steps = isWorkflow ? Math.max(2, Math.min(12, Math.max(verbs.size, connectors + 1))) : 1;
+  return { isWorkflow, steps };
 }
 
 // Find the most recent concrete target (filename, url, owner/repo) in history.

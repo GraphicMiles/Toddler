@@ -65,7 +65,8 @@ assert.equal(cat('how do i center a div'), 'explain');
 
 // ---- delete family ----
 assert.equal(cat('delete old.js'), 'delete');
-assert.equal(cat('remove the unused imports'), 'delete');
+// "remove the unused imports" is a code edit (removing code), not a file delete.
+assert.equal(cat('remove the unused imports'), 'code_edit');
 assert.deepEqual(understand('delete that').needs, ['what to delete']);
 
 // ---- chitchat ----
@@ -92,3 +93,23 @@ assert.ok(understand('clone https://github.com/a/b').confidence >= 0.85);
 assert.ok(understand('make it nicer').confidence <= 0.5);
 
 console.log('intent understanding tests passed');
+
+// ---- new families: code_generate & text_format ----
+assert.equal(understand('write a function to reverse a string').category, 'code_generate');
+assert.equal(understand('implement binary search').category, 'code_generate');
+assert.equal(understand('give me a regex to validate an email').category, 'code_generate');
+assert.equal(understand('write a sql query for top customers').category, 'code_generate');
+assert.equal(understand('format this json').category, 'text_format');
+assert.equal(understand('convert this csv to a markdown table').category, 'text_format');
+assert.equal(understand('make this text title case').category, 'text_format');
+
+// ---- workflow detection ----
+import { detectWorkflow } from '../src/agent/intentUnderstanding.js';
+assert.equal(detectWorkflow('clone the repo, run the tests, and fix failures').isWorkflow, true);
+assert.equal(detectWorkflow('build the project and deploy it').isWorkflow, true);
+assert.equal(detectWorkflow('create a component then write a test then run it').isWorkflow, true);
+assert.equal(detectWorkflow('read the file').isWorkflow, false);
+assert.ok(understand('clone the repo, run tests, then fix failures').workflow === true);
+assert.ok(understand('clone the repo, run tests, then fix failures').estimatedSteps >= 2);
+
+console.log('extended intent (code_generate/text_format/workflow) tests passed');

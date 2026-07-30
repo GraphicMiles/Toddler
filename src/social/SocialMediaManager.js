@@ -70,12 +70,29 @@ export class SocialMediaManager {
   }
 
   async scrapePublicPosts(query, limit = 10) {
-    return Array.from({ length: limit }, (_, i) => ({
-      id: i,
-      platform: 'twitter',
-      text: `Public post about ${query} #${i}`,
-      author: `user${i}`,
-    }));
+    // Use real web research instead of fabricated data.
+    // Fake posts (user0, user1...) are dangerous — never return made-up content.
+    try {
+      const { performOnlineResearch } = await import('../agent/onlineResearch.js');
+      const research = await performOnlineResearch(`site:twitter.com OR site:x.com ${query}`);
+      return (research.items || []).slice(0, limit).map((item, i) => ({
+        id: i,
+        platform: 'twitter',
+        text: item.snippet || item.title || '',
+        author: item.publisher || 'unknown',
+        url: item.url,
+        source: 'web_research',
+      }));
+    } catch (error) {
+      // Honest fallback — never fabricate data
+      return [{
+        id: 0,
+        platform: 'twitter',
+        text: `Could not fetch public posts about "${query}": ${error.message}. Configure Google CSE in Settings for broader results.`,
+        author: 'system',
+        source: 'error',
+      }];
+    }
   }
 }
 

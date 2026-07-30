@@ -134,6 +134,21 @@ function createToolExecutor(workspaceProvider, options = {}) {
           }
         }
 
+        case 'fetch_page': {
+          try {
+            const { researchProvider } = await import('../research/ResearchProvider.js');
+            const result = await researchProvider.fetchFullPage(args.url);
+            return {
+              success: !result.simulated || !!result.content,
+              url: args.url,
+              content: (result.content || '').slice(0, 8000),
+              simulated: result.simulated || false,
+            };
+          } catch (error) {
+            return { success: false, url: args.url, error: error.message };
+          }
+        }
+
         case 'git_clone': {
           if (!isNative) return { success: false, error: 'Git requires Android native mode.' };
           try {

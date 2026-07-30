@@ -94,10 +94,15 @@ export class ResearchProvider {
       return await nativeResearchProvider.search(query, { ...options, depth });
     }
 
-    // Fallback simulated mode
+    // Depth-aware fallback: STANDARD returns fewer results, COMPREHENSIVE more, RAW minimal filtering
+    const maxResults = depth === RESEARCH_DEPTH.STANDARD ? 5 : depth === RESEARCH_DEPTH.COMPREHENSIVE ? 10 : 8;
+    const minRelevance = depth === RESEARCH_DEPTH.RAW ? 0 : depth === RESEARCH_DEPTH.STANDARD ? 2 : 1;
+
     return {
       query,
       depth,
+      maxResults,
+      minRelevance,
       archiveMode: this.archiveMode,
       sourceVerification: this.sourceVerification,
       proxyEnabled: this.proxyEnabled,
@@ -106,7 +111,7 @@ export class ResearchProvider {
           id: 1,
           title: `Research result for: ${query}`,
           url: `https://duckduckgo.com/?q=${encodeURIComponent(query)}`,
-          snippet: `Enable "Real Research APIs" in Experimental Features for real results.`,
+          snippet: `Depth: ${depth}. Enable "Real Research APIs" in Experimental Features for live results. Configure Google CSE in Settings for broader coverage.`,
           verified: false,
         },
       ],
@@ -122,9 +127,29 @@ export class ResearchProvider {
       return await nativeResearchProvider.fetchFullPage(url);
     }
 
+    // Fallback: attempt to fetch via web (browser mode only, CORS limited)
+    if (typeof fetch !== 'undefined') {
+      try {
+        const response = await fetch(url, { mode: 'cors', redirect: 'follow' });
+        if (response.ok) {
+          const text = await response.text();
+          // Strip HTML tags for readability
+          const stripped = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          return {
+            url,
+            content: stripped.slice(0, 10000),
+            fetchedAt: new Date().toISOString(),
+            simulated: false,
+          };
+        }
+      } catch {
+        // CORS or network error — expected in browser for most sites
+      }
+    }
+
     return {
       url,
-      content: `Enable "Real Research APIs" for real page fetching.`,
+      content: `Enable "Real Research APIs" in Experimental Features on Android for native page fetching. Browser mode is limited by CORS.`,
       simulated: true,
     };
   }

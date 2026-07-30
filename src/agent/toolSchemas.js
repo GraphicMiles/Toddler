@@ -100,6 +100,17 @@ export const TOOL_SCHEMAS = Object.freeze([
     },
   },
   {
+    name: 'fetch_page',
+    description: 'Fetch the full content of a web page. Use after search_web to read a specific result in detail.',
+    parameters: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'The URL to fetch' },
+      },
+      required: ['url'],
+    },
+  },
+  {
     name: 'git_clone',
     description: 'Clone a Git repository from a URL into the workspace.',
     parameters: {

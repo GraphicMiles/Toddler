@@ -75,7 +75,21 @@ function fallbackActions(request) {
 async function executeAction(action) {
   if (action.type === 'terminal') return runTerminalCommand({ ...action, cwd: action.cwd || localStorage.getItem('forgeai_last_git_repo') || '' });
   if (action.type === 'web_search') return performOnlineResearch(action.query);
-  if (action.type === 'github_api') return githubApi({ method: action.method, path: action.apiPath, body: action.body });
+  if (action.type === 'github_api') {
+    // Check dry run mode from GitHub automation settings
+    try {
+      const { githubAutomation } = await import('../github/GitHubAutomation.js');
+      if (githubAutomation.dryRun) {
+        return {
+          status: 'dry-run',
+          method: action.method,
+          path: action.apiPath,
+          message: `Dry run: would ${action.method} ${action.apiPath}. Disable Dry Run in GitHub settings to execute.`,
+        };
+      }
+    } catch {}
+    return githubApi({ method: action.method, path: action.apiPath, body: action.body });
+  }
   if (action.type === 'git_clone') {
     const result = await gitClone(action.repository, action.branch);
     try { localStorage.setItem('forgeai_last_git_repo', result.path); }

@@ -6,6 +6,7 @@ import { isNative } from '../nativeBridge.js';
 import TypingIndicator from './TypingIndicator';
 import FileActionResult from './FileActionResult.jsx';
 import AgentActivityLog from './AgentActivityLog.jsx';
+import { useTypewriter } from '../hooks/useTypewriter.js';
 import './Message.css';
 
 function sourceHost(url) {
@@ -111,12 +112,18 @@ const messageVariants = {
   }
 };
 
-export default function Message({ message = {}, streaming = false, onFileCreate, onFileOpen }) {
+export default function Message({ message = {}, streaming = false, onFileCreate, onFileOpen, onSuggestionClick }) {
   const [copied, setCopied] = useState(false);
   const [brokenImages, setBrokenImages] = useState(() => new Set());
   const copyResetTimer = useRef(null);
   const { role, content, timestamp, files = [], fileActions, actionDuration, activitySteps } = message;
-  const safeContent = typeof content === 'string' ? content : String(content ?? '');
+  const rawContent = typeof content === 'string' ? content : String(content ?? '');
+  // Smoothly reveal streamed agent text so fast providers (Groq) don't dump the
+  // whole response in one frame (which also jars the scroll container). User and
+  // system messages are shown instantly.
+  const isAgentMsg = role !== 'user' && role !== 'system';
+  const displayContent = useTypewriter(rawContent, streaming && isAgentMsg);
+  const safeContent = isAgentMsg ? displayContent : rawContent;
   const safeFiles = Array.isArray(files) ? files : [];
   const safeSources = (Array.isArray(message.sources) ? message.sources : [])
     .filter(source => source && source.url && source.title);
@@ -351,6 +358,22 @@ export default function Message({ message = {}, streaming = false, onFileCreate,
                 {source.snippet && (
                   <span className="source-card-snippet">{source.snippet}</span>
                 )}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!isUser && !streaming && Array.isArray(message.suggestions) && message.suggestions.length > 0 && (
+          <div className="suggestion-chips" role="list" aria-label="Suggested follow-ups">
+            {message.suggestions.map((s, i) => (
+              <button
+                key={i}
+                type="button"
+                className="suggestion-chip"
+                role="listitem"
+                onClick={() => onSuggestionClick?.(s)}
+              >
+                {s}
               </button>
             ))}
           </div>

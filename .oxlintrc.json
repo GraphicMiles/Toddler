@@ -29,6 +29,8 @@
     "btoa": "readonly",
     "clearInterval": "readonly",
     "clearTimeout": "readonly",
+    "requestAnimationFrame": "readonly",
+    "cancelAnimationFrame": "readonly",
     "confirm": "readonly",
     "console": "readonly",
     "crypto": "readonly",

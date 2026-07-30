@@ -57,12 +57,29 @@ export default function ChatContainer({
     setPrefilledText(text);
   }, []);
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom on new messages. Run AFTER paint (rAF) so the
+  // container has grown to fit new/streamed content before we scroll — otherwise
+  // the view jumps and then the content pushes it, causing vertical jank.
   useEffect(() => {
-    if (autoScroll && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (!autoScroll || !scrollRef.current) return undefined;
+    const id = requestAnimationFrame(() => {
+      const el = scrollRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+    return () => cancelAnimationFrame(id);
   }, [messages, isTyping, autoScroll]);
+
+  // During active streaming the last message grows continuously; keep it pinned
+  // to the bottom smoothly without waiting for a messages-array identity change.
+  const lastContentLen = messages.length ? String(messages[messages.length - 1]?.content ?? '').length : 0;
+  useEffect(() => {
+    if (!autoScroll || !isTyping || !scrollRef.current) return undefined;
+    const id = requestAnimationFrame(() => {
+      const el = scrollRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+    return () => cancelAnimationFrame(id);
+  }, [lastContentLen, autoScroll, isTyping]);
 
   const [showScrollDown, setShowScrollDown] = useState(false);
 
@@ -400,6 +417,7 @@ export default function ChatContainer({
                           streaming={streaming}
                           onFileCreate={onFileCreate}
                           onFileOpen={onFileOpen}
+                          onSuggestionClick={onSendMessage}
                         />
                       )}
                     </Fragment>

@@ -384,7 +384,7 @@ export default function Workspace({
               <button className="ws-primary-btn" onClick={() => handleNewFile('')} title="New file" aria-label="New file">
                 <Plus size={16} /><span>New file</span>
               </button>
-              <div className="ws-menu-anchor">
+              <div className="ws-menu-anchor" onClick={(e) => e.stopPropagation()}>
                 <button
                   className="ws-menu-btn"
                   onClick={(e) => { e.stopPropagation(); setToolsOpen(value => !value); }}
@@ -459,9 +459,24 @@ export default function Workspace({
           <div className="ws-empty">Loading files...</div>
         )}
 
+        {/* Empty state - no workspace selected */}
+        {!workspace.path && !workspaceLoading && (
+          <div className="ws-empty-state">
+            <FolderOpen size={48} className="ws-empty-icon" />
+            <h3>No workspace selected</h3>
+            <p>Select a folder to enable file operations and give the agent project context.</p>
+            <button 
+              className="ws-select-folder-btn"
+              onClick={onChooseWorkspace}
+            >
+              <FolderPlus size={16} /> Select Project Folder
+            </button>
+          </div>
+        )}
+
         {/* File tree, split into Project files vs Model files (GGUF weights are a
             different asset type than source files and used to mix into the same flat list) */}
-        {!workspaceLoading && (
+        {!workspaceLoading && workspace.path && (
           <div className="ws-tree">
             {filteredTree.length > 0 ? (
               <>

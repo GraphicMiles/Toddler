@@ -6,12 +6,45 @@ import { skillRegistry } from '../skills/skillRegistry.js';
 import { formatReviewForModel, reviewCreatedFileDeterministically, reviewPatchDeterministically } from '../skills/reviewSkills.js';
 
 export function isFileCreationRequest(message = '') {
-  return /\b(create|add|make|write|generate)\b/i.test(message)
-    && /\b[\w.-]+\.(?:js|jsx|ts|tsx|json|py|java|kt|cpp|css|html|md|txt|yml|yaml)\b/i.test(message);
+  const hasCreateIntent = /\b(create|add|make|write|generate|build|implement|scaffold)\b/i.test(message);
+  const hasFileKeyword = /\b[\w.-]+\.(?:js|jsx|ts|tsx|json|py|java|kt|cpp|css|html|md|txt|yml|yaml|xml|sh|bat)\b/i.test(message);
+  const hasProjectKeyword = /\b(landing page|website|webpage|app|component|script|stylesheet|style sheet|config|configuration|readme|documentation|api|server|client|database|schema|test|tests)\b/i.test(message);
+  
+  // If user mentions a project type, infer file creation even without extension
+  return hasCreateIntent && (hasFileKeyword || hasProjectKeyword);
 }
 
 export function requestedFilePath(message = '') {
-  return String(message).match(/\b([A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\.(?:js|jsx|ts|tsx|json|py|java|kt|cpp|css|html|md|txt|yml|yaml))\b/i)?.[1] || '';
+  const explicitPath = String(message).match(/\b([A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\.(?:js|jsx|ts|tsx|json|py|java|kt|cpp|css|html|md|txt|yml|yaml|xml|sh|bat))\b/i)?.[1];
+  if (explicitPath) return explicitPath;
+  
+  // Infer file names from common project keywords
+  const patterns = [
+    { regex: /\blanding\s*page\b/i, default: 'index.html' },
+    { regex: /\bwebsite\b/i, default: 'index.html' },
+    { regex: /\bwebpage\b/i, default: 'page.html' },
+    { regex: /\breact\s*component\b/i, default: 'Component.jsx' },
+    { regex: /\bcomponent\b/i, default: 'Component.jsx' },
+    { regex: /\bstylesheet\b/i, default: 'styles.css' },
+    { regex: /\bstyle\s*sheet\b/i, default: 'styles.css' },
+    { regex: /\bconfig(?:uration)?\b/i, default: 'config.json' },
+    { regex: /\breadme\b/i, default: 'README.md' },
+    { regex: /\bdocumentation\b/i, default: 'docs.md' },
+    { regex: /\bapi\b/i, default: 'api.js' },
+    { regex: /\bserver\b/i, default: 'server.js' },
+    { regex: /\bclient\b/i, default: 'client.js' },
+    { regex: /\bdatabase\b/i, default: 'schema.sql' },
+    { regex: /\bschema\b/i, default: 'schema.sql' },
+    { regex: /\btest\b/i, default: 'test.js' },
+    { regex: /\btests\b/i, default: 'test.js' },
+    { regex: /\bapp\b/i, default: 'App.jsx' },
+    { regex: /\bscript\b/i, default: 'script.js' },
+  ];
+  
+  for (const pattern of patterns) {
+    if (pattern.regex.test(message)) return pattern.default;
+  }
+  return '';
 }
 
 export function needsCreationFilename(message = '') {

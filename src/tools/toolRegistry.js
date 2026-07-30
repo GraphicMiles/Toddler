@@ -11,6 +11,7 @@ export class ToolRegistry {
     this.#tools.set(tool.name, Object.freeze({ permission: 'read', ...tool }));
     return this;
   }
+  has(name) { return this.#tools.has(name); }
   get(name) { return this.#tools.get(name); }
   list() { return [...this.#tools.values()].map(tool => { const { execute: _execute, ...metadata } = tool; return metadata; }); }
   async execute(name, input = {}, { approved = false } = {}) {

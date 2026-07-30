@@ -46,7 +46,7 @@ export class NativeTerminal {
         success: true,
       };
     } catch (error) {
-      return { success: false, error: error.message };
+      return { success: false, error: error.message, status: 'error', shell: 'termux', native: true };
     }
   }
 
@@ -63,12 +63,14 @@ export class NativeTerminal {
         status: 'success',
         shell: 'android',
         native: true,
+        success: true,
       };
     } catch (error) {
       return {
         output: `Error: ${error.message}`,
         status: 'error',
         native: true,
+        success: false,
       };
     }
   }

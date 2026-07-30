@@ -8,11 +8,20 @@ export default function ResearchSettings() {
   const [archiveMode, setArchiveMode] = useState(researchProvider.archiveMode);
   const [sourceVerification, setSourceVerification] = useState(researchProvider.sourceVerification);
   const [proxyEnabled, setProxyEnabled] = useState(researchProvider.proxyEnabled);
+  const [proxyUrl, setProxyUrl] = useState(() => localStorage.getItem('forgeai_research_proxy_url') || '');
 
   const updateDepth = (newDepth) => { researchProvider.setDepth(newDepth); setDepth(newDepth); };
   const updateArchive = (value) => { researchProvider.setArchiveMode(value); setArchiveMode(value); };
   const updateVerification = (value) => { researchProvider.setSourceVerification(value); setSourceVerification(value); };
   const updateProxy = (value) => { researchProvider.setProxy(value); setProxyEnabled(value); };
+  
+  const saveProxyUrl = () => {
+    try {
+      localStorage.setItem('forgeai_research_proxy_url', proxyUrl.trim());
+    } catch (error) {
+      console.warn('Failed to save proxy URL:', error);
+    }
+  };
 
   const toggles = [
     { id: 'archive', icon: Archive, label: 'Archive mode', description: 'Fetch fuller page content when native research is enabled.', checked: archiveMode, onChange: updateArchive },
@@ -54,6 +63,24 @@ export default function ResearchSettings() {
           );
         })}
       </div>
+      
+      {proxyEnabled && (
+        <div className="setting-field" style={{ marginTop: '1rem' }}>
+          <label className="setting-label" htmlFor="proxy-url">Proxy URL</label>
+          <div className="setting-row">
+            <input
+              id="proxy-url"
+              type="text"
+              value={proxyUrl}
+              onChange={event => setProxyUrl(event.target.value)}
+              placeholder="https://proxy.example.com:8080"
+            />
+            <button onClick={saveProxyUrl}>Save</button>
+          </div>
+          <p className="setting-help">Route research requests through this proxy server.</p>
+        </div>
+      )}
+      
       <p className="setting-help">Providers: DuckDuckGo, SearXNG, Web Archive, and native page fetching where available.</p>
     </section>
   );

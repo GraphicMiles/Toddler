@@ -8,7 +8,7 @@ export default function SocialMediaSettings() {
   const [accounts, setAccounts] = useState(socialMediaManager.getAccounts());
   const [platform, setPlatform] = useState('twitter');
   const [username, setUsername] = useState('');
-  const [_showResearch, setShowResearch] = useState(false);
+  const [testMessage, setTestMessage] = useState('Test post from ForgeAI');
 
   const addAccount = async () => {
     if (!username.trim()) return;
@@ -23,9 +23,10 @@ export default function SocialMediaSettings() {
 
   const testPost = async () => {
     if (accounts.length === 0) return showToast('Add an account first', 'error');
+    if (!testMessage.trim()) return showToast('Enter a test message', 'error');
     try {
       const acc = accounts[0];
-      await socialMediaManager.post(acc.platform, acc.username, 'Test post from ForgeAI');
+      await socialMediaManager.post(acc.platform, acc.username, testMessage);
       showToast('Test post sent.', 'success');
     } catch (error) {
       showToast(`Test post failed: ${error.message}`, 'error');
@@ -35,7 +36,6 @@ export default function SocialMediaSettings() {
   const testScrape = async () => {
     try {
       const posts = await socialMediaManager.scrapePublicPosts('AI research', 5);
-      setShowResearch(true);
       showToast(`Scraped ${posts.length} public posts (Research Mode)`, 'success');
     } catch (error) {
       showToast(`Research failed: ${error.message}`, 'error');
@@ -71,14 +71,27 @@ export default function SocialMediaSettings() {
       </div>
 
       {accounts.length > 0 && (
-        <div className="settings-list">
-          {accounts.map(account => (
-            <div className="settings-list-item" key={`${account.platform}:${account.username}`}>
-              <MessageCircle size={14} />
-              <span><strong>{account.platform}</strong><small>@{account.username}</small></span>
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="settings-list">
+            {accounts.map(account => (
+              <div className="settings-list-item" key={`${account.platform}:${account.username}`}>
+                <MessageCircle size={14} />
+                <span><strong>{account.platform}</strong><small>@{account.username}</small></span>
+              </div>
+            ))}
+          </div>
+          <div className="setting-field">
+            <label className="setting-label" htmlFor="test-message">Test message</label>
+            <textarea
+              id="test-message"
+              value={testMessage}
+              onChange={event => setTestMessage(event.target.value)}
+              placeholder="Enter a test message..."
+              rows={3}
+              style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elev)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '14px', resize: 'vertical' }}
+            />
+          </div>
+        </>
       )}
 
       <div className="setting-row wrap">

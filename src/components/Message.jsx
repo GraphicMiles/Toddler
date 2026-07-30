@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, Check, Globe, ArrowUpRight } from 'lucide-react';
+import { Copy, Check, Globe, ArrowUpRight, FilePlus } from 'lucide-react';
 import { App } from '@capacitor/app';
 import { isNative } from '../nativeBridge.js';
 import TypingIndicator from './TypingIndicator';
@@ -8,6 +8,82 @@ import './Message.css';
 
 function sourceHost(url) {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
+}
+
+/* ── Interactive code block with save/copy actions ── */
+function CodeBlockWithActions({ code, language, onFileCreate }) {
+  const [creating, setCreating] = useState(false);
+  const [created, setCreated] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copyTimer = useRef(null);
+
+  useEffect(() => () => { if (copyTimer.current) clearTimeout(copyTimer.current); }, []);
+
+  const inferFileName = () => {
+    const extensions = {
+      javascript: '.js', typescript: '.ts', python: '.py',
+      html: '.html', css: '.css', json: '.json',
+      jsx: '.jsx', tsx: '.tsx', java: '.java',
+      kotlin: '.kt', cpp: '.cpp', c: '.c',
+      yaml: '.yml', xml: '.xml', sql: '.sql',
+      bash: '.sh', shell: '.sh', markdown: '.md',
+    };
+    const ext = extensions[language?.toLowerCase()] || '.txt';
+    return `untitled${ext}`;
+  };
+
+  const handleCreateFile = async () => {
+    if (!onFileCreate) return;
+    setCreating(true);
+    try {
+      const fileName = prompt('Save as:', inferFileName());
+      if (!fileName) { setCreating(false); return; }
+      await onFileCreate(fileName, code);
+      setCreated(true);
+    } catch (err) {
+      console.warn('Failed to create file:', err);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleCopy = () => {
+    if (!navigator.clipboard?.writeText) return;
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  return (
+    <div className="code-block-wrapper">
+      <pre className="code-block">
+        <code className={`language-${language}`}>{code}</code>
+      </pre>
+      <div className="code-actions">
+        {onFileCreate && (
+          <button 
+            className={`code-action-btn ${created ? 'created' : ''}`}
+            onClick={handleCreateFile}
+            disabled={creating || created}
+            title={created ? 'File created in workspace' : 'Save as file in workspace'}
+          >
+            {created ? <Check size={13} /> : <FilePlus size={13} />}
+            {creating ? 'Creating...' : created ? 'Created' : 'Save to workspace'}
+          </button>
+        )}
+        <button 
+          className="code-action-btn"
+          onClick={handleCopy}
+          title={copied ? 'Copied!' : 'Copy code'}
+        >
+          {copied ? <Check size={13} /> : <Copy size={13} />}
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 const messageVariants = {
@@ -33,7 +109,7 @@ const messageVariants = {
   }
 };
 
-export default function Message({ message = {}, streaming = false }) {
+export default function Message({ message = {}, streaming = false, onFileCreate }) {
   const [copied, setCopied] = useState(false);
   const [brokenImages, setBrokenImages] = useState(() => new Set());
   const copyResetTimer = useRef(null);
@@ -115,7 +191,7 @@ export default function Message({ message = {}, streaming = false }) {
     });
   };
 
-  // Render code blocks
+  // Render code blocks with interactive actions
   const renderWithCode = (text) => {
     if (!text) return null;
     const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
@@ -133,13 +209,16 @@ export default function Message({ message = {}, streaming = false }) {
         );
       }
       
-      // Add code block
+      // Add interactive code block
       const lang = match[1] || 'code';
       const code = match[2].trim();
       parts.push(
-        <pre key={`code-${match.index}`} className="code-block">
-          <code className={`language-${lang}`}>{code}</code>
-        </pre>
+        <CodeBlockWithActions 
+          key={`code-${match.index}`}
+          code={code}
+          language={lang}
+          onFileCreate={onFileCreate}
+        />
       );
       
       lastIndex = match.index + match[0].length;

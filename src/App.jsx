@@ -275,6 +275,21 @@ export default function App() {
     }
   }, [loadWorkspace, workspaceProvider]);
 
+  const handleFileCreateFromChat = useCallback(async (fileName, content) => {
+    if (!workspaceProvider?.writeText) {
+      throw new Error('No workspace selected. Please select a folder first.');
+    }
+    try {
+      await workspaceProvider.writeText(fileName, content);
+      await loadWorkspace();
+      // Switch to workspace screen to show the created file
+      setCurrentScreen(SCREENS.WORKSPACE);
+    } catch (error) {
+      recordError(error, 'chat-create-file');
+      throw error;
+    }
+  }, [loadWorkspace, workspaceProvider]);
+
   const handleFolderCreate = useCallback(async (path) => {
     try {
       await workspaceProvider.createFolder(path);
@@ -994,6 +1009,7 @@ export default function App() {
               activeModel={activeModel}
               availableModels={selectableModels}
               onModelChange={handleSelectModel}
+              onFileCreate={handleFileCreateFromChat}
             />
           </motion.div>
         )}

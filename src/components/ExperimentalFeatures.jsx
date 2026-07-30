@@ -10,6 +10,22 @@ export default function ExperimentalFeatures() {
   });
 
   const toggle = (key) => {
+    const enabling = !features[key];
+    
+    // Warn for high-risk features
+    if (enabling) {
+      const dangerousFeatures = {
+        realTerminal: 'Real terminal execution can run arbitrary shell commands on your device. This could modify or delete files, install software, or execute potentially harmful operations.\n\nOnly enable this if you understand the risks and trust the AI model.',
+        realSocial: 'Real social posting will allow the AI to post content to your social media accounts. This could result in unwanted public posts.\n\nMake sure you have reviewed the content and trust the AI model before enabling.',
+        realGitHub: 'Real GitHub automation can create, modify, or delete repositories, branches, and files in your GitHub account.\n\nEnsure you understand what operations will be performed before enabling.',
+      };
+      
+      if (dangerousFeatures[key]) {
+        const confirmed = window.confirm(`⚠️ WARNING: ${dangerousFeatures[key]}\n\nAre you sure you want to enable this feature?`);
+        if (!confirmed) return;
+      }
+    }
+    
     const next = { ...features, [key]: !features[key] };
     setFeatures(next);
     try { localStorage.setItem(EXPERIMENTAL_KEY, JSON.stringify(next)); }

@@ -22,15 +22,22 @@ async function capture(provider, model, messages, signal) {
   return { text, result };
 }
 
-export async function generateQualityResponse({ provider, model, messages, signal, onToken, quality }) {
+export async function generateQualityResponse({ provider, model, messages, signal, onToken, quality, onStage }) {
   if (quality !== RESPONSE_QUALITY.REVIEWED || model.task === 'smoke-test' || /135m/i.test(`${model.name} ${model.file}`)) {
     return provider.stream({ model, messages, signal, onToken });
   }
+  
+  // Show progress during multi-stage generation
+  onStage?.('draft', 'Generating initial response...');
   const initial = await capture(provider, model, messages, signal);
+  
+  onStage?.('review', 'Reviewing for accuracy...');
   const critic = await capture(provider, model, [
     { role: 'system', content: 'Review the draft for factual contradictions, missed user intent, unsupported claims, repetition, and unclear wording. Return a short bullet list only.' },
     { role: 'user', content: `USER REQUEST:\n${messages.at(-1)?.content || ''}\n\nDRAFT:\n${initial.text}` },
   ], signal);
+  
+  onStage?.('final', 'Streaming final response...');
   return provider.stream({
     model,
     signal,

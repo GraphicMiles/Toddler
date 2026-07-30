@@ -105,6 +105,59 @@
   font-size: inherit;
 }
 
+/* Code block wrapper with actions */
+.code-block-wrapper {
+  margin: 10px 0;
+  position: relative;
+}
+
+.code-block-wrapper .code-block {
+  margin: 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.code-actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+.code-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.code-action-btn:hover:not(:disabled) {
+  background: var(--bg-surface);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.code-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.code-action-btn.created {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* File Chips */
 .file-chip {
   display: inline-flex;

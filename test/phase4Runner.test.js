@@ -3,9 +3,13 @@ import { generatePatchProposal, isCodeChangeRequest, isFileCreationRequest, need
 
 assert.equal(isCodeChangeRequest('Fix the bug in src/App.jsx'), true);
 assert.equal(isFileCreationRequest('Create body.css in the workspace'), true);
+assert.equal(isFileCreationRequest('Create a landing page'), true); // Project keyword inference
 assert.equal(requestedFilePath('Create body.css in the toddler workspace'), 'body.css');
-assert.equal(needsCreationFilename('Write a landing page for me'), true);
+assert.equal(requestedFilePath('Create a landing page'), 'index.html'); // Inferred from keyword
+assert.equal(requestedFilePath('Build a React component'), 'Component.jsx'); // Inferred from keyword
+assert.equal(needsCreationFilename('Write a landing page for me'), false); // Now infers 'index.html' from 'landing page'
 assert.equal(needsCreationFilename('Create index.html'), false);
+assert.equal(needsCreationFilename('Create a file for me'), true); // Has project keyword but no inferred path
 assert.equal(isCodeChangeRequest('Explain src/App.jsx'), false);
 assert.equal(isCodeChangeRequest('Hello'), false);
 

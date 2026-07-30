@@ -229,37 +229,103 @@ IMPORTANT RULES:
 - Be thorough: read, plan, execute, verify, then respond.`;
 }
 
+const VALID_TOOL_NAMES = new Set(TOOL_SCHEMAS.map(tool => tool.name));
+
+// Models are inconsistent about how they name the arguments object. Accept the
+// common aliases so a valid call is never dropped over a key name.
+function normalizeArgs(parsed) {
+  const args = parsed.args ?? parsed.arguments ?? parsed.parameters ?? parsed.params ?? parsed.input ?? {};
+  return args && typeof args === 'object' && !Array.isArray(args) ? args : {};
+}
+
+function coerceCall(parsed) {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const name = parsed.tool ?? parsed.name ?? parsed.tool_name ?? parsed.function;
+  if (!name || typeof name !== 'string') return null;
+  return { tool: name.trim(), args: normalizeArgs(parsed) };
+}
+
+// Find the first balanced {...} JSON object starting at or after `from`.
+function extractBalancedObject(text, from = 0) {
+  const start = text.indexOf('{', from);
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\') { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return { json: text.slice(start, i + 1), start, end: i + 1 };
+    }
+  }
+  return null;
+}
+
 /**
  * Parse tool calls from model output.
- * Extracts ```tool_call blocks and parses them as JSON.
+ *
+ * Tolerant by design — different models emit different envelopes and we must
+ * never silently drop a real tool call (that makes the agentic loop treat an
+ * action as a final answer and looks "dumb"). Accepted forms:
+ *   ```tool_call { ... } ```   (preferred)
+ *   ```json { "tool": ... } ```  or a bare ``` fence
+ *   a raw JSON object anywhere in the text with a recognised tool name
+ * Argument keys args/arguments/parameters/params/input are all honoured.
  */
 export function parseToolCalls(output) {
   const calls = [];
-  const regex = /```tool_call\s*\n([\s\S]*?)```/g;
+  const seen = new Set();
+  const text = String(output || '');
+
+  const pushCall = (parsed, raw) => {
+    const call = coerceCall(parsed);
+    if (!call) return false;
+    // Only accept known tools to avoid treating prose JSON as a tool call.
+    if (!VALID_TOOL_NAMES.has(call.tool)) return false;
+    const key = `${call.tool}:${JSON.stringify(call.args)}`;
+    if (seen.has(key)) return true;
+    seen.add(key);
+    calls.push({ ...call, raw: raw.trim() });
+    return true;
+  };
+
+  // 1) Fenced blocks: ```tool_call / ```json / ``` — parse the JSON inside.
+  const fenceRegex = /```(?:tool_call|json)?\s*\n?([\s\S]*?)```/g;
   let match;
-  while ((match = regex.exec(output)) !== null) {
+  while ((match = fenceRegex.exec(text)) !== null) {
+    const body = match[1].trim();
+    if (!body.includes('{')) continue;
+    const obj = extractBalancedObject(body);
+    const candidate = obj ? obj.json : body;
     try {
-      const parsed = JSON.parse(match[1].trim());
-      if (parsed.tool && typeof parsed.tool === 'string') {
-        calls.push({
-          tool: parsed.tool,
-          args: parsed.args || {},
-          raw: match[1].trim(),
-        });
-      }
+      pushCall(JSON.parse(candidate), body);
     } catch {
-      // Try to extract tool name and args even from malformed JSON
-      const toolMatch = match[1].match(/"tool"\s*:\s*"([^"]+)"/);
-      if (toolMatch) {
-        calls.push({
-          tool: toolMatch[1],
-          args: {},
-          raw: match[1].trim(),
-          parseError: true,
-        });
+      // Salvage a tool name + best-effort args from malformed JSON.
+      const toolMatch = body.match(/"(?:tool|name|tool_name|function)"\s*:\s*"([^"]+)"/);
+      if (toolMatch && VALID_TOOL_NAMES.has(toolMatch[1].trim()) && !seen.has(`${toolMatch[1].trim()}:{}`)) {
+        seen.add(`${toolMatch[1].trim()}:{}`);
+        calls.push({ tool: toolMatch[1].trim(), args: {}, raw: body, parseError: true });
       }
     }
   }
+
+  // 2) Unfenced raw JSON objects that name a known tool (some models skip fences).
+  if (calls.length === 0) {
+    let cursor = 0;
+    let obj;
+    while ((obj = extractBalancedObject(text, cursor)) !== null) {
+      cursor = obj.end;
+      if (!/"(?:tool|name|tool_name|function)"/.test(obj.json)) continue;
+      try { pushCall(JSON.parse(obj.json), obj.json); } catch { /* not valid JSON, skip */ }
+    }
+  }
+
   return calls;
 }
 
@@ -268,5 +334,9 @@ export function parseToolCalls(output) {
  * This is the model's "thinking" or partial response.
  */
 export function extractNonToolText(output) {
-  return output.replace(/```tool_call\s*\n[\s\S]*?```/g, '').trim();
+  let text = String(output || '');
+  // Strip fenced tool/JSON blocks that contain a recognised tool name.
+  text = text.replace(/```(?:tool_call|json)?\s*\n?([\s\S]*?)```/g, (full, body) =>
+    /"(?:tool|name|tool_name|function)"\s*:/.test(body) ? '' : full);
+  return text.trim();
 }

@@ -3,8 +3,14 @@
  * Stores interactions with semantic search capability
  */
 
+import { embed, cosineSimilarity } from './semanticVector.js';
+
 const MEMORY_KEY = 'forgeai_episodic_memory';
 const MAX_MEMORIES = 500;
+// Minimum cosine similarity for a memory to be considered semantically relevant.
+// Tuned so genuine paraphrases/typos qualify while common-word trigram noise
+// between unrelated sentences (~0.15-0.20) does not.
+const MIN_SIMILARITY = 0.25;
 
 // Generic words that appear in almost every request. Matching on these would
 // make unrelated memories look relevant, so they are excluded from scoring.
@@ -64,15 +70,20 @@ export class EpisodicMemory {
    * Store a new memory
    */
   store(memory) {
+    const task = memory.task || '';
+    const outcome = memory.outcome || '';
+    const analysis = memory.analysis || '';
+    const tags = memory.tags || [];
     const entry = {
       id: `mem-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       timestamp: Date.now(),
-      task: memory.task || '',
-      outcome: memory.outcome || '',
+      task,
+      outcome,
       success: memory.success ?? true,
-      analysis: memory.analysis || '',
-      tags: memory.tags || [],
-      embedding: memory.embedding || null, // Future: vector embedding
+      analysis,
+      tags,
+      // Precomputed sparse semantic vector for fast, offline recall.
+      embedding: memory.embedding || embed(`${task} ${outcome} ${analysis} ${tags.join(' ')}`),
     };
 
     this.memories.push(entry);
@@ -81,25 +92,27 @@ export class EpisodicMemory {
   }
 
   /**
-   * Semantic recall (keyword overlap + recency).
+   * Semantic recall (embedding cosine similarity + keyword overlap + recency).
    *
-   * A memory only qualifies when it shares real content with the query
-   * (relevanceScore > 0). Recency then orders the survivors — it can never
-   * promote an unrelated memory on its own. Without this floor, the recency
-   * boost alone made every recent memory "match" any message, leaking stale
-   * entities (e.g. a football answer) into unrelated turns.
+   * A memory qualifies when it is semantically similar to the query (cosine ≥
+   * MIN_SIMILARITY) OR shares meaningful tokens with it. Semantic similarity
+   * catches typos and word variations that exact token matching misses, while
+   * the token floor keeps precision high. Recency only orders survivors — it can
+   * never promote an unrelated memory on its own, so stale entities (e.g. a
+   * football answer) never leak into unrelated turns.
    */
-  recall(query, limit = 5, { minRelevance = 1 } = {}) {
+  recall(query, limit = 5, { minRelevance = 1, minSimilarity = MIN_SIMILARITY } = {}) {
     if (!query) return [];
 
     const queryTokens = tokenize(query);
-    if (!queryTokens.size) return [];
+    const queryVec = embed(query);
+    if (!queryTokens.size && Object.keys(queryVec).length === 0) return [];
 
     const scored = this.memories.map(mem => {
       const text = `${mem.task} ${mem.outcome} ${mem.analysis}`.toLowerCase();
       const memTokens = tokenize(text);
 
-      // Relevance = number of meaningful query tokens present in the memory.
+      // Token relevance = number of meaningful query tokens present in memory.
       let relevance = 0;
       for (const token of queryTokens) {
         if (memTokens.has(token)) relevance += 1;
@@ -109,15 +122,23 @@ export class EpisodicMemory {
       if (q.length >= 4 && text.includes(q)) relevance += 2;
       if (mem.tags.some(t => queryTokens.has(t.toLowerCase()))) relevance += 1;
 
-      // Recency only orders memories that already cleared the relevance floor.
+      // Semantic similarity via cached embedding (rebuild lazily if missing).
+      const memVec = mem.embedding || embed(`${mem.task} ${mem.outcome} ${mem.analysis} ${(mem.tags || []).join(' ')}`);
+      const similarity = cosineSimilarity(queryVec, memVec);
+
+      // A memory is relevant if it clears EITHER the token floor or the
+      // semantic-similarity floor.
+      const qualifies = relevance >= minRelevance || similarity >= minSimilarity;
+
+      // Recency only orders memories that already qualified.
       const age = (Date.now() - mem.timestamp) / (1000 * 60 * 60 * 24);
       const recency = Math.max(0, 2 - age * 0.1);
 
-      return { ...mem, relevance, score: relevance + recency };
+      return { ...mem, relevance, similarity, qualifies, score: relevance + similarity * 3 + recency };
     });
 
     return scored
-      .filter(m => m.relevance >= minRelevance)
+      .filter(m => m.qualifies)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
   }

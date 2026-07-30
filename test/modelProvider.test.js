@@ -59,6 +59,45 @@ await assert.rejects(
   error => error.code === 'quota_exceeded' && /quota|credits|token balance/i.test(error.message),
 );
 
+// Native function-calling: tools are forwarded in the request body and streamed
+// tool_calls are assembled and returned.
+let sentBody = null;
+globalThis.fetch = async (_url, options) => {
+  sentBody = JSON.parse(options.body);
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      // tool_call streamed as deltas by index (name first, then args in pieces).
+      controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_9","function":{"name":"read_file","arguments":"{\\"pa"}}]}}]}\n\n'));
+      controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"th\\":\\"a.js\\"}"}}]}}]}\n\n'));
+      controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+      controller.close();
+    },
+  });
+  return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+};
+const toolResult = await cloudProvider.stream({
+  model: cloudModel,
+  messages: [{ role: 'user', content: 'read a.js' }],
+  tools: [{ type: 'function', function: { name: 'read_file', description: 'x', parameters: { type: 'object', properties: {}, required: [] } } }],
+});
+assert.ok(Array.isArray(sentBody.tools) && sentBody.tools.length === 1, 'tools forwarded to API');
+assert.equal(sentBody.tool_choice, 'auto');
+assert.ok(Array.isArray(toolResult.toolCalls) && toolResult.toolCalls.length === 1, 'toolCalls returned');
+assert.equal(toolResult.toolCalls[0].function.name, 'read_file');
+assert.equal(toolResult.toolCalls[0].function.arguments, '{"path":"a.js"}');
+assert.equal(toolResult.toolCalls[0].id, 'call_9');
+
+// A tool-result message (role:'tool') is serialised with its tool_call_id.
+globalThis.fetch = async (_url, options) => {
+  sentBody = JSON.parse(options.body);
+  const encoder = new TextEncoder();
+  return new Response(new ReadableStream({ start(c) { c.enqueue(encoder.encode('data: [DONE]\n\n')); c.close(); } }), { status: 200 });
+};
+await cloudProvider.stream({ model: cloudModel, messages: [{ role: 'tool', tool_call_id: 'call_9', content: '{"ok":true}' }] });
+assert.equal(sentBody.messages[0].role, 'tool');
+assert.equal(sentBody.messages[0].tool_call_id, 'call_9');
+
 globalThis.fetch = previousFetch;
 delete globalThis.localStorage;
 

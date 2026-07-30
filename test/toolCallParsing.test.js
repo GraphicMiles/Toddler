@@ -69,3 +69,36 @@ const codeSample = 'Config example:\n```json\n{"port":3000}\n```';
 assert.match(extractNonToolText(codeSample), /"port":\s*3000/);
 
 console.log('tool call parsing tests passed');
+
+// --- Native function-calling helpers ---
+import { toOpenAITools, normalizeNativeToolCalls, streamableText } from '../src/agent/toolSchemas.js';
+
+// toOpenAITools produces the OpenAI function schema shape.
+const oa = toOpenAITools();
+assert.ok(Array.isArray(oa) && oa.length > 0);
+assert.equal(oa[0].type, 'function');
+assert.ok(oa.every(t => t.function && typeof t.function.name === 'string' && t.function.parameters));
+assert.ok(oa.some(t => t.function.name === 'read_file'));
+
+// normalizeNativeToolCalls parses string arguments into the {tool,args,id} shape.
+let n = normalizeNativeToolCalls([
+  { id: 'call_1', function: { name: 'read_file', arguments: '{"path":"a.js"}' } },
+]);
+assert.equal(n.length, 1);
+assert.equal(n[0].tool, 'read_file');
+assert.equal(n[0].args.path, 'a.js');
+assert.equal(n[0].id, 'call_1');
+
+// Unknown tool names are dropped.
+assert.equal(normalizeNativeToolCalls([{ function: { name: 'nope', arguments: '{}' } }]).length, 0);
+
+// Object arguments (already parsed) are accepted; malformed JSON → empty args.
+assert.equal(normalizeNativeToolCalls([{ function: { name: 'git_status', arguments: { x: 1 } } }])[0].args.x, 1);
+assert.deepEqual(normalizeNativeToolCalls([{ id: 'c', function: { name: 'git_status', arguments: 'not json' } }])[0].args, {});
+
+// streamableText hides content once a fence opens (prevents tool-JSON flashing).
+assert.equal(streamableText('Let me check that for you'), 'Let me check that for you');
+assert.equal(streamableText('Reading now\n```tool_call\n{"tool":"read_file"'), 'Reading now');
+assert.equal(streamableText('```json\n{"tool":"x"}'), '');
+
+console.log('native tool-calling helper tests passed');

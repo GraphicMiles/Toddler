@@ -340,3 +340,62 @@ export function extractNonToolText(output) {
     /"(?:tool|name|tool_name|function)"\s*:/.test(body) ? '' : full);
   return text.trim();
 }
+
+/**
+ * Return only the portion of a partial stream that is safe to show the user.
+ *
+ * While a model is mid-stream, an opening ``` fence may not have closed yet, so
+ * its (possibly tool-call) contents shouldn't flash into the UI. This returns
+ * the text up to the first ``` fence — everything before any code/tool block —
+ * which is the model's plain prose. Once the response is complete, the loop uses
+ * extractNonToolText / the respond tool for the final answer.
+ */
+export function streamableText(output) {
+  const text = String(output || '');
+  const fenceIndex = text.indexOf('```');
+  const safe = fenceIndex === -1 ? text : text.slice(0, fenceIndex);
+  return safe.trim();
+}
+
+/**
+ * Convert internal tool schemas into the OpenAI/Groq function-calling format.
+ * Passed as the `tools` array in the chat/completions body so capable providers
+ * emit structured tool_calls instead of prompt-embedded JSON.
+ */
+export function toOpenAITools(tools = TOOL_SCHEMAS) {
+  return tools.map(tool => ({
+    type: 'function',
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters || { type: 'object', properties: {}, required: [] },
+    },
+  }));
+}
+
+/**
+ * Normalise native OpenAI tool_calls (from message.tool_calls) into the same
+ * shape parseToolCalls produces, so the agentic loop can treat both paths
+ * identically. Arguments arrive as a JSON string; parse defensively.
+ */
+export function normalizeNativeToolCalls(rawToolCalls = []) {
+  const calls = [];
+  for (const raw of rawToolCalls) {
+    const fn = raw?.function || raw;
+    const name = fn?.name;
+    if (!name || !VALID_TOOL_NAMES.has(name)) continue;
+    let args = {};
+    const rawArgs = fn?.arguments;
+    if (rawArgs && typeof rawArgs === 'object') {
+      args = rawArgs;
+    } else if (typeof rawArgs === 'string' && rawArgs.trim()) {
+      try { args = JSON.parse(rawArgs); }
+      catch {
+        const obj = extractBalancedObject(rawArgs);
+        if (obj) { try { args = JSON.parse(obj.json); } catch { args = {}; } }
+      }
+    }
+    calls.push({ tool: name, args: args && typeof args === 'object' ? args : {}, id: raw?.id, raw: JSON.stringify(fn) });
+  }
+  return calls;
+}

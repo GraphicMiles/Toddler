@@ -91,6 +91,20 @@ function normalizeCloudError(error, { providerConfig, model } = {}) {
   return wrapped;
 }
 
+// Map an internal message to the OpenAI chat shape. Most turns are plain
+// role/content, but native function-calling turns carry assistant tool_calls
+// and tool-result messages (role:'tool' + tool_call_id) that must be preserved.
+function mapMessageForApi(item) {
+  const role = item.role || 'user';
+  if (role === 'tool') {
+    return { role: 'tool', tool_call_id: item.tool_call_id, content: String(item.content ?? '') };
+  }
+  if (role === 'assistant' && Array.isArray(item.tool_calls) && item.tool_calls.length > 0) {
+    return { role: 'assistant', content: item.content ? String(item.content) : null, tool_calls: item.tool_calls };
+  }
+  return { role, content: String(item.content ?? '') };
+}
+
 function parseOpenAIError(status, payload) {
   // Providers disagree on error shapes: some nest an object (error.message), some
   // (xAI, others) put a plain string in `error`. Handle both so the user sees the
@@ -137,14 +151,14 @@ export class OpenAICompatibleProvider {
     return { loaded: true, cloud: true, provider: config.provider, modelId: model?.modelId || config.modelId };
   }
 
-  async stream({ model, messages, signal, onToken, maxRetries = 2, backoffMs = 800 }) {
+  async stream({ model, messages, signal, onToken, tools, toolChoice, maxRetries = 2, backoffMs = 800 }) {
     const config = this.getConfig(model);
     let lastError;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       let streamedAny = false;
       const guardedOnToken = (token) => { streamedAny = true; onToken?.(token); };
       try {
-        return await this._streamOnce({ model, messages, signal, onToken: guardedOnToken, config });
+        return await this._streamOnce({ model, messages, signal, onToken: guardedOnToken, config, tools, toolChoice });
       } catch (error) {
         lastError = error;
         const normalized = normalizeCloudError(error, { providerConfig: config, model });
@@ -163,8 +177,19 @@ export class OpenAICompatibleProvider {
     throw normalizeCloudError(lastError, { providerConfig: config, model });
   }
 
-  async _streamOnce({ model, messages, signal, onToken, config }) {
+  async _streamOnce({ model, messages, signal, onToken, config, tools, toolChoice }) {
     await this.loadModel(model);
+    const body = {
+      model: model?.modelId || config.modelId,
+      // Preserve tool/assistant fields when present (native function-calling
+      // turns), otherwise fall back to the plain role/content shape.
+      messages: (messages || []).map(mapMessageForApi),
+      stream: true,
+    };
+    if (Array.isArray(tools) && tools.length > 0) {
+      body.tools = tools;
+      body.tool_choice = toolChoice || 'auto';
+    }
     const response = await fetch(`${config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
       signal,
@@ -173,11 +198,7 @@ export class OpenAICompatibleProvider {
         'Authorization': `Bearer ${config.apiKey}`,
         ...(config.provider === 'openrouter' ? { 'HTTP-Referer': 'https://forgeai.local', 'X-Title': 'ForgeAI' } : {}),
       },
-      body: JSON.stringify({
-        model: model?.modelId || config.modelId,
-        messages: (messages || []).map(item => ({ role: item.role || 'user', content: String(item.content ?? '') })),
-        stream: true,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
@@ -192,6 +213,7 @@ export class OpenAICompatibleProvider {
     let buffer = '';
     let completion = '';
     let usage = null;
+    const toolCallAcc = []; // accumulates streamed native tool_calls by index
 
     while (true) {
       const { value, done } = await reader.read();
@@ -208,16 +230,35 @@ export class OpenAICompatibleProvider {
           const chunk = JSON.parse(data);
           if (chunk.error) throw parseOpenAIError(response.status, chunk);
           usage = chunk.usage || usage;
-          const token = chunk.choices?.[0]?.delta?.content || chunk.choices?.[0]?.text || '';
+          const delta = chunk.choices?.[0]?.delta || {};
+          const token = delta.content || chunk.choices?.[0]?.text || '';
           if (token) {
             completion += token;
             onToken?.(token);
+          }
+          // Native tool_calls stream as deltas keyed by index; assemble them.
+          if (Array.isArray(delta.tool_calls)) {
+            for (const tc of delta.tool_calls) {
+              const idx = tc.index ?? toolCallAcc.length;
+              if (!toolCallAcc[idx]) toolCallAcc[idx] = { id: tc.id, type: 'function', function: { name: '', arguments: '' } };
+              if (tc.id) toolCallAcc[idx].id = tc.id;
+              if (tc.function?.name) toolCallAcc[idx].function.name += tc.function.name;
+              if (tc.function?.arguments) toolCallAcc[idx].function.arguments += tc.function.arguments;
+            }
           }
         }
       }
     }
 
-    return { cloud: true, provider: config.provider, modelId: model?.modelId || config.modelId, content: completion, usage };
+    const toolCalls = toolCallAcc.filter(Boolean);
+    return {
+      cloud: true,
+      provider: config.provider,
+      modelId: model?.modelId || config.modelId,
+      content: completion,
+      usage,
+      ...(toolCalls.length > 0 ? { toolCalls } : {}),
+    };
   }
 
   async stop() { return { stopped: true, cloud: true }; }

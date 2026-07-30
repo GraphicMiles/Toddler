@@ -13,7 +13,7 @@
  * Supports: read → plan → edit → verify → fix → respond cycles.
  */
 
-import { formatToolSchemasForPrompt, parseToolCalls, extractNonToolText } from './toolSchemas.js';
+import { formatToolSchemasForPrompt, parseToolCalls, extractNonToolText, streamableText, toOpenAITools, normalizeNativeToolCalls } from './toolSchemas.js';
 import { performOnlineResearch } from './onlineResearch.js';
 import {
   gitClone, gitStatus, gitCommit, gitPush, gitLog,
@@ -319,6 +319,12 @@ WORKFLOW:
   let iteration = 0;
   let finalResponse = '';
 
+  // Capable providers (cloud/Ollama) get real function-calling: structured tool
+  // schemas in the request and structured tool_calls back. Small on-device
+  // models fall back to the prompt-embedded ```tool_call convention.
+  const useNativeTools = provider?.supportsToolUse === true && typeof toOpenAITools === 'function';
+  const nativeTools = useNativeTools ? toOpenAITools() : undefined;
+
   while (iteration < MAX_ITERATIONS) {
     iteration++;
     if (signal?.aborted) break;
@@ -327,16 +333,24 @@ WORKFLOW:
 
     // Stream model response
     let output = '';
+    let streamResult;
+    let lastShown = '';
     try {
-      await provider.stream({
+      streamResult = await provider.stream({
         model,
         signal,
         messages: modelMessages,
+        tools: nativeTools,
         onToken: (token) => {
           output += token;
-          // Stream non-tool text to the UI
-          const nonToolText = extractNonToolText(output);
-          if (nonToolText) onToken?.(nonToolText);
+          // Only surface text that can't still turn out to be a (prompt-based)
+          // tool call: everything before the first ``` fence. This prevents raw
+          // tool JSON from flashing into the UI mid-stream.
+          const safe = streamableText(output);
+          if (safe && safe !== lastShown) {
+            lastShown = safe;
+            onToken?.(safe);
+          }
         },
       });
     } catch (error) {
@@ -344,15 +358,25 @@ WORKFLOW:
       throw error;
     }
 
-    // Parse tool calls from the output
-    const toolCalls = parseToolCalls(output);
+    // Prefer native tool_calls; fall back to parsing the text output.
+    const nativeCalls = Array.isArray(streamResult?.toolCalls)
+      ? normalizeNativeToolCalls(streamResult.toolCalls)
+      : [];
+    const toolCalls = nativeCalls.length > 0 ? nativeCalls : parseToolCalls(output);
     const nonToolText = extractNonToolText(output);
 
     if (toolCalls.length === 0) {
       // No tool calls — this is the final response
       finalResponse = nonToolText || output;
+      if (finalResponse) onToken?.(finalResponse);
       break;
     }
+
+    // Record the assistant turn so the model sees its own tool request. Native
+    // turns carry the structured tool_calls; prompt-based turns carry the text.
+    const assistantTurn = nativeCalls.length > 0
+      ? { role: 'assistant', content: output || null, tool_calls: streamResult.toolCalls }
+      : { role: 'assistant', content: output };
 
     // Execute each tool call
     for (const call of toolCalls) {
@@ -385,15 +409,21 @@ WORKFLOW:
         };
       }
 
-      // Feed tool result back to the model
-      modelMessages.push({
-        role: 'assistant',
-        content: output,
-      });
-      modelMessages.push({
-        role: 'user',
-        content: `Tool "${call.tool}" result:\n\`\`\`json\n${JSON.stringify(result, null, 2).slice(0, 6000)}\n\`\`\`\n\nContinue with your next action. If you're done, use the respond tool.`,
-      });
+      // Feed tool result back to the model — as a native tool message when we
+      // have a tool_call_id, otherwise as a plain user message.
+      modelMessages.push(assistantTurn);
+      if (call.id) {
+        modelMessages.push({
+          role: 'tool',
+          tool_call_id: call.id,
+          content: JSON.stringify(result).slice(0, 6000),
+        });
+      } else {
+        modelMessages.push({
+          role: 'user',
+          content: `Tool "${call.tool}" result:\n\`\`\`json\n${JSON.stringify(result, null, 2).slice(0, 6000)}\n\`\`\`\n\nContinue with your next action. If you're done, use the respond tool.`,
+        });
+      }
 
       // Reset output for next iteration
       output = '';

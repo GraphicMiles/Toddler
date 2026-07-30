@@ -74,15 +74,20 @@ routes, components, state flow, permissions, configuration.
 These are the capability-gated, low-cost versions being implemented on the
 current platform:
 
-- **Mission planner before each task** (cloud-gated) — plan → execute → verify.
-- **Auto-verification before "done"** — read-back + lint/test/build gate.
-- **Capability-gated reasoning depth** — via `provider.supportsToolUse`.
-- **Evidence-based confidence** (reversibility/test/RAG signals, *not* model
-  self-rated) + clarify-when-uncertain.
-- **Bounded scratchpad** (structured goals/open-questions/next-action).
-- **Root-cause self-correction** (diagnose-then-vary, upgrading blind retry).
-- **Incremental symbol/import index** (lite D4).
-- **Semantic vector memory + reranking** — already shipped (`semanticVector.js`).
+- **Mission planner before each task** (cloud-gated) — ✅ shipped
+  (`missionPlanner.js`): plan → execute → verify.
+- **Auto-verification before "done"** — ✅ shipped (`agenticLoop.js`): read-back
+  gate before `respond`; feeds discrepancies back for a fix.
+- **Capability-gated reasoning depth** — ✅ shipped via `provider.supportsToolUse`.
+- **Evidence-based confidence** (reversibility/plan/RAG signals, *not* model
+  self-rated) + clarify-when-uncertain — ✅ shipped (`confidenceEngine.js`).
+- **Bounded scratchpad** (structured goal/observations/open-questions/next) —
+  ✅ shipped (`scratchpad.js`).
+- **Root-cause self-correction** (diagnose-then-vary, upgrading blind retry) —
+  ✅ shipped (`selfCorrection.js` `diagnoseRootCause`/`buildRootCausePrompt`).
+- **Semantic vector memory + reranking** — ✅ shipped (`semanticVector.js`).
+- **Incremental symbol/import index** (lite D4) — pending (reuse
+  `projectIndexer.js`); still to do on mobile.
 
 ---
 

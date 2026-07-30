@@ -27,6 +27,7 @@ import { tryResolvePendingIntent, setPendingIntent, resolveEntityFromContext, ne
 import { processConversationTurn, resolveVagueReferences, getContextPrompt, checkNeedsClarification, resetContext } from './context/conversationContext.js';
 import { runAgenticLoop } from './agent/agenticLoop.js';
 import { planMission, shouldPlanMission, formatPlanForPrompt } from './agent/missionPlanner.js';
+import { assessConfidence, decideOnConfidence } from './agent/confidenceEngine.js';
 import { persistentMemory } from './agent/persistentMemory.js';
 import { projectIndexer } from './agent/projectIndexer.js';
 import { isToolExecutionTier } from './agent/automation/automationTiers.js';
@@ -743,6 +744,7 @@ export default function App() {
           // loop follows the plan and verifies before declaring success. Small
           // on-device models skip this and use the lean guided path.
           let missionPlanPrompt = '';
+          let clarifiedEarly = false;
           if (shouldPlanMission({ toolCapable: provider.supportsToolUse, message: intentText })) {
             addReasoningStep({ type: 'thought', title: 'Planning the mission', content: 'Breaking the request into an ordered plan.' });
             try {
@@ -760,8 +762,31 @@ export default function App() {
                 title: `Plan: ${plan.steps.length} step(s) · ${plan.complexity} · ${Math.round(plan.confidence * 100)}% confidence`,
                 content: plan.steps.map((s, i) => `${i + 1}. ${s}`).join('\n').slice(0, 400),
               });
+
+              // === EVIDENCE-BASED CONFIDENCE: clarify when uncertain ===
+              // Derived from the plan's confidence + missing info + context
+              // quality (NOT model self-rating). If it's too low to act safely,
+              // ask the user instead of guessing.
+              const assessment = assessConfidence({
+                planConfidence: plan.confidence,
+                missingInfo: plan.missing,
+                contextMatches: workspaceFileList.length ? Math.min(plan.requires.length, 3) : 0,
+                message: intentText,
+              });
+              const decision = decideOnConfidence(assessment, { clarifyBelow: 0.5 });
+              if (decision.action === 'clarify' && plan.missing.length > 0) {
+                const ask = `Before I start, I need to be sure I get this right. ${decision.reason}\n\nCould you clarify: ${plan.missing.slice(0, 3).join('; ')}?`;
+                setMessages(prev => prev.map(message => message.id === assistantId ? { ...message, content: ask } : message));
+                addReasoningStep({ type: 'thought', title: 'Asking for clarification', content: decision.reason });
+                clarifiedEarly = true;
+              }
             } catch { /* planning is best-effort; the loop proceeds without it */ }
           }
+
+          if (clarifiedEarly) {
+            // Skip the agentic loop this turn; wait for the user's clarification.
+            generationResult = null;
+          } else {
 
           const agenticResult = await runAgenticLoop({
             provider,
@@ -834,6 +859,7 @@ export default function App() {
           }
 
           generationResult = null; // Agentic loop handles its own streaming
+          } // end confidence-gated agentic execution
         } else {
           const approvedMemory = projectMemoryPrompt(workspaceProvider.id);
           let research = null;

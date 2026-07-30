@@ -14,6 +14,7 @@
  */
 
 import { formatToolSchemasForPrompt, parseToolCalls, extractNonToolText, streamableText, toOpenAITools, normalizeNativeToolCalls } from './toolSchemas.js';
+import { Scratchpad } from './scratchpad.js';
 import { performOnlineResearch } from './onlineResearch.js';
 import {
   gitClone, gitStatus, gitCommit, gitPush, gitLog,
@@ -328,6 +329,9 @@ WORKFLOW:
   // Track files the agent wrote/created so we can verify them before "done".
   const writtenFiles = new Map(); // path -> expected content
   let verifiedOnce = false;
+  // Bounded scratchpad: hidden working memory injected each turn so the model
+  // tracks long-horizon progress without re-deriving state.
+  const scratchpad = new Scratchpad(userMessage);
 
   // Capable providers (cloud/Ollama) get real function-calling: structured tool
   // schemas in the request and structured tool_calls back. Small on-device
@@ -341,15 +345,20 @@ WORKFLOW:
 
     onIteration?.({ iteration, maxIterations: MAX_ITERATIONS, toolCalls: toolResults.length });
 
-    // Stream model response
+    // Stream model response. The scratchpad is injected as a fresh trailing
+    // system note each turn (never appended to history, so it can't accumulate).
     let output = '';
     let streamResult;
     let lastShown = '';
+    const scratchNote = scratchpad.toPrompt();
+    const turnMessages = scratchNote
+      ? [...modelMessages, { role: 'system', content: scratchNote }]
+      : modelMessages;
     try {
       streamResult = await provider.stream({
         model,
         signal,
-        messages: modelMessages,
+        messages: turnMessages,
         tools: nativeTools,
         onToken: (token) => {
           output += token;
@@ -394,6 +403,10 @@ WORKFLOW:
 
       const result = await executeTool(call.tool, call.args);
       toolResults.push({ tool: call.tool, args: call.args, result });
+      // Keep the scratchpad's progress record current (skip control tools).
+      if (call.tool !== 'respond' && call.tool !== 'ask_user') {
+        scratchpad.recordToolResult(call.tool, call.args, result);
+      }
 
       // Remember successful writes so we can verify them before declaring done.
       if ((call.tool === 'write_file' || call.tool === 'create_file') && result.success && call.args?.path) {

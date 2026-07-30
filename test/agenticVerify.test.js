@@ -86,4 +86,25 @@ console.log('  ✓ caught write that did not persist');
 }
 console.log('  ✓ mission plan injected into loop');
 
+// --- Case 4: scratchpad is injected after the first tool call ---
+{
+  const ws = makeWorkspace();
+  let sawScratchpad = false;
+  let turn = 0;
+  const provider = {
+    supportsToolUse: true,
+    async loadModel() { return {}; },
+    async stream({ messages }) {
+      if (messages.some(m => m.role === 'system' && /SCRATCHPAD/.test(m.content || ''))) sawScratchpad = true;
+      turn++;
+      if (turn === 1) return { toolCalls: [tc('read_file', { path: 'hello.js' })] };
+      return { toolCalls: [tc('respond', { message: 'done' })] };
+    },
+  };
+  ws._files.set('hello.js', 'x');
+  await runAgenticLoop({ provider, model: {}, userMessage: 'read hello.js', workspaceProvider: ws, isNative: true });
+  assert.equal(sawScratchpad, true, 'scratchpad should be injected once progress exists');
+}
+console.log('  ✓ scratchpad injected into loop');
+
 console.log('agentic verify tests passed');

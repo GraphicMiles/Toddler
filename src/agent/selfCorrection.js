@@ -114,6 +114,69 @@ Do NOT repeat the exact same action that failed. Try something different.`;
 }
 
 /**
+ * Classify the root cause of a tool failure from its error/output text.
+ *
+ * Blind "retry, retry, retry" wastes attempts. Naming the failure category lets
+ * the loop pick a genuinely DIFFERENT approach (e.g. create the file instead of
+ * writing to a missing one, or fix a command instead of rerunning it).
+ *
+ * @returns {{category:string, hint:string}}
+ */
+export function diagnoseRootCause(errorContext = {}) {
+  const text = `${errorContext.error || ''} ${errorContext.output || ''}`.toLowerCase();
+  const tool = errorContext.tool || '';
+
+  const rules = [
+    // Order matters: more specific patterns first (e.g. "command not found"
+    // must win over the generic "not found" of missing_file).
+    { category: 'command_not_found', match: /(command not found|not recognized|no such command)/, hint: 'The command/binary is unavailable. Use a different command or an available tool instead.' },
+    { category: 'no_workspace', match: /(no workspace|choose a workspace|select a folder)/, hint: 'No workspace folder is selected — the user must pick one; ask_user or respond to explain.' },
+    { category: 'already_exists', match: /(already exists|eexist|file exists)/, hint: 'The file already exists. Use write_file to modify it instead of create_file.' },
+    { category: 'permission', match: /(permission denied|eacces|forbidden|read-only|not permitted)/, hint: 'A permission/path restriction blocked this. Choose a path inside the workspace and avoid protected locations.' },
+    { category: 'syntax', match: /(syntax error|unexpected token|parse error|invalid json)/, hint: 'Output/content was malformed. Re-generate valid, complete content — no partial diffs or placeholders.' },
+    { category: 'test_failure', match: /(test failed|assertion|expected .* received|failing tests?)/, hint: 'A test failed. Read the assertion, fix the code (not the test, unless the test is wrong), and re-run.' },
+    { category: 'lint_error', match: /(lint|eslint|oxlint|unused|no-undef)/, hint: 'A lint rule failed. Read the rule and fix the flagged lines.' },
+    { category: 'network', match: /(network|timeout|failed to fetch|econnrefused|offline|dns)/, hint: 'A network call failed. Retry once; if it persists, proceed without it and tell the user.' },
+    { category: 'missing_file', match: /(no such file|not found|enoent|does not exist|cannot find|missing)/, hint: 'The target does not exist. Create it first (create_file), or list_files/search_code to find the correct path.' },
+  ];
+
+  for (const rule of rules) {
+    if (rule.match.test(text)) return { category: rule.category, hint: rule.hint };
+  }
+  return { category: 'unknown', hint: `Analyse the ${tool || 'action'} error carefully and try a materially different approach — do not repeat the same call.` };
+}
+
+/**
+ * Build a root-cause-aware correction prompt: name the likely cause and steer
+ * toward a different approach rather than a blind retry.
+ */
+export function buildRootCausePrompt(errorContext, originalRequest, attempt) {
+  const { category, hint } = diagnoseRootCause(errorContext);
+  return `Your previous action failed (attempt ${attempt + 1} of ${MAX_RETRIES}).
+
+ORIGINAL REQUEST: ${originalRequest}
+
+FAILED ACTION:
+- Tool: ${errorContext.tool}
+- Arguments: ${JSON.stringify(errorContext.args, null, 2)}
+
+ERROR:
+${errorContext.error || '(no error message)'}
+
+OUTPUT:
+${errorContext.output || '(no output)'}
+
+LIKELY ROOT CAUSE: ${category}
+SUGGESTED FIX: ${hint}
+
+INSTRUCTIONS:
+1. Address the root cause above — do not repeat the same failing call.
+2. If a different tool or path is needed, use it.
+3. Provide complete, valid arguments.
+4. If it still cannot be done after ${MAX_RETRIES} attempts, use the respond tool to explain plainly.`;
+}
+
+/**
  * Self-correction wrapper for tool execution.
  * If a tool fails, feeds the error back to the model and retries.
  */
@@ -143,12 +206,16 @@ export async function executeWithCorrection({
       // Error detected — try to self-correct
       if (attempt < maxRetries && provider?.stream) {
         const errorContext = extractErrorContext(result, toolName, args);
-        const correctionPrompt = buildCorrectionPrompt(errorContext, originalRequest, attempt);
+        // Root-cause aware: name the failure category and steer to a different
+        // approach instead of a blind retry.
+        const diagnosis = diagnoseRootCause(errorContext);
+        const correctionPrompt = buildRootCausePrompt(errorContext, originalRequest, attempt);
 
         onCorrection?.({
           attempt: attempt + 1,
           error: errorContext.error || errorContext.output?.slice(0, 200),
           tool: toolName,
+          rootCause: diagnosis.category,
         });
 
         // Ask the model how to fix it

@@ -252,7 +252,11 @@ export class OpenAICompatibleProvider {
           if (!trimmed.startsWith('data:')) continue;
           const data = trimmed.slice(5).trim();
           if (!data || data === '[DONE]') continue;
-          const chunk = JSON.parse(data);
+          // Individual SSE chunks can occasionally be split mid-JSON across
+          // network reads, or be non-JSON keepalives. A parse failure on one
+          // chunk must not abort (and needlessly retry) the whole stream.
+          let chunk;
+          try { chunk = JSON.parse(data); } catch { continue; }
           if (chunk.error) throw parseOpenAIError(response.status, chunk);
           usage = chunk.usage || usage;
           const delta = chunk.choices?.[0]?.delta || {};

@@ -53,6 +53,26 @@ const result = await cloudProvider.stream({ model: cloudModel, messages: [{ role
 assert.equal(streamed, 'hello');
 assert.equal(result.content, 'hello');
 
+// A malformed SSE chunk (e.g. split mid-JSON across reads) must be skipped, not
+// abort the whole stream.
+globalThis.fetch = async () => {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"hel"}}]}\n\n'));
+      controller.enqueue(encoder.encode('data: {broken json\n\n'));
+      controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"lo"}}]}\n\n'));
+      controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+      controller.close();
+    },
+  });
+  return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+};
+let resilient = '';
+const resilientResult = await cloudProvider.stream({ model: cloudModel, messages: [{ role: 'user', content: 'Hi' }], onToken: token => { resilient += token; } });
+assert.equal(resilient, 'hello', 'malformed SSE chunk should be skipped, not fatal');
+assert.equal(resilientResult.content, 'hello');
+
 globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: 'insufficient_quota', code: 'insufficient_quota' } }), { status: 402, headers: { 'Content-Type': 'application/json' } });
 await assert.rejects(
   () => cloudProvider.stream({ model: cloudModel, messages: [{ role: 'user', content: 'Hi' }] }),

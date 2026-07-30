@@ -236,7 +236,14 @@ class ProjectIndexer {
    */
   searchSymbols(pattern) {
     const results = [];
-    const regex = new RegExp(pattern, 'i');
+    // Pattern may be caller/model supplied; a malformed regex must not throw and
+    // break indexing. Fall back to a literal (escaped) match on failure.
+    let regex;
+    try {
+      regex = new RegExp(pattern, 'i');
+    } catch {
+      regex = new RegExp(String(pattern ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    }
     for (const [name, locations] of this.symbols) {
       if (regex.test(name)) {
         results.push({ name, locations });

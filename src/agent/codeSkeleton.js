@@ -10,6 +10,8 @@
  * but degrades gracefully for others).
  */
 
+import { escapeRegExp } from '../utils/escapeRegExp.js';
+
 const SIGNATURE_PATTERNS = [
   // export function foo(...) / async function
   /^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s*([A-Za-z0-9_$]+)\s*\([^)]*\)/,
@@ -97,7 +99,7 @@ export function extractSymbolBody(content, name) {
   const text = String(content ?? '');
   if (!name) return null;
   const lines = text.split('\n');
-  const nameRe = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}\\b`);
+  const nameRe = new RegExp(`\\b${escapeRegExp(name)}\\b`);
   let startLine = -1;
   for (let i = 0; i < lines.length; i++) {
     if (SIGNATURE_PATTERNS.some(p => p.test(lines[i])) && nameRe.test(lines[i])) { startLine = i; break; }

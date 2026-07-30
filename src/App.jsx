@@ -27,6 +27,7 @@ import { isAutonomousToolRequest, isActionableToolRequest, isGitRequestWithoutRe
 import { tryResolvePendingIntent, setPendingIntent, resolveEntityFromContext, needsCurrentInformation } from './agent/intentRouter.js';
 import { processConversationTurn, resolveVagueReferences, getContextPrompt, checkNeedsClarification, resetContext } from './context/conversationContext.js';
 import { buildFollowUps } from './agent/followUpSuggestions.js';
+import { escapeRegExp } from './utils/escapeRegExp.js';
 import { understand as understandIntent } from './agent/intentUnderstanding.js';
 import { runAgenticLoop } from './agent/agenticLoop.js';
 import { planMission, shouldPlanMission, formatPlanForPrompt } from './agent/missionPlanner.js';
@@ -474,7 +475,7 @@ export default function App() {
     let resolvedText = text;
     if (entityResolution && entityResolution.confidence > 0.7) {
       // Replace ambiguous term with resolved entity
-      resolvedText = text.replace(new RegExp(`\\b${entityResolution.original}\\b`, 'i'), entityResolution.resolved);
+      resolvedText = text.replace(new RegExp(`\\b${escapeRegExp(entityResolution.original)}\\b`, 'i'), entityResolution.resolved);
     }
     
     // If the message is just a GitHub URL (or contains one with no clear verb), treat it as a clone request
@@ -493,7 +494,7 @@ export default function App() {
       // Apply the highest-confidence resolution
       const best = contextResolution.entities.sort((a, b) => b.confidence - a.confidence)[0];
       if (best.confidence > 0.5) {
-        const regex = new RegExp(`\\b${best.pronoun}\\b`, 'i');
+        const regex = new RegExp(`\\b${escapeRegExp(best.pronoun)}\\b`, 'i');
         if (regex.test(resolvedText)) {
           resolvedText = resolvedText.replace(regex, best.resolved);
         }
@@ -505,7 +506,7 @@ export default function App() {
     // conversation has a concrete anchor (a filename / URL / repo), resolve the
     // reference so downstream routing understands what the user means.
     const understanding = understandIntent(resolvedText, { history: messages });
-    if (understanding.vague && understanding.resolvedTarget && !new RegExp(understanding.resolvedTarget.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'), 'i').test(resolvedText)) {
+    if (understanding.vague && understanding.resolvedTarget && !new RegExp(escapeRegExp(understanding.resolvedTarget), 'i').test(resolvedText)) {
       resolvedText = `${resolvedText} (${understanding.resolvedTarget})`;
       addReasoningStep?.({ type: 'thought', title: 'Understanding your request', content: `Interpreted "${text}" as referring to ${understanding.resolvedTarget}.` });
     }

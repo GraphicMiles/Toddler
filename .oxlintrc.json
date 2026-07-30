@@ -57,5 +57,17 @@
         "allowConstantExport": true
       }
     ]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["eval/**", "scripts/**"],
+      "globals": {
+        "process": "readonly",
+        "Buffer": "readonly",
+        "__dirname": "readonly",
+        "__filename": "readonly",
+        "global": "readonly"
+      }
+    }
+  ]
 }

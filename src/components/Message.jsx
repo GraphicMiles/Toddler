@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Copy, Check } from 'lucide-react';
+import TypingIndicator from './TypingIndicator';
 import './Message.css';
 
 const messageVariants = {
@@ -26,7 +27,7 @@ const messageVariants = {
   }
 };
 
-export default function Message({ message = {} }) {
+export default function Message({ message = {}, streaming = false }) {
   const [copied, setCopied] = useState(false);
   const copyResetTimer = useRef(null);
   const { role, content, timestamp, files = [] } = message;
@@ -34,6 +35,9 @@ export default function Message({ message = {} }) {
   const safeFiles = Array.isArray(files) ? files : [];
   const isUser = role === 'user';
   const isSystem = role === 'system';
+  // While the agent is streaming, the (possibly still empty) placeholder shows an inline
+  // typing state instead of an empty bubble with a Copy button.
+  const showInlineTyping = streaming && !safeContent;
 
   useEffect(() => () => {
     if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
@@ -116,6 +120,9 @@ export default function Message({ message = {} }) {
     return parts.length > 0 ? parts : renderContent(text);
   };
 
+  // Never render an empty agent bubble (e.g. generation stopped before the first token).
+  if (!isUser && !isSystem && !safeContent && !streaming) return null;
+
   if (isSystem) {
     const level = message.level || (safeContent.toLowerCase().includes('error') || safeContent.toLowerCase().includes('failed') ? 'error' : 'info');
     return (
@@ -170,17 +177,19 @@ export default function Message({ message = {} }) {
         </div>
 
         <div className="message-content">
-          {renderWithCode(safeContent)}
+          {showInlineTyping ? <TypingIndicator inline /> : renderWithCode(safeContent)}
         </div>
-        <button 
-          className="message-copy" 
-          type="button" 
-          onClick={() => copy(safeContent)} 
-          aria-label={copied ? 'Copied!' : 'Copy message'}
-        >
-          {copied ? <Check size={13} /> : <Copy size={13} />}
-          {copied ? 'Copied!' : 'Copy'}
-        </button>
+        {!streaming && safeContent && (
+          <button
+            className="message-copy"
+            type="button"
+            onClick={() => copy(safeContent)}
+            aria-label={copied ? 'Copied!' : 'Copy message'}
+          >
+            {copied ? <Check size={13} /> : <Copy size={13} />}
+            {copied ? 'Copied!' : 'Copy'}
+          </button>
+        )}
 
         {safeFiles.length > 0 && (
           <div className="message-files">

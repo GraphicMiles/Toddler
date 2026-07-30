@@ -15,6 +15,11 @@
   padding-top: 8px;
 }
 
+/* Inline variant: sits inside an agent message bubble, no extra indent */
+.typing-content.inline {
+  padding-top: 0;
+}
+
 .typing-label {
   color: var(--paper-dim);
   font-size: 13px;

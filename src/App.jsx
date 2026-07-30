@@ -31,7 +31,6 @@ import { retrieveRelevantContext, formatContextForPrompt, shouldRetrieveWorkspac
 import { createSafWorkspaceProvider, createVirtualWorkspaceProvider } from './workspace/workspaceProvider.js';
 import { recordError } from './utils/errorLog.js';
 import { loadSafetyPolicyFromFile, setCurrentSafetyPolicy } from './safety/SafetyPolicy.js';
-import AgentReasoningPanel from './components/AgentReasoningPanel.jsx';
 import './styles/index.css';
 
 const defaultConversationTitle = () => `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -132,8 +131,19 @@ export default function App() {
     if (!stillAvailable) setActiveModel(null);
   }, [activeModel, cloudProviders, downloadedModels, setActiveModel]);
 
+  // Remove transient "select a model" warnings whenever a model is active. Also matches by content
+  // to clean up banners persisted by older builds (covers sessions where the model was restored).
   useEffect(() => {
-    try { localStorage.setItem('forgeai_chat', JSON.stringify(messages)); }
+    if (!activeModel) return;
+    setMessages(previous => {
+      const isStale = message => message.ephemeral || String(message.content || '').includes('Please select a model from My Collection first.');
+      return previous.some(isStale) ? previous.filter(message => !isStale(message)) : previous;
+    });
+  }, [activeModel]);
+
+  useEffect(() => {
+    // Ephemeral messages (e.g. "select a model" warnings) are transient UI state — never persist them.
+    try { localStorage.setItem('forgeai_chat', JSON.stringify(messages.filter(message => !message.ephemeral))); }
     catch (error) { recordError(error, 'persist-chat'); }
   }, [messages]);
   useEffect(() => {
@@ -147,7 +157,7 @@ export default function App() {
       recordError(error, 'persist-conversations');
     }
   }, [conversations, activeConversationId]);
-  useEffect(() => { if (activeConversationId) setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, messages } : c)); }, [messages, activeConversationId]);
+  useEffect(() => { if (activeConversationId) setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, messages: messages.filter(message => !message.ephemeral) } : c)); }, [messages, activeConversationId]);
 
   const workspaceProvider = useMemo(
     () => isNative
@@ -385,7 +395,7 @@ export default function App() {
     return message;
   };
 
-  const addSystemMessage = (content, level = 'info') => addMessage('system', content, { level });
+  const addSystemMessage = (content, level = 'info', extra = {}) => addMessage('system', content, { level, ...extra });
 
   // Send a real streaming request to Ollama. The assistant placeholder is updated per token.
   // Agent core processes the message first (full agent mode), proposes actions through manual approval,
@@ -412,7 +422,7 @@ export default function App() {
       ]);
       return;
     }
-    if (!activeModel) { addSystemMessage('Please select a model from My Collection first.', 'warn'); return; }
+    if (!activeModel) { addSystemMessage('Please select a model from My Collection first.', 'warn', { ephemeral: true }); return; }
     const activeDownload = downloads[activeModel.id];
     if (activeDownload && (activeDownload.status === 'downloading' || activeDownload.status === 'paused')) {
       recordError(new Error('Wait for the model download to finish before chatting.'), 'model-generation');
@@ -771,7 +781,7 @@ export default function App() {
   const handleSelectModel = useCallback((model) => {
     setActiveModel(model);
     setModelStatus('idle');
-    setMessages(previous => previous.filter(message => !String(message.content || '').includes('Please select a model from My Collection first.')));
+    setMessages(previous => previous.filter(message => !message.ephemeral));
     if (model?.source === 'cloud' || model?.cloud) {
       setCurrentScreen(SCREENS.CHAT);
       return;
@@ -791,8 +801,8 @@ export default function App() {
     else addSystemMessage(`Could not delete ${model.name}: ${result?.error || 'unknown error'}`, 'error');
   }, [deleteModel]);
 
-  const newConversation = useCallback(() => { const id = generateId(); setConversations(prev => [...prev, { id, title: defaultConversationTitle(), messages: [] }]); setActiveConversationId(id); setMessages([]); }, []);
-  const switchConversation = useCallback((id) => { const target = conversations.find(c => c.id === id); if (target) { setActiveConversationId(id); setMessages(Array.isArray(target.messages) ? target.messages : []); } }, [conversations]);
+  const newConversation = useCallback(() => { const id = generateId(); setConversations(prev => [...prev, { id, title: defaultConversationTitle(), messages: [] }]); setActiveConversationId(id); setMessages([]); setReasoningSteps([]); setIsAgentThinking(false); }, []);
+  const switchConversation = useCallback((id) => { const target = conversations.find(c => c.id === id); if (target) { setActiveConversationId(id); setMessages(Array.isArray(target.messages) ? target.messages : []); setReasoningSteps([]); setIsAgentThinking(false); } }, [conversations]);
   const renameConversation = useCallback((id = activeConversationId) => { const current = conversations.find(c => c.id === id); if (!current) return; const title = window.prompt('Conversation name', current.title); if (title?.trim()) setConversations(prev => prev.map(c => c.id === id ? { ...c, title: title.trim() } : c)); }, [conversations, activeConversationId]);
   const deleteConversation = useCallback((id = activeConversationId) => {
     if (conversations.length <= 1 || !window.confirm('Delete this conversation?')) return;
@@ -866,6 +876,8 @@ export default function App() {
             <ChatContainer
               messages={messages}
               isTyping={isTyping}
+              reasoningSteps={reasoningSteps}
+              isAgentThinking={isAgentThinking}
               pendingActions={pendingActions}
               onSendMessage={handleSendMessage}
               onStopGeneration={handleStopGeneration}
@@ -892,17 +904,6 @@ export default function App() {
               activeModel={activeModel}
               availableModels={selectableModels}
               onModelChange={handleSelectModel}
-            />
-
-            {/* Agent Reasoning Panel */}
-            <AgentReasoningPanel 
-              steps={reasoningSteps} 
-              isThinking={isAgentThinking}
-              onStepClick={(step) => {
-                if (step.file) {
-                  console.log('File preview clicked:', step.file.name);
-                }
-              }}
             />
           </motion.div>
         )}

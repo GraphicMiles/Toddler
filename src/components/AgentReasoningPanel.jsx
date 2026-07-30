@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Brain, 
-  Terminal, 
-  Zap, 
-  CheckCircle, 
-  XCircle, 
+import {
+  Brain,
+  Terminal,
+  Zap,
+  CheckCircle,
+  XCircle,
   Database,
   Clock,
   FileText,
   Edit3,
   Plus,
-  GitBranch
+  GitBranch,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import './AgentReasoningPanel.css';
 
@@ -28,33 +30,15 @@ const iconMap = {
   default: Clock,
 };
 
-// Fun, weird thinking phrases (Claude / Arena style)
+// Neutral working-state phrases shown while the agent thinks (kept professional
+// to match the app's offline/enterprise tone).
 const thinkingPhrases = [
-  "Flabbergasted by your request...",
-  "Cherry-picking the best results...",
-  "Burning the midnight oil...",
-  "Serving the master...",
-  "Doing what I can...",
-  "Summoning the code spirits...",
-  "Wrestling with the prompt...",
-  "Consulting the ancient scrolls...",
-  "Channeling my inner AI...",
-  "Plotting world domination...",
-  "Pretending to understand...",
-  "Googling in my mind...",
-  "Asking the rubber duck...",
-  "Bribing the compiler...",
-  "Negotiating with the bugs...",
-  "Reading the tea leaves...",
-  "Casting spells on the code...",
-  "Debating with myself...",
-  "Having an existential crisis...",
-  "Trying not to panic...",
-  "Calculating the meaning of life...",
-  "Convincing the electrons to behave...",
-  "Whispering sweet nothings to the CPU...",
-  "Haggling with the memory allocator...",
-  "Performing dark magic on the stack...",
+  "Thinking...",
+  "Reasoning...",
+  "Analyzing...",
+  "Working on it...",
+  "Synthesizing...",
+  "Double-checking...",
 ];
 
 // Generate retro terminal-style progress bar using block characters
@@ -87,13 +71,15 @@ function generateTerminalProgressBar(percent) {
   return bar;
 }
 
-export default function AgentReasoningPanel({ 
-  steps = [], 
-  isThinking = false 
+export default function AgentReasoningPanel({
+  steps = [],
+  isThinking = false
 }) {
   const [currentPhrase, setCurrentPhrase] = useState(thinkingPhrases[0]);
+  // Expanded while streaming; collapsed by default once the turn completes.
+  const [expanded, setExpanded] = useState(true);
 
-  // Rotate fun thinking phrases while agent is thinking
+  // Rotate thinking phrases while agent is thinking
   useEffect(() => {
     if (!isThinking) return;
 
@@ -105,26 +91,41 @@ export default function AgentReasoningPanel({
     return () => clearInterval(interval);
   }, [isThinking]);
 
+  useEffect(() => {
+    setExpanded(isThinking);
+  }, [isThinking, steps.length]);
+
   if (!steps.length && !isThinking) return null;
 
   return (
-    <div className="reasoning-panel">
+    <div className={`reasoning-panel ${isThinking ? 'live' : 'complete'}`}>
       <div className="reasoning-header">
-        {isThinking && (
-          <div className="thinking-phrase">
-            {currentPhrase}
-          </div>
-        )}
-
-        {isThinking && (
-          <div className="thinking-indicator">
-            <div className="dot" />
-            <div className="dot" />
-            <div className="dot" />
-          </div>
+        {isThinking ? (
+          <>
+            <div className="thinking-phrase">
+              {currentPhrase}
+            </div>
+            <div className="thinking-indicator">
+              <div className="dot" />
+              <div className="dot" />
+              <div className="dot" />
+            </div>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="reasoning-toggle"
+            onClick={() => setExpanded(value => !value)}
+            aria-expanded={expanded}
+          >
+            <Brain size={13} />
+            <span>Reasoning · {steps.length} step{steps.length === 1 ? '' : 's'}</span>
+            {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          </button>
         )}
       </div>
 
+      {(isThinking || expanded) && (
       <div className="reasoning-steps">
         <AnimatePresence>
           {steps.map((step, index) => {
@@ -219,6 +220,7 @@ export default function AgentReasoningPanel({
           })}
         </AnimatePresence>
       </div>
+      )}
     </div>
   );
 }

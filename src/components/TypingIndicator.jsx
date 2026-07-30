@@ -1,7 +1,40 @@
 import { motion } from 'framer-motion';
 import './TypingIndicator.css';
 
-export default function TypingIndicator() {
+function TypingDots() {
+  return (
+    <div className="typing-dots">
+      <motion.span
+        className="dot"
+        animate={{ opacity: [0.25, 1, 0.25] }}
+        transition={{ repeat: Infinity, duration: 1.1, ease: 'easeInOut' }}
+      />
+      <motion.span
+        className="dot"
+        animate={{ opacity: [0.25, 1, 0.25] }}
+        transition={{ repeat: Infinity, duration: 1.1, ease: 'easeInOut', delay: 0.15 }}
+      />
+      <motion.span
+        className="dot"
+        animate={{ opacity: [0.25, 1, 0.25] }}
+        transition={{ repeat: Infinity, duration: 1.1, ease: 'easeInOut', delay: 0.3 }}
+      />
+    </div>
+  );
+}
+
+// inline: renders just the label + dots, for use inside an agent message bubble
+// (the turn container already provides the avatar/header chrome).
+export default function TypingIndicator({ inline = false }) {
+  if (inline) {
+    return (
+      <div className="typing-content inline">
+        <span className="typing-label">Thinking...</span>
+        <TypingDots />
+      </div>
+    );
+  }
+
   return (
     <motion.div
       className="typing-indicator"
@@ -21,23 +54,7 @@ export default function TypingIndicator() {
       </div>
       <div className="typing-content">
         <span className="typing-label">Thinking...</span>
-        <div className="typing-dots">
-          <motion.span
-            className="dot"
-            animate={{ opacity: [0.25, 1, 0.25] }}
-            transition={{ repeat: Infinity, duration: 1.1, ease: 'easeInOut' }}
-          />
-          <motion.span
-            className="dot"
-            animate={{ opacity: [0.25, 1, 0.25] }}
-            transition={{ repeat: Infinity, duration: 1.1, ease: 'easeInOut', delay: 0.15 }}
-          />
-          <motion.span
-            className="dot"
-            animate={{ opacity: [0.25, 1, 0.25] }}
-            transition={{ repeat: Infinity, duration: 1.1, ease: 'easeInOut', delay: 0.3 }}
-          />
-        </div>
+        <TypingDots />
       </div>
     </motion.div>
   );

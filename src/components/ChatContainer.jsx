@@ -1,9 +1,10 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Database, Boxes, Menu, Plus, X, Pencil, Trash2, Download, MessageSquare, AlertTriangle, Wifi } from 'lucide-react';
+import { Fragment, useState, useRef, useEffect, useCallback } from 'react';
+import { Database, Boxes, Menu, Plus, X, Pencil, Trash2, Download, MessageSquare, AlertTriangle, Wifi, ChevronDown, ArrowDown } from 'lucide-react';
 import Message from './Message';
 import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
+import AgentReasoningPanel from './AgentReasoningPanel';
 import ActionCard from './ActionCard';
 import EmptyState from './EmptyState';
 import { isFullAutoMode, getCurrentAutomationTier } from '../agent/automation/automationTiers.js';
@@ -12,6 +13,8 @@ import './ChatContainer.css';
 export default function ChatContainer({
   messages = [],
   isTyping = false,
+  reasoningSteps = [],
+  isAgentThinking = false,
   onSendMessage,
   onStopGeneration,
   onApproveAction,
@@ -45,6 +48,8 @@ export default function ChatContainer({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [menuForId, setMenuForId] = useState(null);
+  // Session-scoped dismissal for proactive suggestion cards (e.g. the "no README" Documentation card).
+  const [dismissedSuggestions, setDismissedSuggestions] = useState(() => new Set());
 
   const handleSuggestionClick = useCallback((text) => {
     setPrefilledText(text);
@@ -74,7 +79,18 @@ export default function ChatContainer({
   const topbarTitle = activeConversation?.title || 'ForgeAI';
   const localModels = availableModels.filter(model => model.source !== 'cloud' && !model.cloud);
   const cloudModels = availableModels.filter(model => model.source === 'cloud' || model.cloud);
-  const modelBadge = activeModel?.source === 'cloud' || activeModel?.cloud ? 'CLOUD' : 'OFFLINE';
+  const activeModelIsCloud = activeModel?.source === 'cloud' || activeModel?.cloud;
+
+  // The agent turn the reasoning trace belongs to: the latest assistant message.
+  // While thinking/streaming, and until the next send clears the steps, it stays attached to that turn.
+  const showReasoning = isAgentThinking || reasoningSteps.length > 0;
+  let inflightIndex = -1;
+  if (showReasoning || isTyping) {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === 'assistant') { inflightIndex = i; break; }
+    }
+  }
+  const visibleSuggestions = proactiveSuggestions.filter(suggestion => !dismissedSuggestions.has(suggestion.type));
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -147,8 +163,12 @@ export default function ChatContainer({
             title="Change active model"
             aria-label="Change active model"
           >
+            <span
+              className={`model-status-dot ${activeModel ? (activeModelIsCloud ? 'cloud' : 'local') : 'none'}`}
+              aria-hidden="true"
+            />
             <span className="model-selector-name">{activeModel?.name || 'Select model'}</span>
-            <span className={`model-selector-pill ${activeModel ? 'active' : ''}`}>{activeModel ? modelBadge : 'None'}</span>
+            <ChevronDown size={13} className="model-selector-chevron" aria-hidden="true" />
           </button>
         </div>
 
@@ -360,15 +380,25 @@ export default function ChatContainer({
             >
               <AnimatePresence mode="popLayout">
                 {messages.map((message, index) => (
-                  <Message
-                    key={message.id || index}
-                    message={message}
-                    index={index}
-                  />
+                  <Fragment key={message.id || index}>
+                    {/* Reasoning trace renders inside the turn it belongs to, above the response text */}
+                    {index === inflightIndex && showReasoning && (
+                      <AgentReasoningPanel steps={reasoningSteps} isThinking={isAgentThinking} />
+                    )}
+                    <Message
+                      message={message}
+                      index={index}
+                      streaming={isTyping && index === inflightIndex}
+                    />
+                  </Fragment>
                 ))}
               </AnimatePresence>
 
-              {isTyping && <TypingIndicator />}
+              {/* Fallbacks only when the turn has no assistant placeholder to attach to */}
+              {showReasoning && inflightIndex === -1 && (
+                <AgentReasoningPanel steps={reasoningSteps} isThinking={isAgentThinking} />
+              )}
+              {isTyping && inflightIndex === -1 && <TypingIndicator />}
             </motion.div>
           )}
 
@@ -388,7 +418,7 @@ export default function ChatContainer({
 
       {showScrollDown && (
         <button className="scroll-to-bottom" onClick={scrollToBottom} aria-label="Scroll to latest messages">
-          v
+          <ArrowDown size={18} />
         </button>
       )}
       {!isTyping && autonomousQueue.some(task => !['completed', 'cancelled'].includes(task.status)) && (
@@ -402,15 +432,24 @@ export default function ChatContainer({
           ))}
         </div>
       )}
-      {!isTyping && proactiveSuggestions.length > 0 && (
+      {!isTyping && visibleSuggestions.length > 0 && (
         <div className="proactive-suggestions" aria-label="Suggested next actions">
-          {proactiveSuggestions.map(suggestion => (
+          {visibleSuggestions.map(suggestion => (
             <div className="suggestion-card" key={suggestion.type}>
               <button className="suggestion-fill" onClick={() => handleSuggestionClick(suggestion.prompt)} title={suggestion.reason}>
                 <span>{suggestion.type.replace(/-/g, ' ')}</span>
                 <small>{suggestion.reason}</small>
               </button>
               <button className="suggestion-queue" onClick={() => onQueueSuggestion?.(suggestion)} title="Add to the user-controlled queue">Queue</button>
+              <button
+                type="button"
+                className="suggestion-dismiss"
+                onClick={() => setDismissedSuggestions(previous => new Set(previous).add(suggestion.type))}
+                aria-label="Dismiss suggestion"
+                title="Dismiss"
+              >
+                <X size={12} />
+              </button>
             </div>
           ))}
         </div>

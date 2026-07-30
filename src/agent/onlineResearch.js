@@ -15,7 +15,32 @@ export function isOnlineResearchRequest(message = '') {
   // "Best/top/most" queries — these are inherently time-sensitive
   if (/\b(best|top|most popular|most used|leading|number one|#1|greatest)\b.*\b(ai|model|language|framework|library|tool|platform|company|app|game|movie|song|player|team)\b/i.test(text)) return true;
   if (/\b(who is|what is)\b.*\b(best|top|most|leading|greatest)\b/i.test(text)) return true;
+  // Biographical / definitional lookups: "who is <Name>", "tell me about <Name>",
+  // "who was Ada Lovelace". These need live sources for anyone the model may not
+  // know or whose situation changes over time. Excludes code-context words
+  // ("this", "that", "the function/file/code/error") so "what is this function?"
+  // still routes to normal chat instead of web search.
+  if (isBiographicalLookup(text)) return true;
   return false;
+}
+
+// A person/entity lookup like "who is lamine yamal" or "tell me about SpaceX".
+// People rarely capitalise names on mobile, so this does NOT rely on casing.
+// Instead it fires on a biographical trigger with a real subject, and bows out
+// of self-referential code questions (which are the common false positive).
+function isBiographicalLookup(rawMessage = '') {
+  const text = String(rawMessage).trim().toLowerCase();
+  // Words that mean "the thing we're already looking at" — a strong signal the
+  // question is about code/context, not an external person or entity.
+  const CODE_CONTEXT = /\b(this|that|these|those|it|above|below|following|function|method|class|component|variable|file|code|error|bug|line|snippet|repo|repository|project|output|result|he|she|they|him|her|them)\b/;
+  const bioTrigger = /\b(who\s+(?:is|are|was|were)|tell me about|what do you know about|info(?:rmation)? (?:about|on)|biography of|how old is)\b/i;
+  if (!bioTrigger.test(text)) return false;
+  if (CODE_CONTEXT.test(text)) return false;
+  // Require a real subject after the trigger (at least one 3+ char word), so
+  // bare "who is" / "tell me about" without a target falls through to chat.
+  const afterTrigger = text.replace(/^.*?\b(?:who\s+(?:is|are|was|were)|tell me about|what do you know about|about|on|of)\b/i, '').trim();
+  const subjectWords = afterTrigger.split(/\s+/).filter(word => word.replace(/[^a-z0-9]/g, '').length >= 3);
+  return subjectWords.length >= 1;
 }
 
 function stripMarkup(value) {

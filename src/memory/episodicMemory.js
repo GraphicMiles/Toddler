@@ -6,6 +6,29 @@
 const MEMORY_KEY = 'forgeai_episodic_memory';
 const MAX_MEMORIES = 500;
 
+// Generic words that appear in almost every request. Matching on these would
+// make unrelated memories look relevant, so they are excluded from scoring.
+const STOPWORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'but', 'for', 'with', 'to', 'of', 'in', 'on',
+  'at', 'is', 'are', 'was', 'were', 'be', 'been', 'it', 'this', 'that', 'these',
+  'those', 'my', 'me', 'i', 'you', 'your', 'we', 'so', 'can', 'will', 'want',
+  'need', 'please', 'just', 'now', 'all', 'any', 'some', 'how', 'what', 'who',
+  'when', 'where', 'why', 'do', 'does', 'did', 'get', 'got', 'make', 'made',
+  'file', 'files', 'create', 'created', 'work', 'working', 'task', 'used',
+  'using', 'general', 'assistance', 'completed', 'successfully',
+]);
+
+// Split text into meaningful lowercase tokens (4+ chars, non-stopword).
+function tokenize(text) {
+  return new Set(
+    String(text)
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(word => word.length >= 4 && !STOPWORDS.has(word)),
+  );
+}
+
 export class EpisodicMemory {
   constructor() {
     this.memories = [];
@@ -58,28 +81,43 @@ export class EpisodicMemory {
   }
 
   /**
-   * Semantic recall (simple keyword + recency for now)
+   * Semantic recall (keyword overlap + recency).
+   *
+   * A memory only qualifies when it shares real content with the query
+   * (relevanceScore > 0). Recency then orders the survivors — it can never
+   * promote an unrelated memory on its own. Without this floor, the recency
+   * boost alone made every recent memory "match" any message, leaking stale
+   * entities (e.g. a football answer) into unrelated turns.
    */
-  recall(query, limit = 5) {
+  recall(query, limit = 5, { minRelevance = 1 } = {}) {
     if (!query) return [];
 
-    const q = query.toLowerCase();
+    const queryTokens = tokenize(query);
+    if (!queryTokens.size) return [];
+
     const scored = this.memories.map(mem => {
-      let score = 0;
       const text = `${mem.task} ${mem.outcome} ${mem.analysis}`.toLowerCase();
+      const memTokens = tokenize(text);
 
-      if (text.includes(q)) score += 3;
-      if (mem.tags.some(t => t.toLowerCase().includes(q))) score += 2;
+      // Relevance = number of meaningful query tokens present in the memory.
+      let relevance = 0;
+      for (const token of queryTokens) {
+        if (memTokens.has(token)) relevance += 1;
+      }
+      // Whole-phrase and tag hits are strong signals.
+      const q = query.toLowerCase().trim();
+      if (q.length >= 4 && text.includes(q)) relevance += 2;
+      if (mem.tags.some(t => queryTokens.has(t.toLowerCase()))) relevance += 1;
 
-      // Recency boost
+      // Recency only orders memories that already cleared the relevance floor.
       const age = (Date.now() - mem.timestamp) / (1000 * 60 * 60 * 24);
-      score += Math.max(0, 2 - age * 0.1);
+      const recency = Math.max(0, 2 - age * 0.1);
 
-      return { ...mem, score };
+      return { ...mem, relevance, score: relevance + recency };
     });
 
     return scored
-      .filter(m => m.score > 0)
+      .filter(m => m.relevance >= minRelevance)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
   }

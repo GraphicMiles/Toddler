@@ -10,7 +10,7 @@ import { customProfileManager } from '../models/customPromptProfiles.js';
 import { getCloudProvider, getCloudProviderPreset } from './cloudProviderStore.js';
 
 export class OllamaProvider {
-  constructor(url = 'http://localhost:11434') { this.url = url; this.kind = 'ollama'; }
+  constructor(url = 'http://localhost:11434') { this.url = url; this.kind = 'ollama'; this.supportsToolUse = true; }
   async getStatus() { const result = await checkOllamaConnection(this.url); return { ...result, kind: this.kind }; }
   async loadModel() { return { loaded: true, reused: true, loadMs: 0 }; }
   async stream({ model, messages, signal, onToken }) {
@@ -23,7 +23,9 @@ export class OllamaProvider {
 }
 
 export class OnDeviceProvider {
-  constructor() { this.kind = 'on-device'; }
+  // Sub-1B GGUF models are unreliable at multi-step tool-call JSON, so the
+  // app keeps them on the guided keyword-gated path rather than the agentic loop.
+  constructor() { this.kind = 'on-device'; this.supportsToolUse = false; }
   async getStatus() { return { ...(await getOnDeviceRuntimeInfo()), kind: this.kind }; }
   async loadModel(model) {
     if (!model?.localPath) throw new Error('Select a downloaded offline model first.');
@@ -105,6 +107,9 @@ function parseOpenAIError(status, payload) {
 export class OpenAICompatibleProvider {
   constructor(modelOrConfig = {}) {
     this.kind = 'cloud-openai-compatible';
+    // Frontier cloud models (Groq/OpenAI/xAI/etc.) reliably follow tool-call
+    // instructions, so the app can route them through the full agentic loop.
+    this.supportsToolUse = true;
     this.modelOrConfig = modelOrConfig;
   }
 
@@ -132,66 +137,87 @@ export class OpenAICompatibleProvider {
     return { loaded: true, cloud: true, provider: config.provider, modelId: model?.modelId || config.modelId };
   }
 
-  async stream({ model, messages, signal, onToken }) {
+  async stream({ model, messages, signal, onToken, maxRetries = 2, backoffMs = 800 }) {
     const config = this.getConfig(model);
-    try {
-      await this.loadModel(model);
-      const response = await fetch(`${config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
-        method: 'POST',
-        signal,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.apiKey}`,
-          ...(config.provider === 'openrouter' ? { 'HTTP-Referer': 'https://forgeai.local', 'X-Title': 'ForgeAI' } : {}),
-        },
-        body: JSON.stringify({
-          model: model?.modelId || config.modelId,
-          messages: (messages || []).map(item => ({ role: item.role || 'user', content: String(item.content ?? '') })),
-          stream: true,
-        }),
-      });
-
-      if (!response.ok) {
-        let payload = null;
-        try { payload = await response.json(); } catch {}
-        throw parseOpenAIError(response.status, payload);
+    let lastError;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      let streamedAny = false;
+      const guardedOnToken = (token) => { streamedAny = true; onToken?.(token); };
+      try {
+        return await this._streamOnce({ model, messages, signal, onToken: guardedOnToken, config });
+      } catch (error) {
+        lastError = error;
+        const normalized = normalizeCloudError(error, { providerConfig: config, model });
+        // Never retry after tokens reached the UI (would duplicate output), on
+        // user aborts, or on permanent errors (bad key / quota / missing model).
+        const permanent = ['invalid_api_key', 'quota_exceeded', 'model_not_found', 'aborted'].includes(normalized.code);
+        const retryable = !streamedAny && !permanent
+          && (normalized.code === 'network_error' || normalized.code === 'rate_limited' || normalized.code === 'server_error');
+        if (retryable && attempt < maxRetries && !signal?.aborted) {
+          await new Promise(resolve => setTimeout(resolve, backoffMs * Math.pow(2, attempt)));
+          continue;
+        }
+        throw normalized;
       }
-      if (!response.body) throw new Error('Cloud provider did not return a stream.');
+    }
+    throw normalizeCloudError(lastError, { providerConfig: config, model });
+  }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let completion = '';
-      let usage = null;
+  async _streamOnce({ model, messages, signal, onToken, config }) {
+    await this.loadModel(model);
+    const response = await fetch(`${config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.apiKey}`,
+        ...(config.provider === 'openrouter' ? { 'HTTP-Referer': 'https://forgeai.local', 'X-Title': 'ForgeAI' } : {}),
+      },
+      body: JSON.stringify({
+        model: model?.modelId || config.modelId,
+        messages: (messages || []).map(item => ({ role: item.role || 'user', content: String(item.content ?? '') })),
+        stream: true,
+      }),
+    });
 
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const events = buffer.split('\n\n');
-        buffer = events.pop() || '';
-        for (const event of events) {
-          for (const line of event.split('\n')) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith('data:')) continue;
-            const data = trimmed.slice(5).trim();
-            if (!data || data === '[DONE]') continue;
-            const chunk = JSON.parse(data);
-            if (chunk.error) throw parseOpenAIError(response.status, chunk);
-            usage = chunk.usage || usage;
-            const token = chunk.choices?.[0]?.delta?.content || chunk.choices?.[0]?.text || '';
-            if (token) {
-              completion += token;
-              onToken?.(token);
-            }
+    if (!response.ok) {
+      let payload = null;
+      try { payload = await response.json(); } catch {}
+      throw parseOpenAIError(response.status, payload);
+    }
+    if (!response.body) throw new Error('Cloud provider did not return a stream.');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let completion = '';
+    let usage = null;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split('\n\n');
+      buffer = events.pop() || '';
+      for (const event of events) {
+        for (const line of event.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) continue;
+          const data = trimmed.slice(5).trim();
+          if (!data || data === '[DONE]') continue;
+          const chunk = JSON.parse(data);
+          if (chunk.error) throw parseOpenAIError(response.status, chunk);
+          usage = chunk.usage || usage;
+          const token = chunk.choices?.[0]?.delta?.content || chunk.choices?.[0]?.text || '';
+          if (token) {
+            completion += token;
+            onToken?.(token);
           }
         }
       }
-
-      return { cloud: true, provider: config.provider, modelId: model?.modelId || config.modelId, content: completion, usage };
-    } catch (error) {
-      throw normalizeCloudError(error, { providerConfig: config, model });
     }
+
+    return { cloud: true, provider: config.provider, modelId: model?.modelId || config.modelId, content: completion, usage };
   }
 
   async stop() { return { stopped: true, cloud: true }; }

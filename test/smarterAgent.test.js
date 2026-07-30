@@ -125,5 +125,32 @@ assert.equal(new OllamaProvider().supportsToolUse, true);
 assert.equal(new OnDeviceProvider().supportsToolUse, false);
 console.log('  ✓ provider tool-use capability flag');
 
+// ---------------------------------------------------------------------------
+// Fix 5: workspace-action routing so tool-capable models use the agentic loop
+//        for read/list/search/review requests, not just git/terminal keywords.
+// ---------------------------------------------------------------------------
+const { isWorkspaceActionRequest, shouldRouteToAgent, isAutonomousToolRequest } = await import('../src/agent/fullAutonomyRunner.js');
+
+// Workspace actions that previously fell through to single-pass chat.
+assert.equal(isWorkspaceActionRequest('list the files in my project'), true);
+assert.equal(isWorkspaceActionRequest('show me package.json'), true);
+assert.equal(isWorkspaceActionRequest('find where handleSend is defined in the code'), true);
+assert.equal(isWorkspaceActionRequest('review the auth module'), true);
+assert.equal(isWorkspaceActionRequest('read src/App.jsx'), true);
+assert.equal(isWorkspaceActionRequest('run the tests'), true);
+// Plain chat / non-workspace messages must NOT route to the agent.
+assert.equal(isWorkspaceActionRequest('hello there'), false);
+assert.equal(isWorkspaceActionRequest('who is lamine yamal'), false);
+assert.equal(isWorkspaceActionRequest('write me a poem about the sea'), false);
+
+// shouldRouteToAgent gates on capability + execution.
+assert.equal(shouldRouteToAgent({ message: 'list the files', toolCapable: true, toolExecutionEnabled: true }), true);
+assert.equal(shouldRouteToAgent({ message: 'list the files', toolCapable: false, toolExecutionEnabled: true }), false, 'on-device stays on guided path');
+assert.equal(shouldRouteToAgent({ message: 'list the files', toolCapable: true, toolExecutionEnabled: false }), false, 'no routing when execution off');
+// Git keyword requests route regardless of the workspace-action detector.
+assert.equal(shouldRouteToAgent({ message: 'clone https://github.com/a/b', toolCapable: true, toolExecutionEnabled: true }), true);
+assert.equal(isAutonomousToolRequest('clone https://github.com/a/b'), true);
+console.log('  ✓ workspace-action agentic routing');
+
 delete globalThis.localStorage;
 console.log('smarter agent tests passed');

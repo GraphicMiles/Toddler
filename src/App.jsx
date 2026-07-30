@@ -22,7 +22,7 @@ import { deterministicAnswer, deterministicDeviceFact } from './agent/determinis
 import { isOnlineResearchRequest, performOnlineResearch, fetchSourcePreviews } from './agent/onlineResearch.js';
 import { generateQualityResponse, readResponseQuality } from './agent/responseQuality.js';
 import { enqueueAutonomousTask, readAutonomousQueue, removeAutonomousTask, updateAutonomousTask } from './agent/autonomousQueue.js';
-import { isAutonomousToolRequest, isActionableToolRequest, isGitRequestWithoutRepo, containsGitHubUrl, extractGitHubUrl, executeAutonomousAction } from './agent/fullAutonomyRunner.js';
+import { isAutonomousToolRequest, isActionableToolRequest, isGitRequestWithoutRepo, isWorkspaceActionRequest, containsGitHubUrl, extractGitHubUrl, executeAutonomousAction } from './agent/fullAutonomyRunner.js';
 import { tryResolvePendingIntent, setPendingIntent, resolveEntityFromContext, needsCurrentInformation } from './agent/intentRouter.js';
 import { processConversationTurn, resolveVagueReferences, getContextPrompt, checkNeedsClarification, resetContext } from './context/conversationContext.js';
 import { runAgenticLoop } from './agent/agenticLoop.js';
@@ -702,10 +702,14 @@ export default function App() {
             ? { ...message, content: 'Which repository should I use? Paste its GitHub URL (for example https://github.com/you/repo) and I\'ll clone it into the app\'s private storage first. After that I can pull, commit, push, and run commands in it.' }
             : message));
           addReasoningStep({ type: 'result_error', title: 'No repository known yet', content: 'Clone one by pasting a GitHub URL, then Git operations can run in it.' });
-        } else if (isNative && toolExecutionEnabled && isAutonomousToolRequest(intentText)) {
+        } else if (isNative && toolExecutionEnabled && (isAutonomousToolRequest(intentText) || (provider.supportsToolUse && isWorkspaceActionRequest(intentText)))) {
           // === AGENTIC LOOP: Multi-step tool-use engine ===
           // This replaces the old single-pass regex routing with a proper
           // agentic loop where the model decides what tools to call.
+          // Git/terminal/GitHub requests always qualify; broader workspace
+          // actions (read/list/search/review a file or the codebase) route here
+          // too, but only for tool-capable providers (cloud/Ollama). Small
+          // on-device models keep the guided single-pass path they were built for.
           const _memoryPrompt = persistentMemory.getMemoryPrompt(intentText);
           const _projectSummary = projectIndexer.lastIndexed ? projectIndexer.formatForPrompt() : '';
           

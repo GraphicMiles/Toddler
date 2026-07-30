@@ -53,6 +53,33 @@ export function extractGitHubUrl(message = '') {
   return message.match(/https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?/i)?.[0] || '';
 }
 
+// A request that reads/inspects/operates on the workspace or codebase but does
+// NOT necessarily contain git/terminal keywords — e.g. "list the files in my
+// project", "what's in package.json", "find where handleSend is defined",
+// "review the auth module". A tool-capable model should handle these through the
+// agentic loop (read_file / list_files / search_code) instead of hallucinating
+// an answer in a single chat pass. Small on-device models stay on the guided
+// path, so this only widens routing when the provider is tool-capable.
+const WORKSPACE_ACTION_VERBS = /\b(read|open|show|display|list|find|locate|search|look|inspect|check|review|analy[sz]e|summar(?:y|ize|ise)|explain|trace|debug|run|execute|test|lint|build)\b/i;
+const WORKSPACE_ACTION_TARGETS = /\b(file|files|folder|directory|dir|code|codebase|project|repo|repository|workspace|package\.json|readme|config|function|method|class|component|module|script|tests?|import|export|dependenc(?:y|ies))\b/i;
+const FILENAME_WITH_EXT = /\b[\w-]+\.(?:js|jsx|ts|tsx|json|css|scss|html|md|py|java|kt|go|rs|rb|php|c|cpp|h|yml|yaml|xml|txt|sh|toml|env)\b/i;
+
+export function isWorkspaceActionRequest(message = '') {
+  const text = String(message).trim();
+  if (!text) return false;
+  if (FILENAME_WITH_EXT.test(text) && WORKSPACE_ACTION_VERBS.test(text)) return true;
+  return WORKSPACE_ACTION_VERBS.test(text) && WORKSPACE_ACTION_TARGETS.test(text);
+}
+
+// Central decision for whether a message should be handled by the multi-step
+// agentic loop rather than a single-pass chat response. Only tool-capable
+// providers (cloud / Ollama) with execution enabled qualify; small on-device
+// models keep the guided keyword-gated behaviour they were designed for.
+export function shouldRouteToAgent({ message = '', toolCapable = false, toolExecutionEnabled = false } = {}) {
+  if (!toolExecutionEnabled || !toolCapable) return false;
+  return isAutonomousToolRequest(message) || isActionableToolRequest(message) || isWorkspaceActionRequest(message);
+}
+
 async function capture(provider, model, messages, signal) {
   let text = '';
   const result = await provider.stream({ model, messages, signal, onToken: token => { text += token; } });

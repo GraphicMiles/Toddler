@@ -3,6 +3,7 @@ const STORAGE_KEY = 'forgeai_cloud_providers_v1';
 export const CLOUD_PROVIDER_PRESETS = Object.freeze([
   Object.freeze({ id: 'openai', label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-4.1-mini' }),
   Object.freeze({ id: 'xai', label: 'xAI / Grok', baseUrl: 'https://api.x.ai/v1', defaultModel: 'grok-4' }),
+  Object.freeze({ id: 'groq', label: 'Groq', baseUrl: 'https://api.groq.com/openai/v1', defaultModel: 'llama-3.3-70b-versatile' }),
   Object.freeze({ id: 'openrouter', label: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', defaultModel: 'anthropic/claude-3.5-sonnet' }),
   Object.freeze({ id: 'mistral', label: 'Mistral AI', baseUrl: 'https://api.mistral.ai/v1', defaultModel: 'mistral-small-latest' }),
   Object.freeze({ id: 'together', label: 'Together AI', baseUrl: 'https://api.together.xyz/v1', defaultModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo' }),

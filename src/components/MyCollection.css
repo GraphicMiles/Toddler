@@ -792,3 +792,14 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Soft warning when a pasted API key clearly belongs to a different provider preset */
+.provider-key-warning {
+  margin: 2px 0 0;
+  padding: 8px 10px;
+  color: var(--warn);
+  background: var(--warn-dim);
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius-sm);
+}

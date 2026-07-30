@@ -33,6 +33,17 @@ function CloudProviderPanel({ providers = [], onAdd, onRemove, onSelectModel }) 
     setError('');
   };
 
+  // Well-known key prefixes — a soft, non-blocking hint when the pasted key
+  // clearly belongs to a different provider (e.g. a Groq gsk_ key in the xAI preset).
+  const KNOWN_KEY_PREFIXES = [
+    { prefix: 'gsk_', provider: 'groq', label: 'Groq' },
+    { prefix: 'xai-', provider: 'xai', label: 'xAI / Grok' },
+    { prefix: 'sk-or-', provider: 'openrouter', label: 'OpenRouter' },
+    { prefix: 'sk-', provider: 'openai', label: 'OpenAI' },
+  ];
+  const keyOwner = KNOWN_KEY_PREFIXES.find(item => apiKey.trim().startsWith(item.prefix));
+  const keyMismatch = keyOwner && keyOwner.provider !== provider ? keyOwner : null;
+
   const submit = (event) => {
     event.preventDefault();
     setError('');
@@ -80,6 +91,11 @@ function CloudProviderPanel({ providers = [], onAdd, onRemove, onSelectModel }) 
           <input value={modelId} onChange={event => setModelId(event.target.value)} placeholder="grok-4" />
         </label>
       </div>
+      {keyMismatch && (
+        <p className="setting-help provider-key-warning">
+          This looks like a {keyMismatch.label} key, but the selected preset is {preset.label}. Switch the provider preset or check the key.
+        </p>
+      )}
       {error && <p className="setting-help error-text">{error}</p>}
       <div className="details-actions">
         <button className="btn-select" type="submit"><Check size={14} /> Save Provider</button>

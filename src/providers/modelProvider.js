@@ -61,7 +61,7 @@ function normalizeCloudError(error, { providerConfig, model } = {}) {
   let code = error?.code || 'cloud_error';
   let message = `${providerName} request failed: ${raw || 'unknown error'}`;
 
-  if (error?.status === 401 || error?.status === 403 || /invalid.*(?:api|key)|unauthorized|forbidden|authentication/.test(lower)) {
+  if (error?.status === 401 || error?.status === 403 || /(?:invalid|incorrect)[\s\S]{0,30}key|unauthorized|forbidden|authentication/.test(lower)) {
     code = 'invalid_api_key';
     message = `The API key for ${providerName} appears to be invalid, expired, or unauthorized. Update it in My Collection → Cloud Provider.`;
   } else if (error?.status === 402 || /insufficient_quota|quota_exceeded|billing|token balance|credit|exhausted|used up|hard_limit/.test(lower)) {
@@ -90,8 +90,13 @@ function normalizeCloudError(error, { providerConfig, model } = {}) {
 }
 
 function parseOpenAIError(status, payload) {
-  const message = payload?.error?.message || payload?.message || `HTTP ${status}`;
-  const error = new Error(message);
+  // Providers disagree on error shapes: some nest an object (error.message), some
+  // (xAI, others) put a plain string in `error`. Handle both so the user sees the
+  // server's actual reason instead of an opaque "HTTP 400".
+  const serverMessage = typeof payload?.error === 'string'
+    ? payload.error
+    : payload?.error?.message || payload?.message;
+  const error = new Error(serverMessage || `HTTP ${status}`);
   error.status = status;
   error.code = payload?.error?.code || payload?.code;
   return error;

@@ -24,6 +24,18 @@ export function isActionableToolRequest(message = '') {
   return (TOOL_COMMAND_VERBS.test(text) && TOOL_COMMAND_TARGETS.test(text)) || SHELL_COMMAND_REQUEST.test(text);
 }
 
+// A Git command with no target: no repo URL / owner-repo in the message and no
+// previously cloned app-private repository. Asking for the URL beats failing.
+const GIT_TOOL_VERBS = /\b(clone|pull|push|fetch|commit|rebase|checkout|merge)\b/i;
+const MENTIONS_REPOSITORY = /(https?:\/\/[^\s]+|https?:\/\/github\.com\S+|[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/;
+
+export function isGitRequestWithoutRepo(message = '') {
+  if (!GIT_TOOL_VERBS.test(message)) return false;
+  if (MENTIONS_REPOSITORY.test(message)) return false;
+  try { return !localStorage.getItem('forgeai_last_git_repo'); }
+  catch { return true; }
+}
+
 async function capture(provider, model, messages, signal) {
   let text = '';
   const result = await provider.stream({ model, messages, signal, onToken: token => { text += token; } });

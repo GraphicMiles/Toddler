@@ -199,6 +199,13 @@ export function isFullAutoMode() {
   return automationTierManager.isFullAuto();
 }
 
+// Tiers above 'assisted' promise to actually execute terminal/Git/GitHub actions
+// (their UI copy says so) — App routes tool requests to the runner on these tiers,
+// not only when the separate autonomy level is FULL.
+export function isToolExecutionTier() {
+  return automationTierManager.getTier() !== AUTOMATION_TIERS.ASSISTED;
+}
+
 export function isWorkflowMode() {
   return automationTierManager.isWorkflowMode();
 }

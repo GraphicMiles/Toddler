@@ -6,6 +6,8 @@ import {
   WHITELISTABLE_ACTIONS,
   isFullAutoMode,
 } from '../agent/automation/automationTiers.js';
+import { AUTONOMY_LEVELS, readAutonomyLevel } from '../agent/autonomyPolicy.js';
+import { isNative, setFullAutonomy } from '../nativeBridge.js';
 import { AlertTriangle, Pause, Play, RotateCcw, Settings2 } from 'lucide-react';
 import DropdownMenu from './DropdownMenu.jsx';
 
@@ -29,6 +31,12 @@ export default function AutomationSettings() {
     setTier(newTier);
     setPendingTier(null);
     setShowWarning(false);
+    if (isNative) {
+      // Tiers above 'assisted' execute terminal/Git actions; keep the native
+      // autonomy flag in sync so GitRuntime/TerminalRuntime don't reject them.
+      setFullAutonomy(newTier !== AUTOMATION_TIERS.ASSISTED || readAutonomyLevel() === AUTONOMY_LEVELS.FULL)
+        .catch(error => console.warn('Failed to sync native autonomy flag:', error));
+    }
   };
 
   const toggleWhitelist = (action) => {

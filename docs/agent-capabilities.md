@@ -35,7 +35,7 @@ Grounded in code (paths + line refs). Status legend: ✅ works · ⚠️ works-b
 ## 5. Git / GitHub / terminal (native)
 | # | Capability | Entry point | Status |
 |---|-----------|-------------|--------|
-| 15 | git clone/status/log/fetch/pull/checkout/commit/push/rebase (JGit) | `src/agent/fullAutonomyRunner.js` → native GitRuntime | 🔒 **needs Full Autonomous** (Settings → Agent → Autonomy level). **Fixed round 7**: tool commands now get an honest gate message instead of a hallucinated refusal |
+| 15 | git clone/status/log/fetch/pull/checkout/commit/push/rebase (JGit) | `src/agent/fullAutonomyRunner.js` → native GitRuntime | 🔒 unlocks via Autonomy level FULL **or** automation tier above Assisted (native flag synced both ways). Gate message remembers the blocked request — "try again" retries it. Git command with no repo asks for the URL instead of failing |
 | 16 | GitHub API actions (encrypted token vault) | fullAutonomyRunner → GithubRuntime | 🔒 same gate; **fixed**: non-auto-approved runner actions now surface as chat approval cards (`onPendingActions` → ActionCard → `executeAutonomousAction`) |
 | 17 | Repo archive import → workspace | `RepositoryIndexPanel` / GithubRuntime.importArchive | ✅ (via Settings → Agent panel) |
 | 18 | App-sandbox terminal | workspaceTools `terminal` / fullAutonomyRunner | 🔒 simulated unless Experimental → Real Terminal is ON |

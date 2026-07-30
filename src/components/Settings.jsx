@@ -7,6 +7,7 @@ import { parseSkillMarkdown } from '../skills/skillPackage.js';
 import { clearGithubToken, getFullAutonomyStatus, hasGithubToken, pickSkillFile, setFullAutonomy, storeGithubToken } from '../nativeBridge.js';
 import { readProjectMemory } from '../memory/agentMemory.js';
 import { AUTONOMY_LEVELS, readAutonomyLevel, writeAutonomyLevel } from '../agent/autonomyPolicy.js';
+import { isToolExecutionTier } from '../agent/automation/automationTiers.js';
 import { RESPONSE_QUALITY, readResponseQuality, writeResponseQuality } from '../agent/responseQuality.js';
 import {
   createSafetyPolicy,
@@ -149,7 +150,7 @@ export default function Settings({
     try {
       setAutonomy(writeAutonomyLevel(nextValue));
       if (isNative) {
-        const result = await setFullAutonomy(nextValue === AUTONOMY_LEVELS.FULL);
+        const result = await setFullAutonomy(nextValue === AUTONOMY_LEVELS.FULL || isToolExecutionTier());
         setNativeFullAutonomy(Boolean(result.enabled));
       }
       showNotice('Autonomy level updated.');

@@ -241,11 +241,20 @@ while iteration < 12:
 
 ---
 
-## 8. Reasoning Discipline Modules
+## 8. Reasoning Discipline Modules (Cognitive OS)
 
+The agent runs an adaptive cognitive pipeline: an **Adaptive Thinking Budget**
+sizes each request and decides which stages wake, so most turns stay cheap and
+only hard tasks get the full depth (keeps token overhead small on mobile).
+
+- **Thinking budget** — `agent/thinkingBudget.js`: `assessThinkingBudget` → level (trivial→massive) + which stages run (plan/skeptic/hypotheses/verify/curiosity + maxIterations). Tool-incapable models stay lean regardless.
 - **Mission planner** — `agent/missionPlanner.js` (cloud-gated): structured plan before execution.
+- **Skeptic** — `agent/skeptic.js`: pre-apply "why would this fail?" pass (reverse-thinking + devil's advocate + future-simulation merged); its `mustFix` items feed the phase4 revision loop. Gated by the thinking budget (write/edit turns).
 - **Confidence engine** — `agent/confidenceEngine.js`: evidence-based proceed/clarify/confirm.
 - **Self-correction** — `agent/selfCorrection.js`: `diagnoseRootCause` + `verifyChanges`.
+- **Mistake memory** — `agent/mistakeMemory.js`: records failure→cause→fix; recalls relevant lessons (semantic) to avoid repeats.
+- **Preference memory** — `agent/preferenceMemory.js`: user-confirmed style facts (stack, completeness, explanation style, autonomy, verbosity) injected as a tiny prompt.
+- **Cognition glue** — `agent/cognition.js`: cognitive-state labels for the UI + senior-engineer / N=2-hypothesis (single call) / gated intent-expansion prompt directives.
 - **Response quality** — `agent/responseQuality.js`: Fast / Balanced / Reviewed.
 - **Sub-agent orchestration** — `agent/subagentOrchestrator.js`, `agentRoles.js`: planner→coder→reviewer roles used by `phase4Runner`.
 - **Follow-ups** — `agent/followUpSuggestions.js`.

@@ -163,6 +163,7 @@ export async function generatePatchProposal({
   toolNames = [],
   onStage,
   budgetOptions,
+  runSkeptic = null, // optional async ({ artifact, kind, path }) => { verdict, mustFix, ... }
 }) {
   if (!provider?.stream || !model?.id) throw new Error('A loaded model provider is required for Phase 4.');
   const creatingFile = isFileCreationRequest(request);
@@ -201,12 +202,28 @@ export async function generatePatchProposal({
   const reviewPrompt = `${AGENT_ROLES.reviewer.instructions}\nReturn JSON only: {"verdict":"pass"|"revise","issues":["specific issue"]}.\nOriginal request:\n${request}\n\n${artifactLabel}\n\n${formatReviewForModel(deterministic)}`;
   const critic = await generateText(provider, model, [{ role: 'system', content: reviewPrompt }, { role: 'user', content: 'Review this patch now.' }], signal, budget);
   const modelReview = reviewerVerdict(critic.output);
-  const needsRevision = deterministic.verdict === 'revise' || modelReview.verdict === 'revise';
+
+  // Skeptic pass (gated by caller via thinking budget): stress-test the artifact
+  // for hidden failure modes BEFORE finalizing. Its mustFix items feed revision.
+  let skeptic = null;
+  if (typeof runSkeptic === 'function') {
+    emitSubagentStage(onStage, 'reviewing', { role: AGENT_ROLES.reviewer.id, files: action.paths, budget: budget.snapshot() });
+    try {
+      skeptic = await runSkeptic({
+        artifact: creatingFile ? action.content : action.patch,
+        kind: creatingFile ? 'file' : 'patch',
+        path: action.paths[0],
+      });
+    } catch { skeptic = null; }
+  }
+  const skepticRevise = skeptic && skeptic.verdict === 'revise' && skeptic.mustFix?.length > 0;
+  const needsRevision = deterministic.verdict === 'revise' || modelReview.verdict === 'revise' || skepticRevise;
   let revisionResult = null;
 
   if (needsRevision) {
     emitSubagentStage(onStage, 'revising', { role: AGENT_ROLES.coder.id, budget: budget.snapshot() });
-    const critique = [formatReviewForModel(deterministic), ...modelReview.issues.map(issue => `- Model reviewer: ${issue}`)].join('\n');
+    const skepticNotes = skepticRevise ? skeptic.mustFix.map(m => `- Skeptic: ${m}`) : [];
+    const critique = [formatReviewForModel(deterministic), ...modelReview.issues.map(issue => `- Model reviewer: ${issue}`), ...skepticNotes].join('\n');
     const revision = await generateText(provider, model, [
       { role: 'system', content: `${AGENT_ROLES.coder.instructions}\n${structuredActionPrompt(visibleToolNames)}\nRevise the ${creatingFile ? 'new file' : 'patch'} once. Return exactly one ${creatingFile ? 'create_file' : 'propose_patch'} action and no commentary.` },
       { role: 'user', content: `${userContent}\n\nORIGINAL ${creatingFile ? 'FILE' : 'PATCH'}:\n${creatingFile ? action.content : action.patch}\n\nREVIEW TO ADDRESS:\n${critique}` },
@@ -232,7 +249,7 @@ export async function generatePatchProposal({
     action,
     raw: initial.output,
     generationResult: revisionResult || critic.generationResult || initial.generationResult,
-    review: { deterministic: finalReview, model: modelReview, revised: needsRevision },
+    review: { deterministic: finalReview, model: modelReview, skeptic, revised: needsRevision },
     activeSkills: activeSkills.map(skill => skill.id),
     budget: budget.snapshot(),
   };

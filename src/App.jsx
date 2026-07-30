@@ -33,6 +33,11 @@ import { escapeRegExp } from './utils/escapeRegExp.js';
 import { understand as understandIntent } from './agent/intentUnderstanding.js';
 import { runAgenticLoop } from './agent/agenticLoop.js';
 import { planMission, shouldPlanMission, formatPlanForPrompt } from './agent/missionPlanner.js';
+import { assessThinkingBudget } from './agent/thinkingBudget.js';
+import { critiqueChange } from './agent/skeptic.js';
+import { mistakeMemory } from './agent/mistakeMemory.js';
+import { preferenceMemory } from './agent/preferenceMemory.js';
+import { buildCognitiveDirectives } from './agent/cognition.js';
 import { assessConfidence, decideOnConfidence } from './agent/confidenceEngine.js';
 import { persistentMemory } from './agent/persistentMemory.js';
 import { projectIndexer } from './agent/projectIndexer.js';
@@ -534,6 +539,19 @@ export default function App() {
       addReasoningStep?.({ type: 'thought', title: 'Understanding your request', content: `Interpreted "${text}" as referring to ${understanding.resolvedTarget}.` });
     }
 
+    // === Cognitive OS: adaptive thinking budget + learn preferences ===
+    // Sizes the task so heavy cognitive stages (plan/skeptic/hypotheses) only
+    // wake for work that needs them; trivial turns stay cheap.
+    const thinking = assessThinkingBudget({
+      message: resolvedText,
+      category: understanding.category,
+      estimatedSteps: understanding.estimatedSteps,
+      workflow: understanding.workflow,
+      isCodeChange: isCodeChangeRequest(resolvedText),
+      toolCapable: provider.supportsToolUse === true,
+    });
+    try { preferenceMemory.learnFromMessage(resolvedText); } catch { /* best-effort */ }
+
     // For very vague messages, ask for clarification instead of generating a useless response
     const clarification = checkNeedsClarification(resolvedText);
     if (clarification.needs && !isNative) {
@@ -696,6 +714,14 @@ export default function App() {
           projectMemory: projectMemoryPrompt(workspaceProvider.id),
           signal: controller.signal,
           toolNames: agentToolRegistry.list().map(tool => tool.name),
+          // Skeptic pass (gated by the adaptive thinking budget): stress-test the
+          // proposed change for hidden failure modes before it's finalized.
+          runSkeptic: thinking.stages.skeptic
+            ? ({ artifact, kind, path }) => {
+                addReasoningStep({ type: 'thought', title: 'Stress-testing the change', content: 'Checking for edge cases and failure modes.' });
+                return critiqueChange({ provider, model: activeModel, request: intentText, artifact, kind, path, signal: controller.signal });
+              }
+            : null,
           onStage: stage => {
             if (!phase4Task) return;
             try { updateAgentTask(workspaceProvider.id, phase4Task.id, { status: stage.stage, event: { type: `subagent:${stage.stage}`, role: stage.role, budget: stage.budget } }); } catch {}
@@ -808,7 +834,10 @@ export default function App() {
                 workspaceFiles: workspaceFileList,
                 signal: controller.signal,
               });
-              missionPlanPrompt = formatPlanForPrompt(plan);
+              // Fold senior-engineer + (for large tasks) hypothesis/expansion
+              // directives into the plan the agentic loop follows.
+              const cognitiveDirectives = buildCognitiveDirectives(thinking.stages).join('\n');
+              missionPlanPrompt = `${formatPlanForPrompt(plan)}\n\n${cognitiveDirectives}`;
               addReasoningStep({
                 type: 'thought',
                 title: `Plan: ${plan.steps.length} step(s) · ${plan.complexity} · ${Math.round(plan.confidence * 100)}% confidence`,
@@ -925,6 +954,13 @@ export default function App() {
           contextSystemMessages.push({ role: 'system', content: 'You are a knowledgeable, thorough assistant. For informational or explanatory questions, give a detailed, well-structured answer: open with a direct one-sentence summary, then expand with multiple short paragraphs and/or bullet sections covering background, key facts, context, and significance. Use markdown headings and lists. Aim for genuine depth (roughly 40+ lines for "who/what is" questions) rather than a single sentence. For simple confirmations or quick factual lookups, stay brief.' });
           if (approvedMemory) contextSystemMessages.push({ role: 'system', content: approvedMemory });
           if (persistentMemoryPrompt) contextSystemMessages.push({ role: 'system', content: persistentMemoryPrompt });
+          // Cognitive OS: user preferences + lessons from past mistakes (near-free).
+          const prefPrompt = preferenceMemory.getPrompt();
+          if (prefPrompt) contextSystemMessages.push({ role: 'system', content: prefPrompt });
+          const mistakePrompt = mistakeMemory.getPrompt(intentText);
+          if (mistakePrompt) contextSystemMessages.push({ role: 'system', content: mistakePrompt });
+          // Senior-engineer thinking; hypotheses/expansion added for larger tasks.
+          for (const d of buildCognitiveDirectives(thinking.stages)) contextSystemMessages.push({ role: 'system', content: d });
           if (contextPrompt) contextSystemMessages.push({ role: 'system', content: `[Conversation Context] ${contextPrompt} Use this context to understand references, pronouns, and vague messages. If the user's message is ambiguous, prefer the contextually obvious interpretation over a literal reading.` });
           let responseMessages = contextSystemMessages.length > 0
             ? [...contextSystemMessages, ...messagesWithContext]
@@ -1008,6 +1044,17 @@ export default function App() {
       }
       if (error.name !== 'AbortError') {
         recordError(error, 'model-generation');
+        // Cognitive OS: remember this failure so a similar future request can
+        // recall the lesson (problem → cause) and avoid repeating it.
+        try {
+          mistakeMemory.record({
+            problem: `Request "${String(intentText).slice(0, 120)}" failed: ${error.message}`,
+            rootCause: error.code || error.name || 'unknown',
+            fix: '',
+            category: isCodeChangeRequest(intentText) ? 'code' : 'general',
+            success: false,
+          });
+        } catch { /* best-effort */ }
         const friendly = error.message?.includes('loaded safely')
           ? 'Model could not be loaded. It may still be downloading, or the file may be corrupted - try re-downloading from Model Zoo.'
           : `Something went wrong: ${error.message}`;

@@ -26,6 +26,7 @@ import { isAutonomousToolRequest, isActionableToolRequest, isGitRequestWithoutRe
 import { tryResolvePendingIntent, setPendingIntent, resolveEntityFromContext, needsCurrentInformation } from './agent/intentRouter.js';
 import { processConversationTurn, resolveVagueReferences, getContextPrompt, checkNeedsClarification, resetContext } from './context/conversationContext.js';
 import { runAgenticLoop } from './agent/agenticLoop.js';
+import { planMission, shouldPlanMission, formatPlanForPrompt } from './agent/missionPlanner.js';
 import { persistentMemory } from './agent/persistentMemory.js';
 import { projectIndexer } from './agent/projectIndexer.js';
 import { isToolExecutionTier } from './agent/automation/automationTiers.js';
@@ -737,6 +738,31 @@ export default function App() {
             }
           } catch {}
 
+          // === MISSION PLANNER (capability-gated) ===
+          // Capable models reason about the whole job first, then the agentic
+          // loop follows the plan and verifies before declaring success. Small
+          // on-device models skip this and use the lean guided path.
+          let missionPlanPrompt = '';
+          if (shouldPlanMission({ toolCapable: provider.supportsToolUse, message: intentText })) {
+            addReasoningStep({ type: 'thought', title: 'Planning the mission', content: 'Breaking the request into an ordered plan.' });
+            try {
+              const plan = await planMission({
+                provider,
+                model: activeModel,
+                request: intentText,
+                workspaceContext: ragContext,
+                workspaceFiles: workspaceFileList,
+                signal: controller.signal,
+              });
+              missionPlanPrompt = formatPlanForPrompt(plan);
+              addReasoningStep({
+                type: 'thought',
+                title: `Plan: ${plan.steps.length} step(s) · ${plan.complexity} · ${Math.round(plan.confidence * 100)}% confidence`,
+                content: plan.steps.map((s, i) => `${i + 1}. ${s}`).join('\n').slice(0, 400),
+              });
+            } catch { /* planning is best-effort; the loop proceeds without it */ }
+          }
+
           const agenticResult = await runAgenticLoop({
             provider,
             model: activeModel,
@@ -746,6 +772,7 @@ export default function App() {
             isNative,
             signal: controller.signal,
             workspaceFiles: workspaceFileList,
+            missionPlan: missionPlanPrompt,
             onToken: (token) => {
               setMessages(prev => prev.map(message => message.id === assistantId ? { ...message, content: token } : message));
             },

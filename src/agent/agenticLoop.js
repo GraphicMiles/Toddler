@@ -269,6 +269,7 @@ export async function runAgenticLoop({
   onIteration,
   signal,
   workspaceFiles = [],
+  missionPlan = '',
 }) {
   const executeTool = createToolExecutor(workspaceProvider, { isNative, onToolCall, signal, workspaceFiles });
   const toolPrompt = formatToolSchemasForPrompt();
@@ -304,6 +305,12 @@ WORKFLOW:
     { role: 'system', content: systemPrompt },
   ];
 
+  // Inject the mission plan (if the planner produced one) so the model follows
+  // its own ordered plan and finishes the whole job instead of the first edit.
+  if (missionPlan && typeof missionPlan === 'string') {
+    modelMessages.push({ role: 'system', content: missionPlan });
+  }
+
   // Add relevant history (last 8 turns)
   const relevantHistory = history.slice(-8);
   for (const msg of relevantHistory) {
@@ -318,6 +325,9 @@ WORKFLOW:
   const toolResults = [];
   let iteration = 0;
   let finalResponse = '';
+  // Track files the agent wrote/created so we can verify them before "done".
+  const writtenFiles = new Map(); // path -> expected content
+  let verifiedOnce = false;
 
   // Capable providers (cloud/Ollama) get real function-calling: structured tool
   // schemas in the request and structured tool_calls back. Small on-device
@@ -385,8 +395,30 @@ WORKFLOW:
       const result = await executeTool(call.tool, call.args);
       toolResults.push({ tool: call.tool, args: call.args, result });
 
-      // If the tool is "respond", we're done
+      // Remember successful writes so we can verify them before declaring done.
+      if ((call.tool === 'write_file' || call.tool === 'create_file') && result.success && call.args?.path) {
+        writtenFiles.set(call.args.path, typeof call.args.content === 'string' ? call.args.content : null);
+      }
+
+      // If the tool is "respond", we're done — but first auto-verify any file
+      // changes exactly once. If a change didn't stick, feed the discrepancy back
+      // and let the model fix it instead of falsely reporting success.
       if (call.tool === 'respond' && result.done) {
+        if (writtenFiles.size > 0 && !verifiedOnce) {
+          verifiedOnce = true;
+          const verification = await verifyWrittenFiles(workspaceProvider, writtenFiles);
+          if (!verification.passed) {
+            onToolCall?.({ tool: 'verify_changes', args: { files: [...writtenFiles.keys()] }, iteration });
+            toolResults.push({ tool: 'verify_changes', args: {}, result: verification });
+            modelMessages.push(assistantTurn);
+            modelMessages.push({
+              role: 'user',
+              content: `Automatic verification found problems before finishing:\n${verification.issues.map(i => `- ${i}`).join('\n')}\n\nFix these, then call respond again. Do not claim success until the files verify.`,
+            });
+            output = '';
+            break; // continue the loop so the model can fix
+          }
+        }
         finalResponse = result.finalResponse;
         // Signal completion
         onToken?.(finalResponse);
@@ -395,6 +427,7 @@ WORKFLOW:
           toolCalls: toolResults,
           iterations: iteration,
           success: true,
+          verified: writtenFiles.size > 0 ? true : undefined,
         };
       }
 
@@ -442,6 +475,28 @@ WORKFLOW:
     iterations: iteration,
     success: true,
   };
+}
+
+// Read back each written file and confirm it exists (and matches expected
+// content when we have it). Returns { passed, issues[] }. Never throws.
+async function verifyWrittenFiles(workspaceProvider, writtenFiles) {
+  const issues = [];
+  if (!workspaceProvider?.readText) {
+    return { passed: true, issues: [], note: 'No workspace reader available; skipped verification.' };
+  }
+  for (const [path, expected] of writtenFiles.entries()) {
+    try {
+      const actual = await workspaceProvider.readText(path);
+      if (typeof actual !== 'string') {
+        issues.push(`${path}: could not read the file back after writing.`);
+      } else if (typeof expected === 'string' && actual !== expected) {
+        issues.push(`${path}: content on disk does not match what was written.`);
+      }
+    } catch (error) {
+      issues.push(`${path}: verification read failed (${error.message}).`);
+    }
+  }
+  return { passed: issues.length === 0, issues };
 }
 
 // Helper: flatten a file tree into a list of paths

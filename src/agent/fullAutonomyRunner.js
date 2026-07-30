@@ -7,7 +7,14 @@ import { performOnlineResearch } from './onlineResearch.js';
 import { automationTierManager, shouldAutoApproveAction } from './automation/automationTiers.js';
 
 export function isAutonomousToolRequest(message = '') {
-  return /\b(terminal|shell|command|github|repository|repo|clone|fetch|pull|push|commit|rebase|checkout|branch|workflow|actions)\b/i.test(message);
+  const text = String(message).trim();
+  // Original keyword-based triggers
+  if (/\b(terminal|shell|command|github|repository|repo|clone|fetch|pull|push|commit|rebase|checkout|branch|workflow|actions)\b/i.test(text)) return true;
+  // Direct GitHub URL (with or without a verb)
+  if (/https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+/i.test(text)) return true;
+  // owner/repo pattern
+  if (/\b[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\b/i.test(text) && /\b(clone|import|pull down|check out|get|download)\b/i.test(text)) return true;
+  return false;
 }
 
 // A request that can only be satisfied by executing a Git/terminal/GitHub tool —
@@ -36,6 +43,16 @@ export function isGitRequestWithoutRepo(message = '') {
   catch { return true; }
 }
 
+// Check if a message contains a GitHub URL (for direct URL paste handling)
+export function containsGitHubUrl(message = '') {
+  return /https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?/i.test(message);
+}
+
+// Extract GitHub URL from a message
+export function extractGitHubUrl(message = '') {
+  return message.match(/https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?/i)?.[0] || '';
+}
+
 async function capture(provider, model, messages, signal) {
   let text = '';
   const result = await provider.stream({ model, messages, signal, onToken: token => { text += token; } });
@@ -43,6 +60,10 @@ async function capture(provider, model, messages, signal) {
 }
 
 function fallbackActions(request) {
+  // Check for GitHub URL first - if present, treat as clone request
+  const githubUrl = request.match(/https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?/i)?.[0];
+  if (githubUrl) return [{ type: 'git_clone', paths: [], rationale: 'Clone the GitHub repository provided by the user.', repository: githubUrl, branch: '' }];
+  
   const repository = request.match(/https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?/i)?.[0]
     || request.match(/\b[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\b/)?.[0];
   if (repository && /\b(clone|import|pull down)\b/i.test(request)) return [{ type: 'git_clone', paths: [], rationale: 'Clone the repository requested by the user.', repository, branch: '' }];
@@ -83,7 +104,13 @@ export async function runFullAutonomyAgent({ provider, model, request, signal, o
   let actions;
   try { actions = parseStructuredActions(planned.text); }
   catch { actions = fallbackActions(request).map(validateStructuredAction); }
-  if (!actions.length) throw new Error('The local model did not produce a valid terminal, research, or Git action. Use a direct command such as “run command: ls” or include a GitHub repository URL.');
+  if (!actions.length) {
+    const hasUrl = /https?:\/\//.test(request);
+    if (hasUrl) {
+      throw new Error('I found a URL but could not determine what action to take. Try being more specific, for example: clone https://github.com/owner/repo');
+    }
+    throw new Error('I could not determine what tool action to take. Try a direct command like clone https://github.com/owner/repo, run command: ls, or ask a question instead.');
+  }
 
   const results = [];
   const pendingApproval = [];

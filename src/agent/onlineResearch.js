@@ -1,7 +1,18 @@
 import { searchOnline, fetchPublicUrl, isNative } from '../nativeBridge.js';
 
 export function isOnlineResearchRequest(message = '') {
-  return /\b(search online|research|latest|current|today|news|who won|score|result|how old|age of|github repo|pull request|workflow run|fact.?check)\b/i.test(message);
+  const text = String(message).toLowerCase();
+  // Original keyword-based triggers
+  if (/\b(search online|research|latest|current|today|news|who won|score|result|how old|age of|github repo|pull request|workflow run|fact.?check)\b/i.test(text)) return true;
+  // Time-sensitive query patterns (schedules, dates, seasons, current events)
+  if (/\b(when is|when does|when will|when was)\b/i.test(text)) return true;
+  if (/\b(2024|2025|2026|this year|last year|this season|last season|next season)\b/i.test(text)) return true;
+  if (/\b(start|start(s|ed|ing)|begin|release|launch|premiere)\b.*\b(date|when|time)\b/i.test(text)) return true;
+  if (/\b(still|currently|now)\b.*\b(play|work|live|coach|manage|at|for|with)\b/i.test(text)) return true;
+  if (/\b(which club|which team|which company)\b.*\b(currently|now|play|work)\b/i.test(text)) return true;
+  // World Cup, Olympics, major events with year
+  if (/\b(world cup|olympics|super bowl|champions league|premier league|nba|nfl|mlb)\b.*\b(2024|2025|2026|next|last|this)\b/i.test(text)) return true;
+  return false;
 }
 
 function stripMarkup(value) {
@@ -36,28 +47,44 @@ function relevanceScore(query, item) {
   return score;
 }
 
-export async function performOnlineResearch(query) {
+export async function performOnlineResearch(query, { maxRetries = 2, backoffMs = 1000 } = {}) {
   const googleApiKey = localStorage.getItem('forgeai_google_api_key') || '';
   const googleCx = localStorage.getItem('forgeai_google_cx') || '';
-  const result = await searchOnline({ query, googleApiKey, googleCx });
-  const parsed = Array.from(result.items || []).map((item) => {
-    const { title, publisher } = splitPublisher(stripMarkup(item.title));
-    return {
-      title,
-      publisher,
-      url: String(item.url || ''),
-      snippet: stripMarkup(item.snippet),
-      source: String(item.source || result.provider || 'web'),
-    };
-  }).filter(item => item.url.startsWith('https://') && item.title);
-  if (!parsed.length) throw new Error('No public research sources were returned. Configure Google Programmable Search for broader results.');
-  const items = parsed
-    .map((item, index) => ({ item, index, score: relevanceScore(query, item) }))
-    .sort((a, b) => (b.score - a.score) || (a.index - b.index))
-    .slice(0, 8)
-    .map(({ item }, index) => ({ ...item, id: index + 1 }));
-  const evidence = items.map(item => `[${item.id}] ${item.title}\nSource: ${item.publisher || item.source}\nURL: ${item.url}\nEvidence: ${item.snippet}`).join('\n\n');
-  return { query, provider: result.provider, searchedAt: result.searchedAt, items, evidence };
+  
+  let lastError;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await searchOnline({ query, googleApiKey, googleCx });
+      const parsed = Array.from(result.items || []).map((item) => {
+        const { title, publisher } = splitPublisher(stripMarkup(item.title));
+        return {
+          title,
+          publisher,
+          url: String(item.url || ''),
+          snippet: stripMarkup(item.snippet),
+          source: String(item.source || result.provider || 'web'),
+        };
+      }).filter(item => item.url.startsWith('https://') && item.title);
+      if (!parsed.length) throw new Error('No public research sources were returned. Configure Google Programmable Search for broader results.');
+      const items = parsed
+        .map((item, index) => ({ item, index, score: relevanceScore(query, item) }))
+        .sort((a, b) => (b.score - a.score) || (a.index - b.index))
+        .slice(0, 8)
+        .map(({ item }, index) => ({ ...item, id: index + 1 }));
+      const evidence = items.map(item => `[${item.id}] ${item.title}\nSource: ${item.publisher || item.source}\nURL: ${item.url}\nEvidence: ${item.snippet}`).join('\n\n');
+      return { query, provider: result.provider, searchedAt: result.searchedAt, items, evidence };
+    } catch (error) {
+      lastError = error;
+      // Retry on rate limit (429) or server errors (5xx)
+      const isRetryable = /429|5\d{2}|rate.?limit|too many|temporarily unavailable/i.test(error.message || '');
+      if (isRetryable && attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, backoffMs * Math.pow(2, attempt)));
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError;
 }
 
 // Best-effort og:image / twitter:image extraction for source preview cards.

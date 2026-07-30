@@ -13,7 +13,7 @@
   margin-top: 8px;
   border: 1px solid var(--border);
   border-radius: 9px;
-  background: #15171c;
+  background: var(--bg-surface);
 }
 
 .task-timeline-item summary {

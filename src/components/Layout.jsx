@@ -22,10 +22,10 @@ export default function Layout({
 }) {
   const statusMeta =
     status === 'busy'
-      ? { color: 'var(--warn)', label: 'Working' }
+      ? { tone: 'warning', label: 'Working' }
       : status === 'off'
-        ? { color: 'var(--danger)', label: isConnecting ? 'Connecting...' : 'Offline' }
-        : { color: 'var(--success)', label: ollamaConnected ? 'Ready' : 'Idle' };
+        ? { tone: 'danger', label: isConnecting ? 'Connecting...' : 'Offline' }
+        : { tone: 'active', label: ollamaConnected ? 'Ready' : 'Idle' };
 
   return (
     <div className="layout-root">
@@ -39,8 +39,8 @@ export default function Layout({
         </div>
 
         <div className="topbar-right">
-          <div className="status-pill" title="Model status">
-            <span className="status-dot" style={{ background: statusMeta.color }} />
+          <div className={`status-pill ${statusMeta.tone}`} title="Model status">
+            <span className="status-dot" />
             <span className="status-label mono">{statusMeta.label}</span>
           </div>
         </div>

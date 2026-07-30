@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { MessageCircle, Search, Share2 } from 'lucide-react';
 import { socialMediaManager } from '../social/SocialMediaManager.js';
 
 export default function SocialMediaSettings() {
@@ -41,42 +42,41 @@ export default function SocialMediaSettings() {
 
   return (
     <section className="settings-card">
-      <h3>📱 Social Media Automation</h3>
-      <p className="setting-help">Manage encrypted accounts and automation for multiple platforms.</p>
+      <h3><Share2 size={16} /> Social media automation</h3>
+      <p className="setting-help first">Manage account labels and test research/posting flows. Real posting requires native experimental support.</p>
 
-      <div style={{ margin: '16px 0' }}>
-        <label className="setting-label">Add Account</label>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <select value={platform} onChange={e => setPlatform(e.target.value)} style={{ padding: '8px' }}>
+      <div className="settings-two-col">
+        <div className="setting-field">
+          <label className="setting-label" htmlFor="social-platform">Platform</label>
+          <select id="social-platform" value={platform} onChange={event => setPlatform(event.target.value)}>
             <option value="twitter">Twitter/X</option>
             <option value="linkedin">LinkedIn</option>
             <option value="reddit">Reddit</option>
           </select>
-          <input 
-            type="text" 
-            value={username} 
-            onChange={e => setUsername(e.target.value)} 
-            placeholder="username" 
-            style={{ flex: 1, padding: '8px', background: '#111827', border: '1px solid #374151', borderRadius: '6px' }} 
-          />
-          <button onClick={addAccount}>Add</button>
+        </div>
+        <div className="setting-field">
+          <label className="setting-label" htmlFor="social-username">Username</label>
+          <div className="setting-row">
+            <input id="social-username" value={username} onChange={event => setUsername(event.target.value)} placeholder="username" />
+            <button onClick={addAccount}>Add</button>
+          </div>
         </div>
       </div>
 
       {accounts.length > 0 && (
-        <div>
-          <strong>Connected Accounts</strong>
-          {accounts.map((acc, i) => (
-            <div key={i} style={{ fontSize: '13px', padding: '6px 0' }}>
-              {acc.platform} • @{acc.username}
+        <div className="settings-list">
+          {accounts.map(account => (
+            <div className="settings-list-item" key={`${account.platform}:${account.username}`}>
+              <MessageCircle size={14} />
+              <span><strong>{account.platform}</strong><small>@{account.username}</small></span>
             </div>
           ))}
         </div>
       )}
 
-      <div style={{ marginTop: '16px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        <button onClick={testPost}>Test Post</button>
-        <button onClick={testScrape}>Research Mode (Scrape)</button>
+      <div className="setting-row wrap">
+        <button onClick={testPost}><Share2 size={14} /> Test post</button>
+        <button onClick={testScrape}><Search size={14} /> Research mode</button>
       </div>
     </section>
   );

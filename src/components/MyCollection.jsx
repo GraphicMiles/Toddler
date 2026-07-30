@@ -42,16 +42,16 @@ function CloudProviderPanel({ providers = [], onAdd, onRemove, onSelectModel }) 
 
   return (
     <div className="model-list">
-      <div className="active-model-banner" style={{ alignItems: 'flex-start' }}>
-        <div style={{ flex: 1 }}>
+      <div className="active-model-banner cloud-provider-intro">
+        <div className="cloud-provider-copy">
           <span className="active-label">Cloud Provider</span>
-          <p style={{ margin: '6px 0 0', color: '#9ca3af', fontSize: 13 }}>
+          <p>
             Add an OpenAI-compatible cloud endpoint. Cloud models use provider API quota; local GGUF models do not.
           </p>
         </div>
       </div>
 
-      <form className="model-item-details" onSubmit={submit} style={{ height: 'auto', opacity: 1 }}>
+      <form className="model-item-details expanded" onSubmit={submit}>
         <div className="details-grid">
           <label className="detail">
             <span className="detail-label">Provider</span>
@@ -76,7 +76,7 @@ function CloudProviderPanel({ providers = [], onAdd, onRemove, onSelectModel }) 
             <input value={modelId} onChange={event => setModelId(event.target.value)} placeholder="grok-4" />
           </label>
         </div>
-        {error && <p className="setting-help" style={{ color: '#f87171' }}>{error}</p>}
+        {error && <p className="setting-help error-text">{error}</p>}
         <div className="details-actions">
           <button className="btn-select" type="submit"><Check size={14} /> Save Provider</button>
         </div>
@@ -104,7 +104,7 @@ function CloudProviderPanel({ providers = [], onAdd, onRemove, onSelectModel }) 
                 <span className="running-badge">Cloud</span>
               </div>
             </div>
-            <div className="model-item-details" style={{ height: 'auto', opacity: 1 }}>
+            <div className="model-item-details expanded">
               <div className="details-grid">
                 <div className="detail"><span className="detail-label">Base URL</span><span className="detail-value mono">{item.baseUrl}</span></div>
                 <div className="detail"><span className="detail-label">Quota</span><span className="detail-value">Provider token/API limits apply</span></div>
@@ -216,7 +216,7 @@ export default function MyCollection({
         </div>
       </div>
 
-      <div className="setting-row" style={{ margin: '12px 0', gap: 8 }}>
+      <div className="setting-row collection-provider-tabs">
         <button className={providerTab === 'local' ? 'btn-select' : 'collection-import'} onClick={() => setProviderTab('local')}>
           Local Provider
         </button>
@@ -289,7 +289,7 @@ export default function MyCollection({
               <span className="active-name">{benchmark.tokensPerSecond?.toFixed(1) || '0.0'} tok/s</span>
             </div>
           </div>
-          <div className="mono" style={{ fontSize: 11, lineHeight: 1.5, textAlign: 'right' }}>
+          <div className="mono benchmark-meta">
             <div>Load {Math.round(benchmark.loadMs || 0)} ms{benchmark.loadReused ? ' (cached)' : ''}</div>
             <div>Prefill {benchmark.prefillTokensPerSecond?.toFixed(1) || '0.0'} tok/s</div>
             <div>{benchmark.contextTokens} ctx · {benchmark.threads} threads · {benchmark.abi || runtimeInfo?.abi || 'unknown'}</div>

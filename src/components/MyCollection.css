@@ -52,7 +52,7 @@
 }
 
 .ollama-status.connected {
-  background: rgba(122, 255, 158, 0.1);
+  background: var(--accent-subtle);
   color: var(--success);
 }
 
@@ -312,7 +312,7 @@
 
 .running-badge {
   padding: 3px 8px;
-  background: rgba(122, 255, 158, 0.15);
+  background: var(--accent-subtle);
   border-radius: 4px;
   font-size: 10px;
   color: var(--success);
@@ -475,9 +475,9 @@
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  background: #374151;
-  color: #9ca3af;
-  border: 1px solid #4b5563;
+  background: var(--border-default);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
   border-radius: 999px;
   font-size: 11px;
   font-weight: 500;
@@ -486,24 +486,24 @@
 }
 
 .raw-mode-toggle.active {
-  background: #451a03;
-  color: #f59e0b;
-  border-color: #78350f;
+  background: var(--status-warning-bg);
+  color: var(--status-warning);
+  border-color: var(--status-warning);
 }
 
 .raw-mode-toggle:hover {
-  background: #4b5563;
+  background: var(--border-default);
 }
 
 .raw-mode-toggle.active:hover {
-  background: #78350f;
+  background: var(--status-warning);
 }
 
 /* Custom Profile Button */
 .btn-custom-profile {
-  background: #1e3a8a;
-  color: #bfdbfe;
-  border: 1px solid #3b82f6;
+  background: var(--accent-subtle);
+  color: var(--text-primary);
+  border: 1px solid var(--accent);
   padding: 6px 10px;
   border-radius: 6px;
   font-size: 11px;
@@ -515,6 +515,47 @@
 }
 
 .btn-custom-profile:hover {
-  background: #1e40af;
+  background: var(--accent-subtle);
   color: white;
+}
+
+.collection-provider-tabs {
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+
+.cloud-provider-intro {
+  align-items: flex-start;
+}
+
+.cloud-provider-copy {
+  flex: 1;
+}
+
+.cloud-provider-copy p {
+  margin: var(--space-2) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--type-body);
+  line-height: var(--line-body);
+}
+
+.model-item-details.expanded {
+  height: auto;
+  opacity: 1;
+}
+
+.error-text {
+  color: var(--status-danger);
+}
+
+.benchmark-meta {
+  font-size: var(--type-caption);
+  line-height: var(--line-body);
+  text-align: right;
+}
+
+@media (max-width: 560px) {
+  .benchmark-meta {
+    text-align: left;
+  }
 }

@@ -53,7 +53,7 @@
 .sidebar-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: color-mix(in srgb, var(--bg-base) 70%, transparent);
   z-index: 100;
 }
 
@@ -239,7 +239,7 @@
   border-radius: 8px;
   padding: 4px;
   min-width: 140px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-sm);
 }
 
 .sidebar-item-actions button {
@@ -442,7 +442,7 @@
   width: 100%;
   padding: 5px 8px;
   border-top: 1px solid var(--accent-border) !important;
-  background: #1d2614;
+  background: var(--accent-subtle);
   color: var(--accent) !important;
   font-size: 10px;
 }
@@ -471,10 +471,27 @@
   padding: 6px 8px;
   border: 1px solid var(--border);
   border-radius: 9px;
-  background: #17191e;
+  background: var(--bg-surface);
   color: var(--paper-dim);
   font-size: 10px;
 }
 
 .autonomy-queue span { flex: 1; text-transform: capitalize; }
 .autonomy-queue button { border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--accent); padding: 4px 7px; }
+
+.model-picker-section-title,
+.model-picker-empty {
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-tertiary);
+  font-size: var(--type-caption);
+  line-height: var(--line-body);
+}
+
+.model-picker-section-title {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.model-picker-section-title.spacious {
+  padding-top: var(--space-4);
+}

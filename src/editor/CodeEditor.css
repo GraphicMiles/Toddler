@@ -2,7 +2,7 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  background: #111318;
+  background: var(--bg-inset);
 }
 
 .forge-code-editor .cm-editor {
@@ -21,11 +21,11 @@
 }
 
 .forge-code-editor .cm-tooltip-autocomplete {
-  border: 1px solid #343a45;
-  background: #191c22;
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface-raised);
 }
 
 .forge-code-editor .cm-tooltip-autocomplete > ul > li[aria-selected] {
-  background: #30411a;
-  color: #eefbd7;
+  background: var(--accent-subtle);
+  color: var(--text-primary);
 }

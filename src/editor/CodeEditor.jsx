@@ -37,13 +37,13 @@ export default function CodeEditor({ path, value, onChange, readOnly = false }) 
     language,
     EditorView.lineWrapping,
     EditorView.theme({
-      '&': { backgroundColor: '#111318', color: '#e8eaf0', fontSize: '14px' },
+      '&': { backgroundColor: 'var(--bg-inset)', color: 'var(--text-primary)', fontSize: '14px' },
       '.cm-content': { fontFamily: 'JetBrains Mono, ui-monospace, SFMono-Regular, Consolas, monospace', lineHeight: '1.65', padding: '14px 0 30vh' },
-      '.cm-gutters': { backgroundColor: '#111318', color: '#626773', border: 'none' },
-      '.cm-activeLine': { backgroundColor: '#1b1f27' },
-      '.cm-activeLineGutter': { backgroundColor: '#1b1f27', color: '#b7f34a' },
-      '.cm-selectionBackground': { backgroundColor: '#33431f !important' },
-      '.cm-cursor': { borderLeftColor: '#b7f34a' },
+      '.cm-gutters': { backgroundColor: 'var(--bg-inset)', color: 'var(--text-tertiary)', border: 'none' },
+      '.cm-activeLine': { backgroundColor: 'var(--bg-surface-raised)' },
+      '.cm-activeLineGutter': { backgroundColor: 'var(--bg-surface-raised)', color: 'var(--accent)' },
+      '.cm-selectionBackground': { backgroundColor: 'var(--accent-subtle) !important' },
+      '.cm-cursor': { borderLeftColor: 'var(--accent)' },
     }),
   ], [language]);
 

@@ -151,19 +151,7 @@ export default function ChatContainer({
 
         {/* Full-Auto Indicator */}
         {isFullAutoMode() && (
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            background: '#1e3a8a',
-            color: '#93c5fd',
-            padding: '2px 10px',
-            borderRadius: '999px',
-            fontSize: '11px',
-            fontWeight: 600,
-            marginLeft: 'auto',
-            marginRight: '8px'
-          }}>
+          <div className="status-pill danger">
             <AlertTriangle size={13} /> FULL-AUTO ({getCurrentAutomationTier()})
           </div>
         )}
@@ -289,8 +277,8 @@ export default function ChatContainer({
                 </button>
               </div>
               <div className="sidebar-list">
-                <div className="sidebar-header-title" style={{ padding: '8px 12px', fontSize: 12 }}>Local</div>
-                {localModels.length === 0 && <div className="sidebar-item-time" style={{ padding: '8px 12px' }}>No local models installed.</div>}
+                <div className="model-picker-section-title">Local</div>
+                {localModels.length === 0 && <div className="model-picker-empty">No local models installed.</div>}
                 {localModels.map(model => (
                   <button key={model.id} type="button" className={`sidebar-item-main ${activeModel?.id === model.id ? 'active' : ''}`} onClick={() => { onModelChange?.(model); setModelPickerOpen(false); }}>
                     <Database size={14} className="sidebar-item-icon" />
@@ -300,8 +288,8 @@ export default function ChatContainer({
                     </div>
                   </button>
                 ))}
-                <div className="sidebar-header-title" style={{ padding: '14px 12px 8px', fontSize: 12 }}>Cloud</div>
-                {cloudModels.length === 0 && <div className="sidebar-item-time" style={{ padding: '8px 12px' }}>No cloud providers connected.</div>}
+                <div className="model-picker-section-title spacious">Cloud</div>
+                {cloudModels.length === 0 && <div className="model-picker-empty">No cloud providers connected.</div>}
                 {cloudModels.map(model => (
                   <button key={model.id} type="button" className={`sidebar-item-main ${activeModel?.id === model.id ? 'active' : ''}`} onClick={() => { onModelChange?.(model); setModelPickerOpen(false); }}>
                     <Wifi size={14} className="sidebar-item-icon" />

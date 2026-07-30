@@ -188,14 +188,14 @@
 }
 
 .message.system.system-info {
-  background: rgba(200, 242, 77, 0.06);
-  border-color: rgba(200, 242, 77, 0.2);
+  background: var(--accent-subtle);
+  border-color: var(--accent-strong);
   color: var(--accent);
 }
 
 .message.system.system-error {
   background: var(--danger-dim);
-  border-color: rgba(255, 122, 122, 0.3);
+  border-color: var(--status-danger);
   color: var(--danger);
 }
 

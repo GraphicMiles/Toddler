@@ -1,6 +1,6 @@
 .reasoning-panel {
-  background: #1f2937;
-  border: 1px solid #374151;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
   margin: 6px 0;
   overflow: hidden;
@@ -12,16 +12,16 @@
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: #111827;
-  border-bottom: 1px solid #374151;
+  background: var(--bg-inset);
+  border-bottom: 1px solid var(--border-default);
   font-size: 11px;
   font-weight: 600;
-  color: #9ca3af;
+  color: var(--text-secondary);
 }
 
 .thinking-phrase {
   font-size: 10.5px;
-  color: #60a5fa;
+  color: var(--accent);
   font-style: italic;
   animation: thinkingPulse 1.8s ease-in-out infinite;
   letter-spacing: 0.3px;
@@ -30,11 +30,11 @@
 @keyframes thinkingPulse {
   0%, 100% { 
     opacity: 0.5; 
-    text-shadow: 0 0 2px rgba(96, 165, 250, 0.3);
+    text-shadow: 0 0 2px var(--accent-subtle);
   }
   50% { 
     opacity: 1; 
-    text-shadow: 0 0 8px rgba(96, 165, 250, 0.6);
+    text-shadow: 0 0 8px var(--accent-subtle);
   }
 }
 
@@ -47,7 +47,7 @@
 .dot {
   width: 3px;
   height: 3px;
-  background: #3b82f6;
+  background: var(--accent);
   border-radius: 50%;
   animation: pulse 1.1s infinite ease-in-out;
 }
@@ -84,19 +84,19 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: #374151;
-  color: #9ca3af;
+  background: var(--border-default);
+  color: var(--text-secondary);
 }
 
-.reasoning-step.thought .step-icon { background: #1e3a8a; color: #60a5fa; }
-.reasoning-step.command .step-icon { background: #451a03; color: #f59e0b; }
-.reasoning-step.tool_call .step-icon { background: #064e3b; color: #34d399; }
-.reasoning-step.result_success .step-icon { background: #064e3b; color: #34d399; }
-.reasoning-step.result_error .step-icon { background: #7f1d1d; color: #f87171; }
-.reasoning-step.memory .step-icon { background: #581c87; color: #c084fc; }
-.reasoning-step.file_create .step-icon { background: #064e3b; color: #34d399; }
-.reasoning-step.file_edit .step-icon { background: #1e3a8a; color: #60a5fa; }
-.reasoning-step.diff .step-icon { background: #1e3a8a; color: #60a5fa; }
+.reasoning-step.thought .step-icon { background: var(--accent-subtle); color: var(--accent); }
+.reasoning-step.command .step-icon { background: var(--status-warning-bg); color: var(--status-warning); }
+.reasoning-step.tool_call .step-icon { background: var(--accent-subtle); color: var(--accent); }
+.reasoning-step.result_success .step-icon { background: var(--accent-subtle); color: var(--accent); }
+.reasoning-step.result_error .step-icon { background: var(--status-danger-bg); color: var(--status-danger); }
+.reasoning-step.memory .step-icon { background: var(--bg-surface-raised); color: var(--accent); }
+.reasoning-step.file_create .step-icon { background: var(--accent-subtle); color: var(--accent); }
+.reasoning-step.file_edit .step-icon { background: var(--accent-subtle); color: var(--accent); }
+.reasoning-step.diff .step-icon { background: var(--accent-subtle); color: var(--accent); }
 
 .step-content {
   flex: 1;
@@ -112,13 +112,13 @@
 .step-title {
   font-size: 11px;
   font-weight: 500;
-  color: #d1d5db;
+  color: var(--text-primary);
   line-height: 1.2;
 }
 
 .duration {
   font-size: 10px;
-  color: #6b7280;
+  color: var(--text-tertiary);
   font-weight: normal;
   margin-left: 4px;
 }
@@ -127,12 +127,12 @@
   margin-left: auto;
 }
 
-.status.success { color: #34d399; }
-.status.error { color: #f87171; }
+.status.success { color: var(--accent); }
+.status.error { color: var(--status-danger); }
 
 .step-text {
   font-size: 10.5px;
-  color: #9ca3af;
+  color: var(--text-secondary);
   margin-top: 2px;
   line-height: 1.25;
 }
@@ -140,8 +140,8 @@
 /* Diff Preview */
 .diff-preview {
   margin-top: 5px;
-  background: #111827;
-  border: 1px solid #374151;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   overflow: hidden;
 }
@@ -151,10 +151,10 @@
   align-items: center;
   gap: 6px;
   padding: 5px 9px;
-  background: #1f2937;
+  background: var(--bg-surface-raised);
   font-size: 10px;
-  color: #60a5fa;
-  border-bottom: 1px solid #374151;
+  color: var(--accent);
+  border-bottom: 1px solid var(--border-default);
 }
 
 .diff-content {
@@ -162,19 +162,19 @@
   margin: 0;
   font-family: ui-monospace, monospace;
   font-size: 9.5px;
-  color: #d1d5db;
+  color: var(--text-primary);
   white-space: pre-wrap;
   max-height: 140px;
   overflow-y: auto;
-  background: #0f172a;
+  background: var(--bg-base);
   line-height: 1.2;
 }
 
 /* File Preview Card */
 .file-preview-card {
   margin-top: 5px;
-  background: #111827;
-  border: 1px solid #374151;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   overflow: hidden;
 }
@@ -184,15 +184,15 @@
   align-items: center;
   gap: 6px;
   padding: 5px 9px;
-  background: #1f2937;
+  background: var(--bg-surface-raised);
   font-size: 10px;
-  color: #d1d5db;
-  border-bottom: 1px solid #374151;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-default);
 }
 
 .file-name {
   font-family: ui-monospace, monospace;
-  color: #60a5fa;
+  color: var(--accent);
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
@@ -203,9 +203,9 @@
 .file-action {
   font-size: 9px;
   padding: 1px 5px;
-  background: #374151;
+  background: var(--border-default);
   border-radius: 3px;
-  color: #9ca3af;
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 
@@ -214,19 +214,19 @@
   margin: 0;
   font-family: ui-monospace, monospace;
   font-size: 9.5px;
-  color: #d1d5db;
+  color: var(--text-primary);
   white-space: pre-wrap;
   max-height: 120px;
   overflow-y: auto;
-  background: #0f172a;
+  background: var(--bg-base);
   line-height: 1.2;
 }
 
 /* Command List */
 .command-list {
   margin-top: 5px;
-  background: #111827;
-  border: 1px solid #374151;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
   border-radius: 5px;
   padding: 5px 8px;
   font-family: ui-monospace, monospace;
@@ -234,7 +234,7 @@
 }
 
 .command {
-  color: #d1d5db;
+  color: var(--text-primary);
   margin: 1px 0;
   display: flex;
   align-items: flex-start;
@@ -242,7 +242,7 @@
 }
 
 .command-prefix {
-  color: #6b7280;
+  color: var(--text-tertiary);
   flex-shrink: 0;
 }
 
@@ -252,15 +252,15 @@
 }
 
 .reasoning-steps::-webkit-scrollbar-thumb {
-  background: #4b5563;
+  background: var(--border-default);
   border-radius: 2px;
 }
 
 /* Terminal-style Progress Bar */
 .terminal-progress {
   margin-top: 6px;
-  background: #111827;
-  border: 1px solid #374151;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
   border-radius: 4px;
   padding: 6px 8px;
   font-family: ui-monospace, monospace;
@@ -268,7 +268,7 @@
 }
 
 .progress-text {
-  color: #9ca3af;
+  color: var(--text-secondary);
   margin-bottom: 4px;
   font-size: 9.5px;
 }
@@ -276,16 +276,16 @@
 .progress-bar.terminal-blocks {
   font-family: ui-monospace, monospace;
   font-size: 11px;
-  color: #34d399;
+  color: var(--accent);
   letter-spacing: 1px;
   line-height: 1;
   white-space: pre;
-  text-shadow: 0 0 2px #34d399;
+  text-shadow: 0 0 2px var(--accent);
 }
 
 .progress-percent {
   text-align: right;
-  color: #34d399;
+  color: var(--accent);
   font-size: 9px;
   margin-top: 3px;
   font-family: ui-monospace, monospace;

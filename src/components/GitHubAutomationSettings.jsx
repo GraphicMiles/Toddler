@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Bot, Github } from 'lucide-react';
 import { githubAutomation, GITHUB_AUTOMATION_TIERS } from '../github/GitHubAutomation.js';
 
 export default function GitHubAutomationSettings() {
@@ -6,34 +7,33 @@ export default function GitHubAutomationSettings() {
   const [maintenanceBot, setMaintenanceBot] = useState(githubAutomation.maintenanceBot);
   const [dryRun, setDryRun] = useState(githubAutomation.dryRun);
 
-  const updateTier = (newTier) => {
-    githubAutomation.setTier(newTier);
-    setTier(newTier);
-  };
+  const updateTier = (newTier) => { githubAutomation.setTier(newTier); setTier(newTier); };
+  const updateMaintenanceBot = (enabled) => { githubAutomation.setMaintenanceBot(enabled); setMaintenanceBot(enabled); };
+  const updateDryRun = (enabled) => { githubAutomation.setDryRun(enabled); setDryRun(enabled); };
 
   return (
     <section className="settings-card">
-      <h3>🐙 GitHub Automation</h3>
-      <p className="setting-help">Configure automation level for commits, PRs, and deployments.</p>
+      <h3><Github size={16} /> GitHub automation</h3>
+      <p className="setting-help first">Configure automation level for commits, pull requests, and maintenance workflows.</p>
 
-      <div style={{ margin: '16px 0' }}>
-        <label className="setting-label">Automation Tier</label>
-        <select value={tier} onChange={e => updateTier(e.target.value)} style={{ width: '100%', padding: '10px', background: '#111827', color: '#fff', borderRadius: '8px' }}>
-          <option value={GITHUB_AUTOMATION_TIERS.MANUAL}>Manual — Review everything</option>
-          <option value={GITHUB_AUTOMATION_TIERS.SUGGESTED}>Suggested — Propose PRs</option>
-          <option value={GITHUB_AUTOMATION_TIERS.AUTO_COMMIT}>Auto-Commit — Direct to feature branches</option>
-          <option value={GITHUB_AUTOMATION_TIERS.AUTO_DEPLOY}>Auto-Deploy — Push to main + releases</option>
+      <div className="setting-field">
+        <label className="setting-label" htmlFor="github-tier">Automation tier</label>
+        <select id="github-tier" value={tier} onChange={event => updateTier(event.target.value)}>
+          <option value={GITHUB_AUTOMATION_TIERS.MANUAL}>Manual — review everything</option>
+          <option value={GITHUB_AUTOMATION_TIERS.SUGGESTED}>Suggested — propose PRs</option>
+          <option value={GITHUB_AUTOMATION_TIERS.AUTO_COMMIT}>Auto-commit — feature branches</option>
+          <option value={GITHUB_AUTOMATION_TIERS.AUTO_DEPLOY}>Auto-deploy — main and releases</option>
         </select>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <input type="checkbox" checked={maintenanceBot} onChange={e => { githubAutomation.setMaintenanceBot(e.target.checked); setMaintenanceBot(e.target.checked); }} />
-          Maintenance Bot (auto dependency updates, lint fixes, docs)
+      <div className="settings-chip-grid">
+        <label className={`settings-check-card ${maintenanceBot ? 'active' : ''}`}>
+          <input type="checkbox" checked={maintenanceBot} onChange={event => updateMaintenanceBot(event.target.checked)} />
+          <span><strong><Bot size={14} /> Maintenance bot</strong><small>Automate dependency, lint, and docs maintenance when enabled.</small></span>
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <input type="checkbox" checked={dryRun} onChange={e => { githubAutomation.setDryRun(e.target.checked); setDryRun(e.target.checked); }} />
-          Dry Run Mode
+        <label className={`settings-check-card ${dryRun ? 'active' : ''}`}>
+          <input type="checkbox" checked={dryRun} onChange={event => updateDryRun(event.target.checked)} />
+          <span><strong>Dry run mode</strong><small>Simulate GitHub operations without executing remote writes.</small></span>
         </label>
       </div>
     </section>

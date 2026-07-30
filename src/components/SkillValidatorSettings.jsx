@@ -1,6 +1,6 @@
 import { useState } from 'react';
+import { CheckCircle, ShieldCheck } from 'lucide-react';
 import { validatorRegistry } from '../skills/validators/ValidatorRegistry.js';
-import { CheckCircle } from 'lucide-react';
 
 export default function SkillValidatorSettings() {
   const [activeValidators, setActiveValidators] = useState(validatorRegistry.getActiveValidators());
@@ -10,12 +10,9 @@ export default function SkillValidatorSettings() {
   const available = validatorRegistry.getAllAvailableValidators();
 
   const toggleValidator = (key) => {
-    let next;
-    if (activeValidators.includes(key)) {
-      next = activeValidators.filter(k => k !== key);
-    } else {
-      next = [...activeValidators, key];
-    }
+    const next = activeValidators.includes(key)
+      ? activeValidators.filter(item => item !== key)
+      : [...activeValidators, key];
     validatorRegistry.setActiveValidators(next);
     setActiveValidators(next);
   };
@@ -32,90 +29,50 @@ export default function SkillValidatorSettings() {
     setTrustedSources([...validatorRegistry.trustedSources]);
   };
 
+  const descriptionFor = key => ({
+    'strict-security': 'Enterprise security scanner. Recommended default.',
+    'basic-syntax': 'Light syntax and manifest checks.',
+    passthrough: 'No validation. Use only with trusted sources.',
+  })[key] || 'Validator rule';
+
   return (
     <section className="settings-card">
-      <h3>🛡️ Skill Validation Rules</h3>
-      <p className="setting-help">
-        Configure which validators run when importing skills. Enterprise deployments can use relaxed rules.
-      </p>
+      <h3><ShieldCheck size={16} /> Skill validation rules</h3>
+      <p className="setting-help first">Configure which validators run when importing skills.</p>
 
-      {/* Active Validators */}
-      <div style={{ margin: '16px 0' }}>
-        <label className="setting-label">Active Validators</label>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div className="setting-field">
+        <label className="setting-label">Active validators</label>
+        <div className="settings-list">
           {available.map(key => {
             const isActive = activeValidators.includes(key);
-
             return (
-              <label key={key} style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '10px 14px',
-                background: isActive ? '#1e3a8a' : '#111827',
-                borderRadius: '8px',
-                cursor: 'pointer'
-              }}>
-                <input 
-                  type="checkbox" 
-                  checked={isActive}
-                  onChange={() => toggleValidator(key)}
-                />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 500 }}>{key}</div>
-                  <div style={{ fontSize: '12px', color: '#9ca3af' }}>
-                    {key === 'strict-security' && 'Enterprise security scanner (recommended)'}
-                    {key === 'basic-syntax' && 'Light syntax & manifest checks'}
-                    {key === 'passthrough' && 'No validation — use only with trusted sources'}
-                  </div>
-                </div>
-                {isActive && <CheckCircle size={16} color="#60a5fa" />}
+              <label key={key} className={`settings-check-card ${isActive ? 'active' : ''}`}>
+                <input type="checkbox" checked={isActive} onChange={() => toggleValidator(key)} />
+                <span><strong>{key}</strong><small>{descriptionFor(key)}</small></span>
+                {isActive && <CheckCircle size={16} />}
               </label>
             );
           })}
         </div>
       </div>
 
-      {/* Trusted Sources */}
-      <div style={{ marginTop: '24px' }}>
-        <label className="setting-label">Trusted Skill Sources</label>
+      <div className="setting-field">
+        <label className="setting-label" htmlFor="trusted-source">Trusted skill sources</label>
         <p className="setting-help">Skills from these sources bypass security validation.</p>
-
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-          <input
-            type="text"
-            value={newSource}
-            onChange={e => setNewSource(e.target.value)}
-            placeholder="github.com/mycompany/skills"
-            style={{ flex: 1, padding: '8px 12px', background: '#111827', border: '1px solid #374151', borderRadius: '6px' }}
-          />
-          <button onClick={addTrustedSource} style={{ padding: '8px 16px' }}>Add</button>
+        <div className="setting-row">
+          <input id="trusted-source" value={newSource} onChange={event => setNewSource(event.target.value)} placeholder="github.com/mycompany/skills" />
+          <button onClick={addTrustedSource}>Add</button>
         </div>
-
         {trustedSources.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          <div className="settings-pill-row">
             {trustedSources.map(source => (
-              <div key={source} style={{
-                background: '#1f2937',
-                padding: '4px 10px',
-                borderRadius: '999px',
-                fontSize: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}>
-                {source}
-                <button onClick={() => removeTrustedSource(source)} style={{ color: '#f87171' }}>×</button>
-              </div>
+              <span className="settings-pill" key={source}>{source}<button onClick={() => removeTrustedSource(source)} aria-label={`Remove ${source}`}>×</button></span>
             ))}
           </div>
         )}
       </div>
 
-      {/* Info */}
-      <div style={{ marginTop: '16px', fontSize: '12px', color: '#6b7280' }}>
-        Skills containing <code style={{ background: '#374151', padding: '1px 4px' }}>// @forgeai-trusted</code> are automatically accepted.
-      </div>
+      <p className="setting-help">Skills containing <code>// @forgeai-trusted</code> are automatically accepted.</p>
     </section>
   );
 }

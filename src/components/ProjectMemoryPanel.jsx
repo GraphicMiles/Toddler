@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Save, Trash2 } from 'lucide-react';
+import { Brain, Plus, Save, Trash2 } from 'lucide-react';
 import { readProjectMemory, rememberProjectFact, removeProjectFact, updateProjectFact } from '../memory/agentMemory.js';
 import './ProjectMemoryPanel.css';
 
@@ -20,7 +20,7 @@ export default function ProjectMemoryPanel({ workspaceId }) {
 
   return (
     <section className="settings-card project-memory-panel">
-      <h3>Approved project memory</h3>
+      <h3><Brain size={16} /> Approved project memory</h3>
       <p className="setting-help">Only facts you add or explicitly approve are used in future agent prompts. File contents and model guesses are not saved here.</p>
       <div className="memory-add-row">
         <input value={draft} onChange={event => setDraft(event.target.value)} placeholder="Example: Use CSS modules; never add broad storage permissions." />

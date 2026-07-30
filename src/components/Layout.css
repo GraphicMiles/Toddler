@@ -3,7 +3,7 @@
   flex-direction: column;
   height: 100%;
   width: 100%;
-  max-width: 480px;
+  max-width: 1200px;
   margin: 0 auto;
   background: var(--bg);
   position: relative;
@@ -217,3 +217,7 @@
   }
 }
 .tab { min-height:48px; }
+
+.status-pill.active .status-dot { background: var(--accent); }
+.status-pill.warning .status-dot { background: var(--status-warning); }
+.status-pill.danger .status-dot { background: var(--status-danger); }

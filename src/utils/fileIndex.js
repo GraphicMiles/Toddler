@@ -6,87 +6,87 @@
 
 export const EXTENSION_ICONS = {
   // Web / Frontend
-  html: { color: '#e34c26', label: 'HTML' },
-  htm: { color: '#e34c26', label: 'HTML' },
-  css: { color: '#264de4', label: 'CSS' },
-  scss: { color: '#cf649a', label: 'SCSS' },
-  sass: { color: '#cf649a', label: 'SASS' },
-  less: { color: '#1d365d', label: 'LESS' },
+  html: { color: 'var(--accent)', label: 'HTML' },
+  htm: { color: 'var(--accent)', label: 'HTML' },
+  css: { color: 'var(--accent)', label: 'CSS' },
+  scss: { color: 'var(--accent)', label: 'SCSS' },
+  sass: { color: 'var(--accent)', label: 'SASS' },
+  less: { color: 'var(--accent)', label: 'LESS' },
 
   // JavaScript / TypeScript
-  js: { color: '#f7df1e', label: 'JS' },
-  jsx: { color: '#61dafb', label: 'JSX' },
-  ts: { color: '#3178c6', label: 'TS' },
-  tsx: { color: '#3178c6', label: 'TSX' },
-  mjs: { color: '#f7df1e', label: 'MJS' },
-  cjs: { color: '#f7df1e', label: 'CJS' },
+  js: { color: 'var(--accent)', label: 'JS' },
+  jsx: { color: 'var(--accent)', label: 'JSX' },
+  ts: { color: 'var(--accent)', label: 'TS' },
+  tsx: { color: 'var(--accent)', label: 'TSX' },
+  mjs: { color: 'var(--accent)', label: 'MJS' },
+  cjs: { color: 'var(--accent)', label: 'CJS' },
 
   // Python
-  py: { color: '#3776ab', label: 'PY' },
-  pyw: { color: '#3776ab', label: 'PY' },
-  pyc: { color: '#3776ab', label: 'PY' },
+  py: { color: 'var(--accent)', label: 'PY' },
+  pyw: { color: 'var(--accent)', label: 'PY' },
+  pyc: { color: 'var(--accent)', label: 'PY' },
 
   // Java / Android / Kotlin
-  java: { color: '#b07219', label: 'JAVA' },
-  kt: { color: '#7f52ff', label: 'KT' },
-  gradle: { color: '#02303a', label: 'GRADLE' },
-  properties: { color: '#ecd53f', label: 'PROP' },
-  xml: { color: '#e34c26', label: 'XML' },
-  manifest: { color: '#e34c26', label: 'XML' },
+  java: { color: 'var(--accent)', label: 'JAVA' },
+  kt: { color: 'var(--accent)', label: 'KT' },
+  gradle: { color: 'var(--accent)', label: 'GRADLE' },
+  properties: { color: 'var(--accent)', label: 'PROP' },
+  xml: { color: 'var(--accent)', label: 'XML' },
+  manifest: { color: 'var(--accent)', label: 'XML' },
 
   // Mobile / Build
-  apk: { color: '#3ddc84', label: 'APK' },
-  aab: { color: '#3ddc84', label: 'AAB' },
-  jar: { color: '#b07219', label: 'JAR' },
-  aar: { color: '#b07219', label: 'AAR' },
-  pro: { color: '#f05032', label: 'PRO' },
+  apk: { color: 'var(--accent)', label: 'APK' },
+  aab: { color: 'var(--accent)', label: 'AAB' },
+  jar: { color: 'var(--accent)', label: 'JAR' },
+  aar: { color: 'var(--accent)', label: 'AAR' },
+  pro: { color: 'var(--accent)', label: 'PRO' },
 
   // Config / Data
-  json: { color: '#f7df1e', label: 'JSON' },
-  yaml: { color: '#cb171e', label: 'YAML' },
-  yml: { color: '#cb171e', label: 'YAML' },
-  toml: { color: '#9c4221', label: 'TOML' },
-  ini: { color: '#68686c', label: 'INI' },
-  conf: { color: '#68686c', label: 'CONF' },
+  json: { color: 'var(--accent)', label: 'JSON' },
+  yaml: { color: 'var(--accent)', label: 'YAML' },
+  yml: { color: 'var(--accent)', label: 'YAML' },
+  toml: { color: 'var(--accent)', label: 'TOML' },
+  ini: { color: 'var(--text-tertiary)', label: 'INI' },
+  conf: { color: 'var(--text-tertiary)', label: 'CONF' },
 
   // Documentation
-  md: { color: '#083fa1', label: 'MD' },
-  txt: { color: '#68686c', label: 'TXT' },
-  text: { color: '#68686c', label: 'TXT' },
-  log: { color: '#68686c', label: 'LOG' },
+  md: { color: 'var(--accent)', label: 'MD' },
+  txt: { color: 'var(--text-tertiary)', label: 'TXT' },
+  text: { color: 'var(--text-tertiary)', label: 'TXT' },
+  log: { color: 'var(--text-tertiary)', label: 'LOG' },
 
   // Git / Version Control
-  gitignore: { color: '#f05032', label: 'GIT' },
-  gitmodules: { color: '#f05032', label: 'GIT' },
+  gitignore: { color: 'var(--accent)', label: 'GIT' },
+  gitmodules: { color: 'var(--accent)', label: 'GIT' },
 
   // Environment / Secrets
-  env: { color: '#ecd53f', label: 'ENV' },
-  dotenv: { color: '#ecd53f', label: 'ENV' },
+  env: { color: 'var(--accent)', label: 'ENV' },
+  dotenv: { color: 'var(--accent)', label: 'ENV' },
 
   // Shell / Scripts
-  sh: { color: '#89e051', label: 'SH' },
-  bash: { color: '#89e051', label: 'SH' },
-  zsh: { color: '#89e051', label: 'SH' },
-  bat: { color: '#c1f12e', label: 'BAT' },
-  ps1: { color: '#012456', label: 'PS' },
+  sh: { color: 'var(--accent)', label: 'SH' },
+  bash: { color: 'var(--accent)', label: 'SH' },
+  zsh: { color: 'var(--accent)', label: 'SH' },
+  bat: { color: 'var(--accent)', label: 'BAT' },
+  ps1: { color: 'var(--accent)', label: 'PS' },
 
   // Images / Assets
-  png: { color: '#d6604d', label: 'PNG' },
-  jpg: { color: '#d6604d', label: 'JPG' },
-  jpeg: { color: '#d6604d', label: 'JPG' },
-  gif: { color: '#d6604d', label: 'GIF' },
-  svg: { color: '#ffb13b', label: 'SVG' },
-  ico: { color: '#ffb13b', label: 'ICO' },
-  webp: { color: '#d6604d', label: 'WEBP' },
+  png: { color: 'var(--accent)', label: 'PNG' },
+  jpg: { color: 'var(--accent)', label: 'JPG' },
+  jpeg: { color: 'var(--accent)', label: 'JPG' },
+  gif: { color: 'var(--accent)', label: 'GIF' },
+  svg: { color: 'var(--accent)', label: 'SVG' },
+  ico: { color: 'var(--accent)', label: 'ICO' },
+  webp: { color: 'var(--accent)', label: 'WEBP' },
 
   // Models / AI
-  gguf: { color: '#8e44ad', label: 'GGUF' },
-  ggml: { color: '#8e44ad', label: 'GGML' },
-  bin: { color: '#8e44ad', label: 'BIN' },
+  gguf: { color: 'var(--accent)', label: 'GGUF' },
+  ggml: { color: 'var(--accent)', label: 'GGML' },
+  bin: { color: 'var(--accent)', label: 'BIN' },
 
   // Other
-  lock: { color: '#68686c', label: 'LOCK' },
-  map: { color: '#68686c', label: 'MAP' },
+  lock: { color: 'var(--text-tertiary)', label: 'LOCK' },
+  map: { color: 'var(--text-tertiary)', label: 'MAP' },
 };
 
 export function getFileIconInfo(filename) {

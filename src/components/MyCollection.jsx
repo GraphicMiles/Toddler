@@ -15,7 +15,7 @@ function openExternal(url) {
   if (isNative) { CapacitorApp.openUrl({ url }).catch(() => {}); return; }
   window.open(url, '_blank', 'noopener,noreferrer');
 }
-import { CLOUD_PROVIDER_PRESETS, getCloudProviderPreset, KNOWN_KEY_PREFIXES } from '../providers/cloudProviderStore.js';
+import { CLOUD_PROVIDER_PRESETS, getCloudProviderPreset, KNOWN_KEY_PREFIXES, fetchProviderModels } from '../providers/cloudProviderStore.js';
 import { formatModelSize, formatStorageCapacity, getModelSizeBytes } from '../utils/deviceCapacity';
 import DropdownMenu from './DropdownMenu.jsx';
 import './MyCollection.css';
@@ -30,6 +30,10 @@ function CloudProviderPanel({ providers = [], onAdd, onRemove, onSelectModel }) 
   const [customModel, setCustomModel] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [error, setError] = useState('');
+  // Live model ids fetched from the provider's /models endpoint (override the
+  // curated preset list when present — presets drift per account/provider).
+  const [fetchedModels, setFetchedModels] = useState(null);
+  const [fetchingModels, setFetchingModels] = useState(false);
   // The add-provider form only renders on demand — the empty state and the form
   // are never on screen at the same time, and Save stays anchored inside the form card.
   const [formOpen, setFormOpen] = useState(false);
@@ -42,20 +46,39 @@ function CloudProviderPanel({ providers = [], onAdd, onRemove, onSelectModel }) 
     setModelId(next.defaultModel);
     // Custom-endpoint provider (or one with no curated list) uses free text.
     setCustomModel(!next.models || next.models.length === 0);
+    setFetchedModels(null); // reset live list when switching providers
     setError('');
   };
 
-  // Model options for the selected preset: its curated lineup (best→lowest) + a
-  // "Custom model ID…" escape hatch. Ensures the current modelId is always shown.
+  // Model options: prefer LIVE models fetched from the provider (accurate for
+  // this account) over the curated preset list (a drifting starting point), then
+  // a "Custom model ID…" escape hatch. Ensures the current modelId is shown.
   const CUSTOM_OPTION = '__custom__';
+  const availableModels = fetchedModels && fetchedModels.length ? fetchedModels : (Array.isArray(preset.models) ? preset.models : []);
   const modelOptions = (() => {
-    const list = Array.isArray(preset.models) ? [...preset.models] : [];
+    const list = [...availableModels];
     if (modelId && !list.includes(modelId) && !customModel) list.unshift(modelId);
     return [
       ...list.map(m => ({ value: m, label: m })),
       { value: CUSTOM_OPTION, label: 'Custom model ID…' },
     ];
   })();
+
+  const fetchModels = async () => {
+    setFetchingModels(true);
+    setError('');
+    try {
+      const ids = await fetchProviderModels({ baseUrl, apiKey });
+      setFetchedModels(ids);
+      setCustomModel(false);
+      // Keep the current model if the provider still offers it; else pick the first.
+      if (!ids.includes(modelId)) setModelId(ids[0]);
+    } catch (err) {
+      setError(err.message || 'Could not fetch models.');
+    } finally {
+      setFetchingModels(false);
+    }
+  };
 
   // Well-known key prefixes (from the catalog) — a soft, non-blocking hint when
   // the pasted key clearly belongs to a different provider. Longest prefix first
@@ -109,28 +132,32 @@ function CloudProviderPanel({ providers = [], onAdd, onRemove, onSelectModel }) 
         </label>
         <label className="detail">
           <span className="detail-label">Model</span>
-          {preset.models && preset.models.length > 0 && !customModel ? (
+          {availableModels.length > 0 && !customModel ? (
             <DropdownMenu
-              value={preset.models.includes(modelId) || modelId ? modelId : preset.defaultModel}
+              value={modelId || availableModels[0]}
               onChange={(val) => { if (val === CUSTOM_OPTION) { setCustomModel(true); setModelId(''); } else { setModelId(val); } }}
               label="Model"
               options={modelOptions}
             />
           ) : (
-            <input value={modelId} onChange={event => setModelId(event.target.value)} placeholder="model id (e.g. llama-3.3-70b)" />
+            <input value={modelId} onChange={event => setModelId(event.target.value)} placeholder="model id (e.g. gpt-oss-120b)" />
           )}
         </label>
       </div>
-      {preset.models && preset.models.length > 0 && (
-        <p className="setting-help provider-model-hint">
-          {customModel
+      <p className="setting-help provider-model-hint">
+        {fetchedModels
+          ? `Showing ${fetchedModels.length} live model(s) from this provider/key.`
+          : customModel
             ? 'Enter any model id this provider supports.'
-            : 'Models are listed strongest → lightest. Pick a bigger model for smarter results (uses more quota).'}
-          {customModel && (
-            <button type="button" className="link-button" onClick={() => { setCustomModel(false); setModelId(preset.defaultModel); }}> Use preset list</button>
-          )}
-        </p>
-      )}
+            : 'Preset list is a starting point — click "Fetch models" for the exact ids your key can use.'}
+        {'  '}
+        <button type="button" className="link-button" onClick={fetchModels} disabled={fetchingModels}>
+          {fetchingModels ? 'Fetching…' : 'Fetch models'}
+        </button>
+        {customModel && availableModels.length > 0 && (
+          <button type="button" className="link-button" onClick={() => { setCustomModel(false); setModelId(availableModels[0]); }}> Use list</button>
+        )}
+      </p>
       {preset.id !== 'custom' && (
         <div className="provider-howto">
           {preset.freeTier && <p className="setting-help"><strong>Free tier:</strong> {preset.freeTier}</p>}

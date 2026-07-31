@@ -60,3 +60,33 @@ assert.equal(isFailoverEnabled(), true);
 
 delete globalThis.localStorage;
 console.log('cloud provider catalog tests passed');
+
+// --- fetchProviderModels: live /models parsing ---
+const { fetchProviderModels } = await import('../src/providers/cloudProviderStore.js');
+const prevFetch = globalThis.fetch;
+
+// OpenAI shape { data: [{id}] } → sorted unique ids
+globalThis.fetch = async (url, opts) => {
+  assert.match(url, /\/models$/);
+  assert.equal(opts.headers.Authorization, 'Bearer testkey');
+  return new Response(JSON.stringify({ data: [{ id: 'zai-glm-4.7' }, { id: 'gpt-oss-120b' }, { id: 'gpt-oss-120b' }] }), { status: 200 });
+};
+let ids = await fetchProviderModels({ baseUrl: 'https://api.cerebras.ai/v1', apiKey: 'testkey' });
+assert.deepEqual(ids, ['gpt-oss-120b', 'zai-glm-4.7'], 'sorted + de-duped ids');
+
+// bare array shape
+globalThis.fetch = async () => new Response(JSON.stringify(['a-model', 'b-model']), { status: 200 });
+ids = await fetchProviderModels({ baseUrl: 'https://x/v1', apiKey: 'k' });
+assert.deepEqual(ids, ['a-model', 'b-model']);
+
+// 401 → friendly key error
+globalThis.fetch = async () => new Response('nope', { status: 401 });
+await assert.rejects(() => fetchProviderModels({ baseUrl: 'https://x/v1', apiKey: 'bad' }), /key was rejected/i);
+
+// missing inputs
+await assert.rejects(() => fetchProviderModels({ baseUrl: '', apiKey: 'k' }), /base URL/i);
+await assert.rejects(() => fetchProviderModels({ baseUrl: 'https://x/v1', apiKey: '' }), /API key/i);
+await assert.rejects(() => fetchProviderModels({ baseUrl: 'https://api.cloudflare.com/client/v4/accounts/ACCOUNT_ID/ai/v1', apiKey: 'k' }), /ACCOUNT_ID/);
+
+globalThis.fetch = prevFetch;
+console.log('fetchProviderModels tests passed');

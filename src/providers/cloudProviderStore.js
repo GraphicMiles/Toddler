@@ -244,6 +244,44 @@ export function setFailoverEnabled(enabled) {
   return !!enabled;
 }
 
+/**
+ * Fetch the LIVE model list from a provider's /models endpoint using the entered
+ * key. Model ids drift between providers/accounts, so the curated presets are
+ * only a starting point — this returns exactly what the account can use.
+ *
+ * @param {object} conn { baseUrl, apiKey }
+ * @returns {Promise<string[]>} sorted model ids (throws with a friendly message on failure)
+ */
+export async function fetchProviderModels({ baseUrl, apiKey } = {}) {
+  const base = String(baseUrl || '').trim().replace(/\/$/, '');
+  const key = String(apiKey || '').trim();
+  if (!base) throw new Error('Enter the base URL first.');
+  if (/ACCOUNT_ID/.test(base)) throw new Error('Replace ACCOUNT_ID in the base URL first.');
+  if (!key) throw new Error('Enter the API key first.');
+
+  let res;
+  try {
+    res = await fetch(`${base}/models`, { headers: { Authorization: `Bearer ${key}` } });
+  } catch {
+    throw new Error('Could not reach the provider. Check the base URL and your connection.');
+  }
+  if (res.status === 401 || res.status === 403) throw new Error('The API key was rejected. Check the key for this provider.');
+  if (!res.ok) throw new Error(`Provider returned HTTP ${res.status} for /models. It may not support listing models — enter the id manually.`);
+
+  let payload = null;
+  try { payload = await res.json(); } catch { throw new Error('Provider did not return a model list. Enter the model id manually.'); }
+  // OpenAI shape: { data: [{ id }] }. Some return { models: [...] } or a bare array.
+  const raw = Array.isArray(payload?.data) ? payload.data
+    : Array.isArray(payload?.models) ? payload.models
+    : Array.isArray(payload) ? payload : [];
+  const ids = raw
+    .map(m => (typeof m === 'string' ? m : m?.id || m?.name || m?.model))
+    .filter(id => typeof id === 'string' && id.trim())
+    .map(id => id.trim());
+  if (!ids.length) throw new Error('The provider returned no models for this key. Enter the model id manually.');
+  return [...new Set(ids)].sort((a, b) => a.localeCompare(b));
+}
+
 export function cloudProviderToModel(provider) {
   const preset = getCloudProviderPreset(provider.provider);
   return {

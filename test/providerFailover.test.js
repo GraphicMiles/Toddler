@@ -8,6 +8,10 @@ assert.ok(modelQualityScore('llama-3.3-70b-versatile') > modelQualityScore('llam
 assert.ok(modelQualityScore('deepseek-r1') > modelQualityScore('gemma-2-9b'));
 assert.ok(modelQualityScore('qwen3-235b') > modelQualityScore('qwen3-32b'));
 assert.ok(modelQualityScore('gpt-4o') > modelQualityScore('gpt-4o-mini'));
+// Very large open models must outrank 70B (regression: 235B/480B/405B were unranked).
+assert.ok(modelQualityScore('qwen-3-235b-a22b-instruct-2507') > modelQualityScore('llama-3.3-70b'));
+assert.ok(modelQualityScore('qwen3-coder:480b') > modelQualityScore('llama-3.3-70b'));
+assert.ok(modelQualityScore('Meta-Llama-3.1-405B-Instruct') > modelQualityScore('llama-3.3-70b'));
 
 // fallback chain orders strongest-model-first when priorities aren't pinned
 clearAllCooldowns();

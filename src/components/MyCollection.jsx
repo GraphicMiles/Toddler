@@ -26,6 +26,8 @@ function CloudProviderPanel({ providers = [], onAdd, onRemove, onSelectModel }) 
   const [label, setLabel] = useState(preset.label);
   const [baseUrl, setBaseUrl] = useState(preset.baseUrl);
   const [modelId, setModelId] = useState(preset.defaultModel);
+  // When true, the user is typing a model id that isn't in the preset list.
+  const [customModel, setCustomModel] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [error, setError] = useState('');
   // The add-provider form only renders on demand — the empty state and the form
@@ -38,8 +40,22 @@ function CloudProviderPanel({ providers = [], onAdd, onRemove, onSelectModel }) 
     setLabel(next.label);
     setBaseUrl(next.baseUrl);
     setModelId(next.defaultModel);
+    // Custom-endpoint provider (or one with no curated list) uses free text.
+    setCustomModel(!next.models || next.models.length === 0);
     setError('');
   };
+
+  // Model options for the selected preset: its curated lineup (best→lowest) + a
+  // "Custom model ID…" escape hatch. Ensures the current modelId is always shown.
+  const CUSTOM_OPTION = '__custom__';
+  const modelOptions = (() => {
+    const list = Array.isArray(preset.models) ? [...preset.models] : [];
+    if (modelId && !list.includes(modelId) && !customModel) list.unshift(modelId);
+    return [
+      ...list.map(m => ({ value: m, label: m })),
+      { value: CUSTOM_OPTION, label: 'Custom model ID…' },
+    ];
+  })();
 
   // Well-known key prefixes (from the catalog) — a soft, non-blocking hint when
   // the pasted key clearly belongs to a different provider. Longest prefix first
@@ -92,10 +108,29 @@ function CloudProviderPanel({ providers = [], onAdd, onRemove, onSelectModel }) 
           <input value={baseUrl} onChange={event => setBaseUrl(event.target.value)} placeholder="https://api.example.com/v1" />
         </label>
         <label className="detail">
-          <span className="detail-label">Model ID</span>
-          <input value={modelId} onChange={event => setModelId(event.target.value)} placeholder="grok-4" />
+          <span className="detail-label">Model</span>
+          {preset.models && preset.models.length > 0 && !customModel ? (
+            <DropdownMenu
+              value={preset.models.includes(modelId) || modelId ? modelId : preset.defaultModel}
+              onChange={(val) => { if (val === CUSTOM_OPTION) { setCustomModel(true); setModelId(''); } else { setModelId(val); } }}
+              label="Model"
+              options={modelOptions}
+            />
+          ) : (
+            <input value={modelId} onChange={event => setModelId(event.target.value)} placeholder="model id (e.g. llama-3.3-70b)" />
+          )}
         </label>
       </div>
+      {preset.models && preset.models.length > 0 && (
+        <p className="setting-help provider-model-hint">
+          {customModel
+            ? 'Enter any model id this provider supports.'
+            : 'Models are listed strongest → lightest. Pick a bigger model for smarter results (uses more quota).'}
+          {customModel && (
+            <button type="button" className="link-button" onClick={() => { setCustomModel(false); setModelId(preset.defaultModel); }}> Use preset list</button>
+          )}
+        </p>
+      )}
       {preset.id !== 'custom' && (
         <div className="provider-howto">
           {preset.freeTier && <p className="setting-help"><strong>Free tier:</strong> {preset.freeTier}</p>}

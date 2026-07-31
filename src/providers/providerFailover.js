@@ -22,9 +22,13 @@ const MODEL_TIERS = [
   // "small" markers first so gpt-4o-mini / flash-lite / *-instant don't match a
   // bigger tier by a substring like "gpt-4o".
   { re: /(mini|nano|flash-lite|-lite\b|instant|\b1\.5b|\b3b\b|\b7b\b|\b8b\b|\b9b\b|small)/i, score: 40 },
-  { re: /\b(gpt-?5|o[34]|claude.*(opus|sonnet)|opus|sonnet)\b/i, score: 100 },
-  { re: /(deepseek.*(v[34]|r1)|qwen3.*(235b|480b|coder)|llama.*4|405b|grok-?4|gemini.*(2\.5|3).*pro|mistral-large|command-a|command-r-plus|nemotron.*(ultra|super))/i, score: 90 },
-  { re: /(70b|72b|gpt-oss-120b|glm-4|qwen3-32b|gemini.*(flash|2\.5)|mixtral|codestral|devstral|gpt-4o|gpt-4\.1)/i, score: 75 },
+  // Frontier proprietary.
+  { re: /\b(gpt-?5|o[34]|claude.*(opus|sonnet)|opus|sonnet|grok-?4)\b/i, score: 100 },
+  // Very large open / flagship (200B+ params, 400B+, MoE flagships, top reasoning).
+  { re: /(2[0-9]{2}b|[3-9][0-9]{2}b|\b1t\b|671b|480b|405b|235b|deepseek.*(v[34]|r1|reasoner)|llama.*4|gemini.*(2\.5|3).*pro|mistral-large|command-a|nemotron.*(ultra|super)|maverick)/i, score: 90 },
+  // Strong mid (70B-class, 120B MoE, flagship flash, coding specialists).
+  { re: /(70b|72b|gpt-oss-120b|49b|glm-4|qwen-?3-?32b|qwen3-32b|gemini.*(flash|2\.5)|mixtral|codestral|devstral|command-r-plus|gpt-4o|gpt-4\.1)/i, score: 75 },
+  // Small-mid.
   { re: /(30b|32b|gpt-oss-20b|gemma|command-r\b|qwen2\.5-coder)/i, score: 60 },
 ];
 

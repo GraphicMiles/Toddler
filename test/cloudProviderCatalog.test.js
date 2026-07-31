@@ -18,6 +18,9 @@ for (const p of CLOUD_PROVIDER_PRESETS) {
   if (p.id === 'custom') continue;
   assert.ok(/^https?:\/\//.test(p.baseUrl), `${p.id} needs a valid baseUrl`);
   assert.ok(p.defaultModel, `${p.id} needs a defaultModel`);
+  // Every non-custom preset ships a curated model lineup, and the default must be in it.
+  assert.ok(Array.isArray(p.models) && p.models.length >= 1, `${p.id} needs a models list`);
+  assert.ok(p.models.includes(p.defaultModel), `${p.id} default model must be in its models list`);
   assert.ok(p.freeTier, `${p.id} needs a freeTier note`);
   assert.ok(p.keyUrl, `${p.id} needs a keyUrl`);
   assert.ok(p.howTo, `${p.id} needs a howTo`);
